@@ -12,18 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import collections
 import datetime
 import enum
 import json
 import os
+from typing import List
 from urllib.parse import urljoin, urlparse, parse_qs
 
 from oauthlib.common import generate_nonce
+import pytz
 import requests
 from requests_oauthlib import OAuth2Session
 
 
 API_VERSION = 'protocol=1.0,resource=2.1'
+SRP_KEY = 'D5AF0E14718E662D12DBB4FE42304DF5A8E48359E22261138B40AA16CC85C76A11B43200A1EECB3C9546A262D1FBD51ACE6FCDE558C00665BBF93FF86B9F8F76AA7A53CA74F5B4DFF9A4B847295E7D82450A2078B5A28814A7A07F8BBDD34F8EEB42B0E70499087A242AA2C5BA9513C8F9D35A81B33A121EEF0A71F3F9071CCD'
 
 
 settings_map = {
@@ -36,6 +40,7 @@ settings_map = {
             'realm': 'a-ncb-prod',
             'redirect_uri': 'org.kamereon.service.nci:/oauth2redirect',
             'car_adapter_base_url': 'https://alliance-platform-caradapter-prod.apps.eu.kamereon.io/car-adapter/',
+            'notifications_base_url': 'https://alliance-platform-notifications-prod.apps.eu.kamereon.io/notifications/',
             'user_adapter_base_url': 'https://alliance-platform-usersadapter-prod.apps.eu.kamereon.io/user-adapter/',
             'user_base_url': 'https://nci-bff-web-prod.apps.eu.kamereon.io/bff-web/',
         },
@@ -45,6 +50,31 @@ settings_map = {
     'mitsubishi': {},
     'renault': {},
 }
+
+
+USERS = 'users'
+VEHICLES = 'vehicles'
+CATEGORIES = 'categories'
+NOTIFICATION_RULES = 'notification_rules'
+NOTIFICATION_TYPES = 'notification_types'
+NOTIFICATION_CATEGORIES = 'notification_categories'
+_registry = {
+    USERS: {},
+    VEHICLES: {},
+    CATEGORIES: {},
+    NOTIFICATION_RULES: {},
+    NOTIFICATION_TYPES: {},
+    NOTIFICATION_CATEGORIES: {},
+}
+
+
+class HVACAction(enum.Enum):
+    # Start or schedule start
+    START = 'start'
+    # Stop active HVAC
+    STOP = 'stop'
+    # Cancel scheduled HVAC
+    CANCEL = 'cancel'
 
 
 class HVACStatus(enum.Enum):
@@ -65,6 +95,12 @@ class Door(enum.Enum):
     FRONT_RIGHT = 'front-right'
     REAR_LEFT = 'rear-left'
     REAR_RIGHT = 'rear-right'
+
+
+class LockableDoorGroup(enum.Enum):
+    DOORS_AND_HATCH = 'doors_hatch'
+    DRIVERS_DOOR = 'driver_s_door'
+    HATCH = 'hatch'
 
 
 class ChargingSpeed(enum.Enum):
@@ -183,7 +219,388 @@ class Feature(enum.Enum):
     PANIC_CALL = '406'
 
 
-class Kamereon:
+class Language(enum.Enum):
+    """The service requires ISO 639-1 language codes to be mapped back
+    to ISO 3166-1 country codes. Of course.
+    """
+
+    # Bulgarian = Bulgaria
+    BG = 'BG'
+    # Czech = Czech Republic
+    CS = 'CZ'
+    # Danish = Denmark
+    DA = 'DK'
+    # German = Germany
+    DE = 'DE'
+    # Greek = Greece
+    EL = 'GR'
+    # Spanish = Spain
+    ES = 'ES'
+    # Finnish = Finland
+    FI = 'FI'
+    # French = France
+    FR = 'FR'
+    # Hebrew = Israel
+    HE = 'IL'
+    # Croatian = Croatia
+    HR = 'HR'
+    # Hungarian = Hungary
+    HU = 'HU'
+    # Italian = Italy
+    IT = 'IT'
+    # Formal Norwegian = Norway
+    NB = 'NO'
+    # Dutch = Netherlands
+    NL = 'NL'
+    # Polish = Poland
+    PL = 'PL'
+    # Portuguese = Portugal
+    PT = 'PT'
+    # Romanian = Romania
+    RO = 'RO'
+    # Russian = Russia
+    RU = 'RU'
+    # Slovakian = Slovakia
+    SK = 'SK'
+    # Slovenian = Slovenia
+    SI = 'SL'
+    # Serbian = Serbia
+    SR = 'RS'
+    # Swedish = Sweden
+    SV = 'SE'
+    # Ukranian = Ukraine
+    UK = 'UA'
+    # Default
+    EN = 'EN'
+
+
+class Order(enum.Enum):
+    DESC = 'DESC'
+    ASC = 'ASC'
+
+
+class NotificationCategoryKey(enum.Enum):
+    ASSISTANCE = 'assistance'
+    CHARGE_EV = 'chargeev'
+    CUSTOM = 'custom'
+    EV_BATTERY = 'EVBattery'
+    FOTA = 'fota'
+    GEO_FENCING = 'geofencing'
+    MAINTENANCE = 'maintenance'
+    NAVIGATION = 'navigation'
+    PRIVACY_MODE = 'privacymode'
+    REMOTE_CONTROL = 'remotecontrol'
+    RESET = 'RESET'
+    RGDC = 'rgdcmyze'
+    SAFETY_AND_SECURITY = 'Safety&Security'
+    SVT = 'SVT'
+
+
+class NotificationStatus(enum.Enum):
+    READ = 'READ'
+    UNREAD = 'UNREAD'
+
+
+class NotificationChannelType(enum.Enum):
+    PUSH_APP = 'PUSH_APP'
+    MAIL = 'MAIL'
+    OFF = ''
+    SMS = 'SMS'
+
+
+NotificationType = collections.namedtuple('NotificationType', ['key', 'title', 'message', 'category'])
+NotificationCategory = collections.namedtuple('Category', ['key', 'title'])
+
+
+class NotificationTypeKey(enum.Enum):
+    ABS_ALERT = 'abs.alert'
+    AVAILABLE_CHARGING = 'available.charging'
+    BADGE_BATTERY_ALERT = 'badge.battery.alert'
+    BATTERY_BLOWING_REQUEST = 'battery.blowing.request'
+    BATTERY_CHARGE_AVAILABLE = 'battery.charge.available'
+    BATTERY_CHARGE_IN_PROGRESS = 'battery.charge.in.progress'
+    BATTERY_CHARGE_UNAVAILABLE = 'battery.charge.unavailable'
+    BATTERY_COOLING_CONDITIONNING_REQUEST = 'battery.cooling.conditionning.request'
+    BATTERY_ENDED_CHARGE = 'battery.ended.charge'
+    BATTERY_FLAP_OPENED = 'battery.flap.opened'
+    BATTERY_FULL_EXCEPTION = 'battery.full.exception'
+    BATTERY_HEATING_CONDITIONNING_REQUEST = 'battery.heating.conditionning.request'
+    BATTERY_HEATING_START = 'battery.heating.start'
+    BATTERY_HEATING_STOP = 'battery.heating.stop'
+    BATTERY_PREHEATING_START = 'battery.preheating.start'
+    BATTERY_PREHEATING_STOP = 'battery.preheating.stop'
+    BATTERY_SCHEDULE_ISSUE = 'battery.schedule.issue'
+    BATTERY_TEMPERATURE_ALERT = 'battery.temperature.alert'
+    BATTERY_WAITING_CURRENT_CHARGE = 'battery.waiting.current.charge'
+    BATTERY_WAITING_PLANNED_CHARGE = 'battery.waiting.planned.charge'
+    BRAKE_ALERT = 'brake.alert'
+    BRAKE_SYSTEM_MALFUNCTION = 'brake.system.malfunction'
+    BURGLAR_ALARM_LOST = 'burglar.alarm.lost'
+    BURGLAR_CAR_STOLEN = 'burglar.car.stolen'
+    BURGLAR_TOW_INFO = 'burglar.tow.info'
+    CHARGE_FAILURE = 'charge.failure'
+    CHARGE_NOT_PROHIBITED = 'charge.not.prohibited'
+    CHARGE_PROHIBITED = 'charge.prohibited'
+    CHARGING_STOP_GEN3 = 'charging.stop.gen3'
+    COOLANT_ALERT = 'coolant.alert'
+    CRASH_DETECTION_ALERT = 'crash.detection.alert'
+    CURFEW_INFRINGEMENT = 'curfew.infringement'
+    CURFEW_RECOVERY = 'curfew.recovery'
+    CUSTOM = 'custom'
+    DURING_INHIBITED_CHARGING = 'during.inhibited.charging'
+    ENGINE_WATER_TEMP_ALERT = 'engine.water.temp.alert'
+    EPS_ALERT = 'eps.alert'
+    FOTA_CAMPAIGN_AVAILABLE = 'fota.campaign.available'
+    FOTA_CAMPAIGN_STATUS_ACTIVATION_COMPLETED = 'fota.campaign.status.activation.completed'
+    FOTA_CAMPAIGN_STATUS_ACTIVATION_FAILED = 'fota.campaign.status.activation.failed'
+    FOTA_CAMPAIGN_STATUS_ACTIVATION_POSTPONED = 'fota.campaign.status.activation.postponed'
+    FOTA_CAMPAIGN_STATUS_ACTIVATION_PROGRESS = 'fota.campaign.status.activation.progress'
+    FOTA_CAMPAIGN_STATUS_ACTIVATION_SCHEDULED = 'fota.campaign.status.activation.scheduled'
+    FOTA_CAMPAIGN_STATUS_CANCELLED = 'fota.campaign.status.cancelled'
+    FOTA_CAMPAIGN_STATUS_CANCELLING = 'fota.campaign.status.cancelling'
+    FOTA_CAMPAIGN_STATUS_DOWNLOAD_COMPLETED = 'fota.campaign.status.download.completed'
+    FOTA_CAMPAIGN_STATUS_DOWNLOAD_PAUSED = 'fota.campaign.status.download.paused'
+    FOTA_CAMPAIGN_STATUS_DOWNLOAD_PROGRESS = 'fota.campaign.status.download.progress'
+    FOTA_CAMPAIGN_STATUS_INSTALLATION_COMPLETED = 'fota.campaign.status.installation.completed'
+    FOTA_CAMPAIGN_STATUS_INSTALLATION_PROGRESS = 'fota.campaign.status.installation.progress'
+    FUEL_ALERT = 'fuel.alert'
+    HVAC_AUTOSTART = 'hvac.autostart'
+    HVAC_AUTOSTOP = 'hvac.autostop'
+    HVAC_TECHNICAL_ISSUE = 'hvac.technical.issue'
+    HVAC_TRACTION_BATTERY_LOW = 'hvac.traction.battery.low'
+    HVAC_VEHICLE_IN_USE = 'hvac.vehicle.in.use'
+    HVAC_VEHICLE_NOT_CONNECTED_POWER = 'hvac.vehicle.not.connected.power'
+    LAST_MILE_DESTINATION_ADDRESS = 'last.mile.destination.address'
+    LOCK_STATUS_REMINDER = 'lock.status.reminder'
+    MAINTENANCE_DISTANCE_PREALERT = 'maintenance.distance.prealert'
+    MAINTENANCE_TIME_PREALERT = 'maintenance.time.prealert'
+    MIL_LAMP_AUTO_TEST = 'mil.lamp.auto.test'
+    MIL_LAMP_FLASH_REQUEST = 'mil.lamp.flash.request'
+    MIL_LAMP_OFF_REQUEST = 'mil.lamp.off.request'
+    MIL_LAMP_ON_REQUEST = 'mil.lamp.on.request'
+    NEXT_CHARGING_INHIBITED = 'next.charging.inhibited'
+    OIL_LEVEL_ALERT = 'oil.level.alert'
+    OIL_PRESSURE_ALERT = 'oil.pressure.alert'
+    OUT_OF_PARK_POSITION_CHARGE_INTERRUPTION = 'out.of.park.position.charge.interruption'
+    PLUG_CONNECTION_ISSUE = 'plug.connection.issue'
+    PLUG_CONNECTION_SUCCESS = 'plug.connection.success'
+    PLUG_UNLOCKING = 'plug.unlocking'
+    PREREMINDER_ALERT_DEFAULT = 'prereminder.alert.default'
+    PRIVACY_MODE_OFF = 'privacy.mode.off'
+    PRIVACY_MODE_ON = 'privacy.mode.on'
+    PROGRAMMED_CHARGE_INTERRUPTION = 'programmed.charge.interruption'
+    PROHIBITION_BATTERY_RENTAL = 'prohibition.battery.rental'
+    PWT_START_IMPOSSIBLE = 'pwt.start.impossible'
+    REMOTE_LEFT_TIME_CYCLE = 'remote.left.time.cycle'
+    REMOTE_START_CUSTOMER = 'remote.start.customer'
+    REMOTE_START_ENGINE = 'remote.start.engine'
+    REMOTE_START_NORMAL_ONLY = 'remote.start.normal.only'
+    REMOTE_START_PHONE_ERROR = 'remote.start.phone.error'
+    REMOTE_START_UNAVAILABLE = 'remote.start.unavailable'
+    REMOTE_START_WAIT_PRESOAK = 'remote.start.wait.presoak'
+    SERV_WARNING_ALERT = 'serv.warning.alert'
+    SPEED_INFRINGEMENT = 'speed.infringement'
+    SPEED_RECOVERY = 'speed.recovery'
+    START_DRIVING_CHARGE_INTERRUPTION = 'start.driving.charge.interruption'
+    START_IN_PROGRESS = 'start.in.progress'
+    STATUS_OIL_PRESSURE_SWITCH_CLOSED = 'status.oil.pressure.switch.closed'
+    STATUS_OIL_PRESSURE_SWITCH_OPEN = 'status.oil.pressure.switch.open'
+    STOP_WARNING_ALERT = 'stop.warning.alert'
+    UNPLUG_CHARGE = 'unplug.charge'
+    WAITING_PLANNED_CHARGE = 'waiting.planned.charge'
+    WHEEL_ALERT = 'wheel.alert'
+    ZONE_INFRINGEMENT = 'zone.infringement'
+    ZONE_RECOVERY = 'zone.recovery'
+
+
+class NotificationRuleKey(enum.Enum):
+    ABS_ALERT = 'abs.alert'
+    AVAILABLE_CHARGING = 'available.charging'
+    BADGE_BATTERY_ALERT = 'badge.battery.alert'
+    BATTERY_BLOWING_REQUEST = 'battery.blowing.request'
+    BATTERY_CHARGE_AVAILABLE = 'battery.charge.available'
+    BATTERY_CHARGE_IN_PROGRESS = 'battery.charge.in.progress'
+    BATTERY_CHARGE_UNAVAILABLE = 'battery.charge.unavailable'
+    BATTERY_COOLING_CONDITIONNING_REQUEST = 'battery.cooling.conditionning.request'
+    BATTERY_ENDED_CHARGE = 'battery.ended.charge'
+    BATTERY_FLAP_OPENED = 'battery.flap.opened'
+    BATTERY_FULL_EXCEPTION = 'battery.full.exception'
+    BATTERY_HEATING_CONDITIONNING_REQUEST = 'battery.heating.conditionning.request'
+    BATTERY_HEATING_START = 'battery.heating.start'
+    BATTERY_HEATING_STOP = 'battery.heating.stop'
+    BATTERY_PREHEATING_START = 'battery.preheating.start'
+    BATTERY_PREHEATING_STOP = 'battery.preheating.stop'
+    BATTERY_SCHEDULE_ISSUE = 'battery.schedule.issue'
+    BATTERY_TEMPERATURE_ALERT = 'battery.temperature.alert'
+    BATTERY_WAITING_CURRENT_CHARGE = 'battery.waiting.current.charge'
+    BATTERY_WAITING_PLANNED_CHARGE = 'battery.waiting.planned.charge'
+    BRAKE_ALERT = 'brake.alert'
+    BRAKE_SYSTEM_MALFUNCTION = 'brake.system.malfunction'
+    BURGLAR_ALARM_LOST = 'burglar.alarm.lost'
+    BURGLAR_CAR_STOLEN = 'burglar.car.stolen'
+    BURGLAR_TOW_INFO = 'burglar.tow.info'
+    BURGLAR_TOW_SYSTEM_FAILURE = 'burglar.tow.system.failure'
+    CHARGE_FAILURE = 'charge.failure'
+    CHARGE_NOT_PROHIBITED = 'charge.not.prohibited'
+    CHARGE_PROHIBITED = 'charge.prohibited'
+    CHARGING_STOP_GEN3 = 'charging.stop.gen3'
+    COOLANT_ALERT = 'coolant.alert'
+    CRASH_DETECTION_ALERT = 'crash.detection.alert'
+    CURFEW_INFRINGEMENT = 'curfew.infringement'
+    CURFEW_RECOVERY = 'curfew.recovery'
+    CUSTOM = 'custom'
+    DURING_INHIBITED_CHARGING = 'during.inhibited.charging'
+    ENGINE_WATER_TEMP_ALERT = 'engine.water.temp.alert'
+    EPS_ALERT = 'eps.alert'
+    FOTA_CAMPAIGN_AVAILABLE = 'fota.campaign.available'
+    FOTA_CAMPAIGN_STATUS_ACTIVATION_COMPLETED = 'fota.campaign.status.activation.completed'
+    FOTA_CAMPAIGN_STATUS_ACTIVATION_FAILED = 'fota.campaign.status.activation.failed'
+    FOTA_CAMPAIGN_STATUS_ACTIVATION_POSTPONED = 'fota.campaign.status.activation.postponed'
+    FOTA_CAMPAIGN_STATUS_ACTIVATION_PROGRESS = 'fota.campaign.status.activation.progress'
+    FOTA_CAMPAIGN_STATUS_ACTIVATION_SCHEDULED = 'fota.campaign.status.activation.scheduled'
+    FOTA_CAMPAIGN_STATUS_CANCELLED = 'fota.campaign.status.cancelled'
+    FOTA_CAMPAIGN_STATUS_CANCELLING = 'fota.campaign.status.cancelling'
+    FOTA_CAMPAIGN_STATUS_DOWNLOAD_COMPLETED = 'fota.campaign.status.download.completed'
+    FOTA_CAMPAIGN_STATUS_DOWNLOAD_PAUSED = 'fota.campaign.status.download.paused'
+    FOTA_CAMPAIGN_STATUS_DOWNLOAD_PROGRESS = 'fota.campaign.status.download.progress'
+    FOTA_CAMPAIGN_STATUS_INSTALLATION_COMPLETED = 'fota.campaign.status.installation.completed'
+    FOTA_CAMPAIGN_STATUS_INSTALLATION_PROGRESS = 'fota.campaign.status.installation.progress'
+    FUEL_ALERT = 'fuel.alert'
+    HVAC_AUTOSTART = 'hvac.autostart'
+    HVAC_AUTOSTOP = 'hvac.autostop'
+    HVAC_TECHNICAL_ISSUE = 'hvac.technical.issue'
+    HVAC_TRACTION_BATTERY_LOW = 'hvac.traction.battery.low'
+    HVAC_VEHICLE_IN_USE = 'hvac.vehicle.in.use'
+    HVAC_VEHICLE_NOT_CONNECTED_POWER = 'hvac.vehicle.not.connected.power'
+    LAST_MILE_DESTINATION_ADDRESS = 'last.mile.destination.address'
+    LOCK_STATUS_REMINDER = 'lock.status.reminder'
+    MAINTENANCE_DISTANCE_PREALERT = 'maintenance.distance.prealert'
+    MAINTENANCE_TIME_PREALERT = 'maintenance.time.prealert'
+    MIL_LAMP_AUTO_TEST = 'mil.lamp.auto.test'
+    MIL_LAMP_FLASH_REQUEST = 'mil.lamp.flash.request'
+    MIL_LAMP_OFF_REQUEST = 'mil.lamp.off.request'
+    MIL_LAMP_ON_REQUEST = 'mil.lamp.on.request'
+    NEXT_CHARGING_INHIBITED = 'next.charging.inhibited'
+    OIL_LEVEL_ALERT = 'oil.level.alert'
+    OIL_PRESSURE_ALERT = 'oil.pressure.alert'
+    OUT_OF_PARK_POSITION_CHARGE_INTERRUPTION = 'out.of.park.position.charge.interruption'
+    PLUG_CONNECTION_ISSUE = 'plug.connection.issue'
+    PLUG_CONNECTION_SUCCESS = 'plug.connection.success'
+    PLUG_UNLOCKING = 'plug.unlocking'
+    PREREMINDER_ALERT_DEFAULT = 'prereminder.alert.default'
+    PRIVACY_MODE_OFF = 'privacy.mode.off'
+    PRIVACY_MODE_ON = 'privacy.mode.on'
+    PROGRAMMED_CHARGE_INTERRUPTION = 'programmed.charge.interruption'
+    PROHIBITION_BATTERY_RENTAL = 'prohibition.battery.rental'
+    PWT_START_IMPOSSIBLE = 'pwt.start.impossible'
+    REMOTE_LEFT_TIME_CYCLE = 'remote.left.time.cycle'
+    REMOTE_START_CUSTOMER = 'remote.start.customer'
+    REMOTE_START_ENGINE = 'remote.start.engine'
+    REMOTE_START_NORMAL_ONLY = 'remote.start.normal.only'
+    REMOTE_START_PHONE_ERROR = 'remote.start.phone.error'
+    REMOTE_START_UNAVAILABLE = 'remote.start.unavailable'
+    REMOTE_START_WAIT_PRESOAK = 'remote.start.wait.presoak'
+    RENAULT_RESET_FACTORY = 'renault.reset.factory'
+    RGDC_CHARGE_COMPLETE = 'rgdc.charge.complete'
+    RGDC_CHARGE_ERROR = 'rgdc.charge.error'
+    RGDC_CHARGE_ON = 'rgdc.charge.on'
+    RGDC_CHARGE_STATUS = 'rgdc.charge.status'
+    RGDC_LOW_BATTERY_ALERT = 'rgdc.low.battery.alert'
+    RGDC_LOW_BATTERY_REMINDER = 'rgdc.low.battery.reminder'
+    SERV_WARNING_ALERT = 'serv.warning.alert'
+    SPEED_INFRINGEMENT = 'speed.infringement'
+    SPEED_RECOVERY = 'speed.recovery'
+    SRP_PINCODE_ACKNOWLEDGEMENT = 'srp.pincode.acknowledgement'
+    SRP_PINCODE_DELETION = 'srp.pincode.deletion'
+    SRP_PINCODE_STATUS = 'srp.pincode.status'
+    SRP_SALT_REQUEST = 'srp.salt.request'
+    START_DRIVING_CHARGE_INTERRUPTION = 'start.driving.charge.interruption'
+    START_IN_PROGRESS = 'start.in.progress'
+    STATUS_OIL_PRESSURE_SWITCH_CLOSED = 'status.oil.pressure.switch.closed'
+    STATUS_OIL_PRESSURE_SWITCH_OPEN = 'status.oil.pressure.switch.open'
+    STOLEN_VEHICLE_TRACKING = 'stolen.vehicle.tracking'
+    STOLEN_VEHICLE_TRACKING_BLOCKING = 'stolen.vehicle.tracking.blocking'
+    STOP_WARNING_ALERT = 'stop.warning.alert'
+    SVT_SERVICE_ACTIVATION = 'svt.service.activation'
+    UNPLUG_CHARGE = 'unplug.charge'
+    WAITING_PLANNED_CHARGE = 'waiting.planned.charge'
+    WHEEL_ALERT = 'wheel.alert'
+    ZONE_INFRINGEMENT = 'zone.infringement'
+    ZONE_RECOVERY = 'zone.recovery'
+
+
+class NotificationPriority(enum.Enum):
+
+    NONE = 'null'
+    P0 = '0'
+    P1 = '1'
+    P2 = '2'
+    P3 = '3'
+
+
+class NotificationRuleStatus(enum.Enum):
+    ACTIVATED = 'ACTIVATED'
+    ACTIVATION_IN_PROGRESS = 'STATUS_ACTIVATION_IN_PROGRESS'
+    DELETION_IN_PROGRESS = 'STATUS_DELETION_IN_PROGRESS'
+
+
+class Notification:
+
+    @property
+    def vehicle(self):
+        return _registry[VEHICLES][self.vin]
+
+    @property
+    def user_id(self):
+        return self.vehicle.user_id
+
+    @property
+    def session(self):
+        return self.vehicle.session
+
+    def __init__(self, data, language, vin):
+        self.language = language
+        self.vin = vin
+        self.id = data['notificationId']
+        self.title = data['messageTitle']
+        self.subtitle = data['messageSubtitle']
+        self.description = data['messageDescription']
+        self.category = NotificationCategoryKey(data['categoryKey'])
+        self.rule_key = NotificationRuleKey(data['ruleKey'])
+        self.notification_key = NotificationTypeKey(data['notificationKey'])
+        self.priority = NotificationPriority(data['priority'])
+        self.state = NotificationStatus(data['status'])
+        t = datetime.datetime.strptime(data['timestamp'].split('.')[0], '%Y-%m-%dT%H:%M:%S')
+        if '.' in data['timestamp']:
+            fraction = data['timestamp'][20:-1]
+            t = t.replace(microsecond=int(fraction) * 10**(6-len(fraction)))
+        self.time = t
+        # List of {'name': 'N', 'type': 'T', 'value': 'V'}
+        self.data = data['data']
+        # future use maybe? empty dict
+        self.metadata = data['metadata']
+
+    def __str__(self):
+        # title is kinda useless, subtitle has better content
+        return '{}: {}'.format(self.time, self.subtitle)
+
+    def fetch_details(self, language: Language=None):
+        if language is None:
+            language = self.language
+        resp = self.session.oauth.get(
+            '{}v2/notifications/users/{}/vehicles/{}/notifications/{}'.format(
+                self.session.settings['notifications_base_url'],
+                self.user_id, self.vin, self.id
+            ),
+            params={'langCode': language.value}
+        )
+        return resp
+
+
+class KamereonSession:
+
+    tenant = None
+    copy_realm = None
 
     def __init__(self, territory):
         self.settings = settings_map[self.tenant][territory]
@@ -229,7 +646,6 @@ class Kamereon:
             data=json.dumps(next_body))
 
         oauth_data = resp.json()
-        #self._access_token = oauth_data['tokenId']
         
         oauth_authorize_url = '{}oauth2{}/authorize'.format(
             self.settings['auth_base_url'],
@@ -273,20 +689,27 @@ class Kamereon:
         resp = self.oauth.get(
             '{}v1/users/current'.format(self.settings['user_adapter_base_url'])
         )
-        return resp.json()['userId']
+        user_id = resp.json()['userId']
+        self.user_id = user_id
+        _registry[USERS][user_id] = self
+        return user_id
 
-    def get_cars(self, user_id):
+    def fetch_vehicles(self):
         resp = self.oauth.get(
-            '{}v2/users/{}/cars'.format(self.settings['user_base_url'], user_id)
+            '{}v2/users/{}/cars'.format(self.settings['user_base_url'], self.user_id)
         )
-        return [
-            Vehicle(v, self) for v in resp.json()['data']
-        ]
+        vehicles = []
+        for vehicle_data in resp.json()['data']:
+            vehicle = Vehicle(vehicle_data, self.user_id)
+            vehicles.append(vehicle)
+            _registry[VEHICLES][vehicle.vin] = vehicle
+        return vehicles
 
 
-class NCI(Kamereon):
+class NCISession(KamereonSession):
 
     tenant = 'nissan'
+    copy_realm = 'P_NCB'
 
 
 class Vehicle:
@@ -297,9 +720,13 @@ class Vehicle:
     def __str__(self):
         return self.nickname or self.vin
 
-    def __init__(self, data, connection):
-        self.connection = connection
-        self.vin = data.get('vin')
+    @property
+    def session(self):
+        return _registry[USERS][self.user_id]
+
+    def __init__(self, data, user_id):
+        self.user_id = user_id
+        self.vin = data['vin'].upper()
         self.features = [
             Feature(u['name'])
             for u in data.get('uids', [])
@@ -355,12 +782,22 @@ class Vehicle:
         }
         self.lock_status = None
         self.lock_status_last_updated = None
+        self.eco_score = None
+        self.fuel_autonomy = None
+        self.fuel_consumption = None
+        self.fuel_economy = None
+        self.fuel_level = None
+        self.fuel_low_warning = None
+        self.fuel_quantity = None
+        self.mileage = None
+        self.total_mileage = None
 
     def refresh(self):
         self.refresh_location()
         self.refresh_battery_status()
 
     def fetch_all(self):
+        self.fetch_cockpit()
         self.fetch_location()
         self.fetch_battery_status()
         self.fetch_energy_unit_cost()
@@ -368,8 +805,8 @@ class Vehicle:
         self.fetch_lock_status()
 
     def refresh_location(self):
-        resp = self.connection.oauth.post(
-            '{}v1/cars/{}/actions/refresh-location'.format(self.connection.settings['car_adapter_base_url'], self.vin),
+        resp = self.session.oauth.post(
+            '{}v1/cars/{}/actions/refresh-location'.format(self.session.settings['car_adapter_base_url'], self.vin),
             data=json.dumps({
                 'data': {'type': 'RefreshLocation'}
             }),
@@ -378,8 +815,8 @@ class Vehicle:
         return resp.json()
 
     def fetch_location(self):
-        resp = self.connection.oauth.get(
-            '{}v1/cars/{}/location'.format(self.connection.settings['car_adapter_base_url'], self.vin),
+        resp = self.session.oauth.get(
+            '{}v1/cars/{}/location'.format(self.session.settings['car_adapter_base_url'], self.vin),
             headers={'Content-Type': 'application/vnd.api+json'}
         )
         location_data = resp.json()['data']['attributes']
@@ -387,8 +824,8 @@ class Vehicle:
         self.location_last_updated = datetime.datetime.fromisoformat(location_data['lastUpdateTime'].replace('Z','+00:00'))
 
     def refresh_lock_status(self):
-        resp = self.connection.oauth.post(
-            '{}v1/cars/{}/actions/refresh-lock-status'.format(self.connection.settings['car_adapter_base_url'], self.vin),
+        resp = self.session.oauth.post(
+            '{}v1/cars/{}/actions/refresh-lock-status'.format(self.session.settings['car_adapter_base_url'], self.vin),
             data=json.dumps({
                 'data': {'type': 'RefreshLockStatus'}
             }),
@@ -399,8 +836,8 @@ class Vehicle:
     def fetch_lock_status(self):
         if Feature.LOCK_STATUS_CHECK not in self.features:
             return
-        resp = self.connection.oauth.get(
-            '{}v1/cars/{}/lock-status'.format(self.connection.settings['car_adapter_base_url'], self.vin),
+        resp = self.session.oauth.get(
+            '{}v1/cars/{}/lock-status'.format(self.session.settings['car_adapter_base_url'], self.vin),
             headers={'Content-Type': 'application/vnd.api+json'}
         )
         lock_data = resp.json()['data']['attributes']
@@ -413,8 +850,8 @@ class Vehicle:
         self.lock_status_last_updated = datetime.datetime.fromisoformat(location_data['lastUpdateTime'].replace('Z','+00:00'))
 
     def refresh_hvac_status(self):
-        resp = self.connection.oauth.post(
-            '{}v1/cars/{}/actions/refresh-hvac-status'.format(self.connection.settings['car_adapter_base_url'], self.vin),
+        resp = self.session.oauth.post(
+            '{}v1/cars/{}/actions/refresh-hvac-status'.format(self.session.settings['car_adapter_base_url'], self.vin),
             data=json.dumps({
                 'data': {'type': 'RefreshHvacStatus'}
             }),
@@ -422,9 +859,165 @@ class Vehicle:
         )
         return resp.json()
 
+    def initiate_srp(self):
+        (salt, verifier) = SRP.enroll(self.user_id, self.vin)
+        resp = self.session.oauth.post(
+            '{}v1/cars/{}/actions/srp-initiates'.format(self.session.settings['car_adapter_base_url'], self.vin),
+            data=json.dumps({
+                "data": {
+                    "type": "SrpInitiates",
+                    "attributes": {
+                        "s": salt,
+                        "i": self.user_id,
+                        "v": verifier
+                    }
+                }
+            }),
+            headers={'Content-Type': 'application/vnd.api+json'}
+        )
+        return resp.json()
+
+    def validate_srp(self):
+        a = SRP.generate_a()
+        resp = self.session.oauth.post(
+            '{}v1/cars/{}/actions/srp-sets'.format(self.session.settings['car_adapter_base_url'], self.vin),
+            data=json.dumps({
+                "data": {
+                    "type": "SrpSets",
+                    "attributes": {
+                        "i": self.user_id,
+                        "a": a
+                    }
+                }
+            }),
+            headers={'Content-Type': 'application/vnd.api+json'}
+        )
+        return resp.json()
+
+    """
+    Other vehicle controls to implement / investigate:
+        DataReset
+        DeleteCurfewRestrictions
+        CreateCurfewRestrictions
+        CreateSpeedRestrictions
+        SrpInitiates
+        DeleteAreaRestrictions
+        SrpDelete
+        SrpSets
+        OpenClose
+        EngineStart
+        LockUnlock
+        CreateAreaRestrictions
+        DeleteSpeedRestrictions
+    """
+
+    def control_charging(self, action: str, srp: str=None):
+        assert action in ('stop', 'start')
+        if action == 'start' and Feature.CHARGING_START not in self.features:
+            return
+        if action == 'stop' and Feature.CHARGING_STOP not in self.features:
+            return
+        attributes = {
+            'action': action,
+        }
+        if srp is not None:
+            attributes['srp'] = srp
+        resp = self.session.oauth.post(
+            '{}v1/cars/{}/actions/charging-start'.format(self.session.settings['car_adapter_base_url'], self.vin),
+            data=json.dumps({
+                'data': {
+                    'type': 'ChargingStart',
+                    'attributes': attributes
+                }
+            }),
+            headers={'Content-Type': 'application/vnd.api+json'}
+        )
+        return resp.json()
+
+    def control_horn_lights(self, action: str, target: str, duration: int=5, srp: str=None):
+        if Feature.HORN_AND_LIGHTS not in self.features:
+            return
+        assert target in ('horn_lights', 'lights', 'horn')
+        assert action in ('stop', 'start', 'double_start')
+        attributes = {
+            'action': action,
+            'duration': duration,
+            'target': target,
+        }
+        if srp is not None:
+            attributes['srp'] = srp
+        resp = self.session.oauth.post(
+            '{}v1/cars/{}/actions/horn-lights'.format(self.session.settings['car_adapter_base_url'], self.vin),
+            data=json.dumps({
+                'data': {
+                    'type': 'HornLights',
+                    'attributes': attributes
+                }
+            }),
+            headers={'Content-Type': 'application/vnd.api+json'}
+        )
+        return resp.json()
+
+    def set_hvac_status(self, action: HVACAction, target_temperature: int=21, start: datetime.datetime=None, srp: str=None):
+        if Feature.CLIMATE_ON_OFF not in self.features:
+            return
+
+        if target_temperature < 16 or target_temperature > 26:
+            raise ValueError('Temperature must be between 16 & 26 degrees')
+
+        attributes = {
+            'action': action.value
+        }
+        if action == HVACAction.START:
+            attributes['targetTemperature'] = target_temperature
+        if start is not None:
+            attributes['startDateTime'] = start.isoformat(timespec='seconds')
+        if srp is not None:
+            attributes['srp'] = srp
+
+        resp = self.session.oauth.post(
+            '{}v1/cars/{}/actions/hvac-start'.format(self.session.settings['car_adapter_base_url'], self.vin),
+            data=json.dumps({
+                'data': {
+                    'type': 'HvacStart',
+                    'attributes': attributes
+                }
+            }),
+            headers={'Content-Type': 'application/vnd.api+json'}
+        )
+        return resp.json()
+
+    def lock_unlock(self, srp: str, action: str, group: LockableDoorGroup=None):
+        if Feature.APP_DOOR_LOCKING not in self.features:
+            return
+        assert action in ('lock', 'unlock')
+        if group is None:
+            group = LockableDoorGroup.DOORS_AND_HATCH
+        resp = self.session.oauth.post(
+            '{}v1/cars/{}/actions/lock-unlock"'.format(self.session.settings['car_adapter_base_url'], self.vin),
+            data=json.dumps({
+                'data': {
+                    'type': 'LockUnlock',
+                    'attributes': {
+                        'lock': action,
+                        'doorType': group.value,
+                        'srp': srp
+                    }
+                }
+            }),
+            headers={'Content-Type': 'application/vnd.api+json'}
+        )
+        return resp.json()
+
+    def lock(self, srp: str, group: LockableDoorGroup=None):
+        return lock_unlock(srp, 'lock', group)
+
+    def unlock(self, srp: str, group: LockableDoorGroup=None):
+        return lock_unlock(srp, 'unlock', group)
+
     def fetch_hvac_status(self):
-        resp = self.connection.oauth.get(
-            '{}v1/cars/{}/hvac-status'.format(self.connection.settings['car_adapter_base_url'], self.vin),
+        resp = self.session.oauth.get(
+            '{}v1/cars/{}/hvac-status'.format(self.session.settings['car_adapter_base_url'], self.vin),
             headers={'Content-Type': 'application/vnd.api+json'}
         )
         hvac_data = resp.json()['data']['attributes']
@@ -438,8 +1031,8 @@ class Vehicle:
         self.hvac_status_last_updated = datetime.datetime.fromisoformat(hvac_data['lastUpdateTime'].replace('Z','+00:00'))
 
     def refresh_battery_status(self):
-        resp = self.connection.oauth.post(
-            '{}v1/cars/{}/actions/refresh-battery-status'.format(self.connection.settings['car_adapter_base_url'], self.vin),
+        resp = self.session.oauth.post(
+            '{}v1/cars/{}/actions/refresh-battery-status'.format(self.session.settings['car_adapter_base_url'], self.vin),
             data=json.dumps({
                 'data': {'type': 'RefreshBatteryStatus'}
             }),
@@ -450,8 +1043,8 @@ class Vehicle:
     def fetch_battery_status(self):
         if Feature.BATTERY_STATUS not in self.features:
             return
-        resp = self.connection.oauth.get(
-            '{}v1/cars/{}/battery-status'.format(self.connection.settings['car_adapter_base_url'], self.vin),
+        resp = self.session.oauth.get(
+            '{}v1/cars/{}/battery-status'.format(self.session.settings['car_adapter_base_url'], self.vin),
             headers={'Content-Type': 'application/vnd.api+json'}
         )
         battery_data = resp.json()['data']['attributes']
@@ -477,20 +1070,9 @@ class Vehicle:
             self.unplugged_time = datetime.datetime.fromisoformat(battery_data['vehicleUnplugTimestamp'].replace('Z','+00:00'))
         self.battery_status_last_updated = datetime.datetime.fromisoformat(battery_data['lastUpdateTime'].replace('Z','+00:00'))
 
-    def fetch_trip_histories(self, period, start, end):
-        resp = self.connection.oauth.get(
-            '{}v1/cars/{}/trip-history'.format(self.connection.settings['car_adapter_base_url'], self.vin),
-            params={
-                'type': period.value,
-                'start': start.isoformat(),
-                'end': end.isoformat()
-            }
-        )
-        return map(TripSummary, resp.json()['data']['attributes']['summaries'])
-
     def fetch_energy_unit_cost(self):
-        resp = self.connection.oauth.get(
-            '{}v1/cars/{}/energy-unit-cost'.format(self.connection.settings['car_adapter_base_url'], self.vin)
+        resp = self.session.oauth.get(
+            '{}v1/cars/{}/energy-unit-cost'.format(self.session.settings['car_adapter_base_url'], self.vin)
         )
         energy_cost_data = resp.json()['data']['attributes']
         self.electricity_unit_cost = energy_cost_data.get('electricityUnitCost')
@@ -498,8 +1080,8 @@ class Vehicle:
         return resp.json()
 
     def set_energy_unit_cost(self, cost):
-        resp = self.connection.oauth.post(
-            '{}v1/cars/{}/energy-unit-cost'.format(self.connection.settings['car_adapter_base_url'], self.vin),
+        resp = self.session.oauth.post(
+            '{}v1/cars/{}/energy-unit-cost'.format(self.session.settings['car_adapter_base_url'], self.vin),
             data=json.dumps({
                 'data': {
                     'type': {}
@@ -507,12 +1089,119 @@ class Vehicle:
             })
         )
 
+    def fetch_trip_histories(self, period: Period=None, start: datetime.date=None, end: datetime.date=None):
+        if period is None:
+            period = Period.DAILY
+        if start is None:
+            start = datetime.date.today()
+        if end is None:
+            end = start
+        resp = self.session.oauth.get(
+            '{}v1/cars/{}/trip-history'.format(self.session.settings['car_adapter_base_url'], self.vin),
+            params={
+                'type': period.value,
+                'start': start.isoformat(),
+                'end': end.isoformat()
+            }
+        )
+        return [TripSummary(s, self.vin) for s in resp.json()['data']['attributes']['summaries']]
+
+    def fetch_notifications(
+            self,
+            language: Language=None,
+            category_key: NotificationCategoryKey=None,
+            status: NotificationStatus=None,
+            start: datetime.datetime=None,
+            end: datetime.datetime=None,
+            # offset
+            from_: int=1,
+            # limit
+            to: int=20,
+            order: Order=None
+            ):
+
+        if language is None:
+            language = Language.EN
+        params = {
+            'realm': self.session.copy_realm,
+            'langCode': language.value,
+        }
+        if category is not None:
+            params['categoryKey'] = category.value
+        if status is not None:
+            params['status'] = status.value
+        if start is not None:
+            params['start'] = start.isoformat(timespec='seconds')
+            if start.tzinfo is None:
+                # Assume UTC
+                params['start'] += 'Z'
+        if end is not None:
+            params['end'] = start.isoformat(timespec='seconds')
+            if end.tzinfo is None:
+                # Assume UTC
+                params['end'] += 'Z'
+        resp = self.session.oauth.get(
+            '{}v2/notifications/users/{}/vehicles/{}'.format(self.session.settings['notifications_base_url'], self.user_id, self.vin),
+            params=params
+        )
+        return [Notification(m, language, self.vin) for m in resp.json()['data']['attributes']['messages']]
+
+    def mark_notifications(self, messages: List[Notification]):
+        """Take a list of notifications and set their status remotely
+        to the one held locally (read / unread)."""
+
+        resp = self.session.oauth.post(
+            '{}v2/notifications/users/{}/vehicles/{}'.format(self.session.settings['notifications_base_url'], self.user_id, self.vin),
+            data=json.dumps([
+                {'notificationId': m.id, 'status': m.status.value}
+                for m in messages
+            ])
+        )
+        return resp.json()
+
+    def fetch_notification_settings(self, language: Language=None):
+        if language is None:
+            language = Language.EN
+        params = {
+            'langCode': language.value,
+        }
+        resp = self.session.oauth.get(
+            '{}v1/rules/settings/users/{}/vehicles/{}'.format(self.session.settings['notifications_base_url'], self.user_id, self.vin),
+            params=params
+        )
+        return [
+            NotificationRule(r, language, self.vin)
+            for r in resp.json()['settings']
+        ]
+
+    def update_notification_settings(self):
+        # TODO
+        pass
+
+    def fetch_cockpit(self):
+        resp = self.session.oauth.get(
+            "{}v1/cars/{}/cockpit".format(self.session.settings['car_adapter_base_url'], self.vin)
+        )
+        import pdb; pdb.set_trace()
+        cockpit_data = resp.json()['data']['attributes']
+        self.eco_score = cockpit_data.get('ecoScore')
+        self.fuel_autonomy = cockpit_data.get('fuelAutonomy')
+        self.fuel_consumption = cockpit_data.get('fuelConsumption')
+        self.fuel_economy = cockpit_data.get('fuelEconomy')
+        self.fuel_level = cockpit_data.get('fuelLevel')
+        if 'fuelLowWarning' in cockpit_data:
+            self.fuel_low_warning = bool(cockpit_data['fuelLowWarning'])
+        self.fuel_quantity = cockpit_data.get('fuelQuantity')  # litres
+        self.mileage = cockpit_data.get('mileage')
+        self.total_mileage = cockpit_data['totalMileage']
+
 
 class TripSummary:
 
-    def __init__(self, data):
+    def __init__(self, data, vin):
+        self.vin = vin
         self.trip_count = data['tripsNumber']
-        self.total_distance_km = data['distance']  # km
+        self.total_distance = data['distance']  # km
         self.total_duration = data['duration']  # minutes
         self.first_trip_start = datetime.datetime.fromisoformat(data['firstTripStart'].replace('Z','+00:00'))
         self.last_trip_end = datetime.datetime.fromisoformat(data['lastTripEnd'].replace('Z','+00:00'))
@@ -535,18 +1224,109 @@ class TripSummary:
             self.start = datetime.date(int(data['year']), 1, 1)
             self.end = datetime.date(int(data['year']) + 1, 1, 1) - datetime.timedelta(days=1)
 
+    def __str__(self):
+        return '{} trips covering {} kilometres over {} minutes using {} litres fuel and {} kilowatt-hours electricity'.format(
+            self.trip_count, self.total_distance, self.total_duration, self.consumed_fule, self.consumed_electricity
+        )
+
+
+class NotificationRule:
+
+    def __init__(self, data, language, vin):
+        self.vin = vin
+        self.language = language
+        self.key = NotificationRuleKey(data['ruleKey'])
+        self.title = data['ruleTitle']
+        self.description = data['ruleDescription']
+        self.priority = NotificationPriority(data['priority'])
+        self.status = NotificationRuleStatus(data['status'])
+        self.channels = [
+            NotificationChannelType(c['channelType'])
+            for c in data['channels']
+        ]
+        self.category = NotificationCategory(NotificationCategoryKey(data['categoryKey']), data['categoryTitle'])
+        self.notification_type = None
+        if 'notificationKey' in data:
+            self.notification_type = NotificationType(
+                NotificationTypeKey(data['notificationKey']),
+                data['notificationTitle'],
+                data['notificationMessage'],
+                self.category,
+                )
+    
+    def __str__(self):
+        return '{}: {} ({})'.format(
+            self.title or self.key,
+            self.status.value,
+            ', '.join(c.value for c in self.channels)
+        )
+
+
+class SRP:
+
+    @classmethod
+    def enroll(cls, user_id, vin):
+        salt, verifier = '0'*20, 'ABCDEFGH'*64
+        # salt = 20 hex chars, verifier = 512 hex chars
+        return (salt, verifier)
+
+    @classmethod
+    def generate_a(cls):
+        # 512 hex chars
+        return ''
+
+    @classmethod
+    def generate_proof(cls, salt, b, user_id, confirm_code, order):
+        """Required for remote lock / unlock."""
+        # order = '<VIN>/<PERMISSIONS>'
+        # where PERMISSIONS is one of:
+        # * "BCI/Block"
+        # * "BCI/Unblock"
+        # * "RC/Delayed"
+        # * "RC/Start"
+        # * "RC/Stop"
+        # * "RES/DoubleStart"
+        # * "RES/Start"
+        # * "RES/Stop"
+        # * "RHL/Start/HornOnly"
+        # * "RHL/Start/HornLight"
+        # * "RHL/Start/LightOnly"
+        # * "RHL/Stop"
+        # * "RLU/Lock"
+        # * "RLU/Unlock"
+        # * "RPC_ICE/Start"
+        # * "RPC_ICE/Stop"
+        # * "RPU_CCS/Disable"
+        # * "RPU_CCS/Enable"
+        # * "RPU_SVTB/Disable"
+        # * "RPU_SVTB/Enable"
+        pass
+
 
 
 if __name__ == '__main__':
     import pprint
     import sys
 
-    nci = NCI(sys.argv[1])
-    nci.login(sys.argv[2], sys.argv[3])
+    region = sys.argv[1]
+    username = sys.argv[2]
+    password = sys.argv[3]
+    if len(sys.argv) > 4:
+        srp = sys.argv[4]
+
+    nci = NCISession(region)
+    nci.login(username, password)
     user_id = nci.get_user_id()
-    cars = nci.get_cars(user_id)
-    for car in cars:
-        car.fetch_all()
-        car.fetch_trip_histories(Period.DAILY, datetime.date(2020, 1, 1), datetime.date(2020, 1, 7))
-        pprint.pprint(vars(car))
+    vehicles = nci.fetch_vehicles()
+    for vehicle in vehicles:
+        vehicle.fetch_cockpit()
+        vehicle.fetch_all()
+        pprint.pprint(vars(vehicle))
+        print('today trip summary')
+        trip_summaries = vehicle.fetch_trip_histories()
+        print('\n'.join(map(str, trip_summaries)))
+        print('last notifications')
+        notifications = vehicle.fetch_notifications()
+        print('\n'.join(map(str, notifications)))
+        notifications[0].fetch_details()
     
