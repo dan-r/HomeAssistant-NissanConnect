@@ -27,3 +27,23 @@ Apache 2
 ## References
 
 This wouldn't have been half as easy to put together if it wasn't for the work by [Tobias Westergaard Kjeldsen](https://gitlab.com/tobiaswkjeldsen) on reverse engineering Nissan Connect Services apps for his [dartnissanconnect](https://gitlab.com/tobiaswkjeldsen/dartnissanconnect) library and [My Leaf app](https://gitlab.com/tobiaswkjeldsen/carwingsflutter)
+
+### Acronyms and initialisms
+
+* SVT: Stolen Vehicle Tracking
+* SRP: ?? PIN (PIN used for remote control actions)
+* FOTA: ???
+* EPS: ???
+* RGDC: ???
+* NCI: Nissan Connect ???
+* NCB: Nissan Connect ???
+* ACMS: ??? the server-side platform used to handle requests
+* ICE: Internal Combustion Engine
+* RHL: Remote Horn / Lights
+* RC: Remove Charge
+* RLU: Remote Lock / Unlock
+* BCI: ?
+* RES: Remote Electric Start / Stop?
+* CCS: Climate Control System
+* RPC/RPU: ?
+* SVTB: Stolen Vehicle Tracking Block / Unblock
