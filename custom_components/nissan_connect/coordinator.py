@@ -29,6 +29,10 @@ class KamereonCoordinator(DataUpdateCoordinator):
         self._interval_charging = config.get("interval_charging", 15)
         self._last_update = {}
 
+    async def force_update(self):
+        self._last_update = {}
+        await self._async_update_data()
+
     async def _async_update_data(self):
         """Fetch data from API."""
         try:

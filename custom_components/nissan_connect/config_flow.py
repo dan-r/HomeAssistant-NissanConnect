@@ -33,12 +33,12 @@ class NissanConfigFlow(ConfigFlow, domain=DOMAIN):
 
             try:
                 await self.hass.async_add_executor_job(kamereon_session.login,
-                    info["email"],
-                    info["password"]
-                )
+                                                       info["email"],
+                                                       info["password"]
+                                                       )
             except:
                 errors["base"] = "auth_error"
-            
+
             if len(errors) == 0:
                 return self.async_create_entry(
                     title="NissanConnect Account",
@@ -49,3 +49,62 @@ class NissanConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="user", data_schema=USER_SCHEMA, errors=errors
         )
 
+    def async_get_options_flow(entry):
+        return NissanOptionsFlow(entry)
+
+
+class NissanOptionsFlow(OptionsFlow):
+    """Options flow."""
+
+    def __init__(self, entry) -> None:
+        self._config_entry = entry
+
+    async def async_step_init(self, options):
+        errors = {}
+        # If form filled
+        if options is not None:
+            data = dict(self._config_entry.data)
+             # Validate credentials
+            kamereon_session = NCISession(
+                region=data["region"]
+            )
+            if "password" in options:
+                try:
+                    await self.hass.async_add_executor_job(kamereon_session.login,
+                                                        options["email"],
+                                                        options["password"]
+                                                        )
+                except:
+                    errors["base"] = "auth_error"
+
+            # If we have no errors, update the data array
+            if len(errors) == 0:
+                # If password not provided, dont take the new details
+                if not "password" in options:
+                    options.pop('email', None)
+                    options.pop('password', None)
+                
+                # Update data
+                data.update(options)
+                self.hass.config_entries.async_update_entry(
+                    self._config_entry, data=data
+                )
+
+                # Update options
+                return self.async_create_entry(
+                    title="",
+                    data={}
+                )
+
+        return self.async_show_form(
+            step_id="init", data_schema=vol.Schema({
+                vol.Required("email", default=self._config_entry.data.get("email", "")): cv.string,
+                vol.Optional("password"): cv.string,
+                vol.Optional(
+                    "interval", default=self._config_entry.data.get("interval", 60)
+                ): int,
+                vol.Optional(
+                    "interval_charging", default=self._config_entry.data.get("interval_charging", 15)
+                ): int
+            }), errors=errors
+        )

@@ -1,15 +1,36 @@
 {
-    "title": "Nissan Connect",
+    "title": "NissanConnect",
     "config": {
       "step": {
         "user": {
-          "description": "Configure your Nissan Connect account.",
+          "description": "Configure your NissanConnect account.",
           "data": {
             "email": "Email address",
             "password": "Password",
             "interval": "Update interval (minutes)",
             "interval_charging": "Update interval while charging (minutes)",
             "region": "Region (EU, US)"
+          }
+        }
+      },
+      "error": {
+        "auth_error": "Invalid credentials provided."
+      },
+      "abort": {}
+    },
+    "options": {
+      "step": {
+        "init": {
+          "description": "Update your NissanConnect account information.",
+          "data": {
+            "email": "Email address",
+            "password": "Password",
+            "interval": "Update interval (minutes)",
+            "interval_charging": "Update interval while charging (minutes)",
+            "region": "Region (EU, US)"
+          },
+          "data_description": {
+            "password": "If you are not changing your credentials, leave the password field empty."
           }
         }
       },

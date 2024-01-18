@@ -8,6 +8,22 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup(hass, config) -> bool:
     return True
 
+async def async_update_listener(hass, entry):
+    """Handle options flow credentials update."""
+    
+    kamereon_session = NCISession(
+        region=entry.data["region"]
+    )
+
+    await hass.async_add_executor_job(kamereon_session.login,
+        entry.data.get("email"),
+        entry.data.get("password")
+    )
+
+    # Refresh coordinator
+    await hass.data[DOMAIN][DATA_COORDINATOR].force_update()
+
+
 async def async_setup_entry(hass, entry):
     """This is called from the config flow."""
     hass.data.setdefault(DOMAIN, {})
@@ -45,6 +61,8 @@ async def async_setup_entry(hass, entry):
             hass.async_create_task(
                 hass.config_entries.async_forward_entry_setup(entry, component)
             )
+
+    entry.async_on_unload(entry.add_update_listener(async_update_listener))
 
     return True
 
