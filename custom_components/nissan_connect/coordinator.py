@@ -38,7 +38,7 @@ class KamereonCoordinator(DataUpdateCoordinator):
                 if not vehicle in self._last_update:
                     self._last_update[vehicle] = 0
                 
-                interval = 2 or self._interval
+                interval = self._interval
 
                 # EV, decide which time to use
                 if Feature.BATTERY_STATUS in self._vehicles[vehicle].features and self._vehicles[vehicle].plugged_in == PluggedStatus.PLUGGED:

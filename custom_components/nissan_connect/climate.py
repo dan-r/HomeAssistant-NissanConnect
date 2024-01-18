@@ -32,6 +32,8 @@ class KamereonClimate(KamereonEntity, ClimateEntity):
     _attr_hvac_modes = SUPPORT_HVAC
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_name = "Climate"
+    _attr_min_temp = 16
+    _attr_max_temp = 26
     _target = 20
     _loop_mutex = False
 
@@ -84,12 +86,12 @@ class KamereonClimate(KamereonEntity, ClimateEntity):
 
         if hvac_mode == HVACMode.OFF:
             self.vehicle.set_hvac_status(HVACAction.STOP)
-            self._fetch_loop()
+            self._fetch_loop(HVACStatus.OFF)
         elif hvac_mode == HVACMode.HEAT_COOL:
-            self.vehicle.set_hvac_status(HVACAction.START)
-            self._fetch_loop()
+            self.vehicle.set_hvac_status(HVACAction.START, self._target)
+            self._fetch_loop(HVACStatus.ON)
 
-    def _fetch_loop(self):
+    def _fetch_loop(self, target_state):
         """Fetch every 5 seconds for 30s so we get a timely state update."""
         if self._loop_mutex:
             return
@@ -97,6 +99,11 @@ class KamereonClimate(KamereonEntity, ClimateEntity):
         _LOGGER.debug("Beginning HVAC fetch loop")
         self._loop_mutex = True
         for _ in range(6):
+            # We have our update, break out
+            if target_state == self.vehicle.hvac_status:
+                _LOGGER.debug("Breaking out of HVAC fetch loop")
+                break
+
             asyncio.run_coroutine_threadsafe(
                 self.coordinator.force_update(), self._hass.loop
             ).result()
