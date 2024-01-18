@@ -110,6 +110,7 @@ class ChargingSpeed(enum.Enum):
     SLOW = 1
     NORMAL = 2
     FAST = 3
+    FASTEST = 4
 
 
 class ChargingStatus(enum.Enum):
@@ -735,9 +736,9 @@ class Vehicle:
         self.user_id = user_id
         self.vin = data['vin'].upper()
         self.features = [
-            Feature(u['name'])
-            for u in data.get('uids', [])
-            if u['enabled']]
+            Feature(str(u['id']))
+            for u in data.get('services', [])
+            if u['activationState'] == "ACTIVATED"]
         self.can_generation = data.get('canGeneration')
         self.color = data.get('color')
         self.energy = data.get('energy')
