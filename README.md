@@ -2,6 +2,8 @@
 
 A basic integration for interacting with Nissan Connect vehicles. Based on the work of @mitchellrj and tobiaswkjeldsen.
 
+This is quite heavily EV-focussed as thats what I have.
+
 This is an unofficial integration. I have no affiliation with Nissan besides owning one of their cars.
 
 Tested with the following vehicles:
@@ -27,6 +29,8 @@ This is the recommended installation method.
 ## Setup
 From the Home Assistant Integrations page, search for and add the Nissan Connect integration.
 
+## Update Time
+Following the model of leaf2mqtt, this integration can be set to use a different update time when plugged in.
 
 ## Entities
 This integration exposes the following entities:

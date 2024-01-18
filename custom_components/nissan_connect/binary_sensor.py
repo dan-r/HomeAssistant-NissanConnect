@@ -28,7 +28,7 @@ async def async_setup_entry(hass, config, async_add_entities):
 
 class ChargingStatusEntity(KamereonEntity, BinarySensorEntity):
     """Representation of charging status."""
-    _attr_device_class = BinarySensorDeviceClass.BATTERY_CHARGING   
+    _attr_device_class = BinarySensorDeviceClass.BATTERY_CHARGING
     _attr_name = "Charging"
 
     @property
