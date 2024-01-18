@@ -1,0 +1,4 @@
+DOMAIN = "nissan_connect"
+CONFIG_VERSION = 1
+
+DEFAULT_UPDATE_INTERVAL = 5

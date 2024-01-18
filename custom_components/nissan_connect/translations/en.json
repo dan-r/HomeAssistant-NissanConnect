@@ -1,0 +1,21 @@
+{
+    "title": "Nissan Connect",
+    "config": {
+      "step": {
+        "user": {
+          "description": "Configure your Nissan Connect account.",
+          "data": {
+            "email": "Email address",
+            "password": "Password",
+            "interval": "Update interval (minutes)",
+            "region": "Region (EU, US)"
+          }
+        }
+      },
+      "error": {
+        "auth_error": "Invalid credentials provided. Please ensure you are using an Ohme account and not a social account (eg. Google)."
+      },
+      "abort": {}
+    },
+    "issues": {}
+}

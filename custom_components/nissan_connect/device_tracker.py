@@ -5,8 +5,6 @@ from homeassistant.components.device_tracker import SOURCE_TYPE_GPS
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.util import slugify
 
-from . import SIGNAL_STATE_UPDATED
-
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -33,7 +31,5 @@ async def async_setup_scanner(hass, config, async_see, vehicle=None):
             },
             icon="mdi:car",
         )
-
-    async_dispatcher_connect(hass, SIGNAL_STATE_UPDATED, see_vehicle)
 
     return True

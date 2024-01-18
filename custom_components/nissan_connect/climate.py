@@ -9,7 +9,7 @@ from homeassistant.const import ATTR_TEMPERATURE, STATE_UNKNOWN, TEMP_CELSIUS
 
 SUPPORT_HVAC = [HVAC_MODE_HEAT_COOL, HVAC_MODE_OFF]
 
-from . import KamereonEntity
+from .base import KamereonEntity
 from .kamereon import Feature, HVACAction, HVACStatus
 
 _LOGGER = logging.getLogger(__name__)

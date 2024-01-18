@@ -4,7 +4,7 @@ import logging
 from homeassistant.components.lock import LockDevice
 from homeassistant.const import STATE_UNKNOWN
 
-from . import KamereonEntity
+from .base import KamereonEntity
 from .kamereon import Door, LockStatus
 
 _LOGGER = logging.getLogger(__name__)
