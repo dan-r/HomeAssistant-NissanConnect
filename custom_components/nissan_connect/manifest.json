@@ -1,0 +1,9 @@
+{
+    "domain": "nissan_connect",
+    "name": "Nissan Connect",
+    "documentation": "https://github.com/dan-r/HomeAssistant-NissanConnect/",
+    "requirements": ["requests", "requests_oauthlib", "pytz"],
+    "dependencies": [],
+    "codeowners": [],
+    "version": "1.0.0"
+  }

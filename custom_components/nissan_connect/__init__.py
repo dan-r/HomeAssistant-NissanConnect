@@ -17,7 +17,7 @@ from homeassistant.helpers.dispatcher import (
     async_dispatcher_connect,
     async_dispatcher_send,
 )
-from homeassistant.helpers.entity import Entity
+from homeassistant.helpers.entity import Entity, DeviceInfo
 from homeassistant.helpers.event import async_track_point_in_utc_time
 from homeassistant.util.dt import utcnow
 
@@ -83,7 +83,7 @@ async def _async_setup_entry(hass, config, session):
     def discover_vehicle(vehicle):
         """Load relevant platforms."""
 
-        for component in ('binary_sensor', 'climate', 'device_tracker', 'lock', 'sensor', 'switch'):
+        for component in ('binary_sensor',):
             hass.async_create_task(
                 discovery.async_load_platform(
                     hass,
@@ -100,8 +100,8 @@ async def _async_setup_entry(hass, config, session):
         """Update status from the online service."""
         try:
 
-            for vehicle in kamereon_session.fetch_vehicles():
-                vehicle.refresh()
+            for vehicle in await hass.async_add_executor_job(kamereon_session.fetch_vehicles):
+                await hass.async_add_executor_job(vehicle.refresh)
                 if vehicle.vin not in data:
                     discover_vehicle(vehicle)
 
@@ -112,10 +112,10 @@ async def _async_setup_entry(hass, config, session):
             async_track_point_in_utc_time(hass, update, utcnow() + interval)
 
     _LOGGER.info("Logging in to service")
-    kamereon_session.login(
-        username=config.get(CONF_USERNAME),
-        password=config.get(CONF_PASSWORD)
-        )
+    await hass.async_add_executor_job(kamereon_session.login,
+        config.get(CONF_USERNAME),
+        config.get(CONF_PASSWORD)
+    )
     return await update(utcnow())
 
 
@@ -153,6 +153,13 @@ class KamereonEntity(Entity):
         return f"{self._vehicle_name} {self._entity_name}"
 
     @property
+    def unique_id(self):
+        """Return unique ID of the entity."""
+        if not self._entity_name:
+            return None
+        return f"{self._vehicle_name}_{self._entity_name}"
+
+    @property
     def should_poll(self):
         """Return the polling state."""
         return False
@@ -163,23 +170,10 @@ class KamereonEntity(Entity):
         return True
 
     @property
-    def device_state_attributes(self):
-        """Return device specific state attributes."""
-        return {
-            'manufacturer': self.vehicle.session.tenant,
-            'vin': self.vehicle.vin,
-            'name': self.vehicle.nickname or self.vehicle.model_name,
-            'model': self.vehicle.model_name,
-            'color': self.vehicle.color,
-            'registration_number': self.vehicle.registration_number,
-            'device_picture': self.vehicle.picture_url,
-            'first_registration_date': self.vehicle.first_registration_date,
-        }
-
-    @property
     def device_info(self):
-        return {
-            'identifiers': (DOMAIN, self.vehicle.session.tenant, self.vehicle.vin),
-            'manufacturer': self.vehicle.session.tenant,
-            'vin': self.vehicle.vin,
-        }
+        return DeviceInfo(
+            identifiers=(DOMAIN, self.vehicle.session.tenant, self.vehicle.vin),
+            name=self.vehicle.nickname or self.vehicle.model_name,
+            manufacturer=self.vehicle.session.tenant,
+            serial_number=self.vehicle.vin,
+        )

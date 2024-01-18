@@ -1,7 +1,7 @@
 """Support for Kamereon cars."""
 import logging
 
-from homeassistant.components.binary_sensor import DEVICE_CLASSES, BinarySensorDevice
+from homeassistant.components.binary_sensor import DEVICE_CLASSES, BinarySensorEntity
 from homeassistant.const import STATE_UNKNOWN
 
 from . import KamereonEntity
@@ -16,17 +16,11 @@ async def async_setup_platform(hass, config, async_add_entities, vehicle=None):
         return
     async_add_entities([
         ChargingStatusEntity(vehicle),
-        PluggedStatusEntity(vehicle),
-        FuelLowWarningEntity(vehicle),
-        DoorEntity(vehicle, Door.FRONT_LEFT),
-        DoorEntity(vehicle, Door.FRONT_RIGHT),
-        DoorEntity(vehicle, Door.REAR_LEFT),
-        DoorEntity(vehicle, Door.REAR_RIGHT),
-        DoorEntity(vehicle, Door.HATCH),
+        PluggedStatusEntity(vehicle)
         ])
 
 
-class ChargingStatusEntity(KamereonEntity, BinarySensorDevice):
+class ChargingStatusEntity(KamereonEntity, BinarySensorEntity):
     """Representation of charging status."""
 
     @property
@@ -60,7 +54,7 @@ class ChargingStatusEntity(KamereonEntity, BinarySensorDevice):
         return a
 
 
-class PluggedStatusEntity(KamereonEntity, BinarySensorDevice):
+class PluggedStatusEntity(KamereonEntity, BinarySensorEntity):
     """Representation of plugged status."""
 
     @property
@@ -93,57 +87,3 @@ class PluggedStatusEntity(KamereonEntity, BinarySensorDevice):
             'last_updated': self.vehicle.battery_status_last_updated,
         })
         return a
-
-
-class FuelLowWarningEntity(KamereonEntity, BinarySensorDevice):
-    """Representation of fuel low warning status."""
-
-    @property
-    def _entity_name(self):
-        return 'fuel_low'
-
-    @property
-    def icon(self):
-        """Return the icon."""
-        return 'mdi:fuel'
-
-    @property
-    def is_on(self):
-        """Return True if the binary sensor is on."""
-        if self.vehicle.fuel_low_warning is None:
-            return STATE_UNKNOWN
-        return self.vehicle.fuel_low_warning
-
-    @property
-    def device_class(self):
-        """Return the class of this sensor."""
-        return 'safety'
-
-
-class DoorEntity(KamereonEntity, BinarySensorDevice):
-    """Representation of a door (or hatch)."""
-
-    def __init__(self, vehicle, door):
-        KamereonEntity.__init__(self, vehicle)
-        self.door = door
-
-    @property
-    def icon(self):
-        """Return the icon."""
-        return 'mdi:car-door'
-
-    @property
-    def _entity_name(self):
-        return '{}_door'.format(self.door.value)
-
-    @property
-    def is_on(self):
-        """Return True if the binary sensor is open."""
-        if self.door not in self.vehicle.door_status or self.vehicle.door_status[self.door] is None:
-            return STATE_UNKNOWN
-        return self.vehicle.door_status[self.door] == LockStatus.OPEN
-
-    @property
-    def device_class(self):
-        """Return the class of this sensor."""
-        return 'door'
