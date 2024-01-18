@@ -4,5 +4,6 @@
     "documentation": "https://github.com/mitchellrj/kamereon-python",
     "requirements": ["requests", "requests_oauthlib", "pytz"],
     "dependencies": [],
-    "codeowners": []
+    "codeowners": [],
+    "version": "1.0.0"
   }
