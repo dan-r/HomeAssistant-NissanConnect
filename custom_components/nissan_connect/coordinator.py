@@ -52,7 +52,7 @@ class KamereonCoordinator(DataUpdateCoordinator):
                 if time() > self._last_update[vehicle] + (interval * 60):
                     await self._hass.async_add_executor_job(self._vehicles[vehicle].refresh)
                     self._last_update[vehicle] = time()
-                    
+                   
         except BaseException:
-            raise UpdateFailed("Error communicating with API")
+            _LOGGER.warning("Error communicating with API")
         return True
