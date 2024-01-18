@@ -1,4 +1,7 @@
 DOMAIN = "nissan_connect"
 CONFIG_VERSION = 1
 
+DATA_VEHICLES = "vehicles"
+DATA_COORDINATOR = "coordinator"
+
 DEFAULT_UPDATE_INTERVAL = 5

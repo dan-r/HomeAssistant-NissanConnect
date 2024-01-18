@@ -1,16 +1,9 @@
 import logging
-
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.dispatcher import (
-    async_dispatcher_send
-)
-from homeassistant.helpers.event import async_track_point_in_utc_time
-from homeassistant.util.dt import utcnow
-
 from .kamereon import NCISession
-_LOGGER = logging.getLogger(__name__)
-
+from .coordinator import KamereonCoordinator
 from .const import *
+
+_LOGGER = logging.getLogger(__name__)
 
 async def async_setup(hass, config) -> bool:
     return True
@@ -28,7 +21,7 @@ async def async_setup_entry(hass, entry):
     interval = config["interval"]
 
     data = hass.data[DOMAIN] = {
-         'vehicles': {}
+         DATA_VEHICLES: {}
     }
 
     _LOGGER.info("Logging in to service")
@@ -40,8 +33,12 @@ async def async_setup_entry(hass, entry):
     _LOGGER.debug("Finding vehicles")
     for vehicle in await hass.async_add_executor_job(kamereon_session.fetch_vehicles):
         await hass.async_add_executor_job(vehicle.refresh)
-        if vehicle.vin not in data['vehicles']:
-            data['vehicles'][vehicle.vin] = vehicle
+        if vehicle.vin not in data[DATA_VEHICLES]:
+            data[DATA_VEHICLES][vehicle.vin] = vehicle
+
+    coordinator = data[DATA_COORDINATOR] = KamereonCoordinator(hass=hass)
+
+    await coordinator.async_config_entry_first_refresh()
 
     _LOGGER.debug("Initialising entities")
     for component in ('binary_sensor',):

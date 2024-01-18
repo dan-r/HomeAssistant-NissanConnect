@@ -1,32 +1,35 @@
 """Support for Kamereon cars."""
 import logging
 
-from homeassistant.components.binary_sensor import DEVICE_CLASSES, BinarySensorEntity
+from homeassistant.components.binary_sensor import BinarySensorEntity, BinarySensorDeviceClass
 from homeassistant.const import STATE_UNKNOWN
 
 from .base import KamereonEntity
-from .kamereon import ChargingStatus, Door, LockStatus, PluggedStatus
-from .const import DOMAIN
+from .kamereon import ChargingStatus, PluggedStatus, Feature
+from .const import DOMAIN, DATA_VEHICLES, DATA_COORDINATOR
 
 _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(hass, config, async_add_entities):
     """Set up the Kamereon sensors."""
-    data = hass.data[DOMAIN]['vehicles']
+    data = hass.data[DOMAIN][DATA_VEHICLES]
+    coordinator = hass.data[DOMAIN][DATA_COORDINATOR]
+
+    entities = []
+
     for vehicle in data:
-        async_add_entities([
-            ChargingStatusEntity(data[vehicle]),
-            PluggedStatusEntity(data[vehicle])
-            ], update_before_add=True)
+        if Feature.BATTERY_STATUS in data[vehicle].features:
+            entities.append(ChargingStatusEntity(coordinator, data[vehicle]))
+            entities.append(PluggedStatusEntity(coordinator, data[vehicle]))
+
+    async_add_entities(entities, update_before_add=True)
 
 
 class ChargingStatusEntity(KamereonEntity, BinarySensorEntity):
     """Representation of charging status."""
-
-    @property
-    def _entity_name(self):
-        return 'charging'
+    _attr_device_class = BinarySensorDeviceClass.BATTERY_CHARGING   
+    _attr_name = "Charging"
 
     @property
     def icon(self):
@@ -41,11 +44,6 @@ class ChargingStatusEntity(KamereonEntity, BinarySensorEntity):
         return self.vehicle.charging is ChargingStatus.CHARGING
 
     @property
-    def device_class(self):
-        """Return the class of this sensor."""
-        return 'power'
-
-    @property
     def device_state_attributes(self):
         a = KamereonEntity.device_state_attributes.fget(self)
         a.update({
@@ -57,10 +55,8 @@ class ChargingStatusEntity(KamereonEntity, BinarySensorEntity):
 
 class PluggedStatusEntity(KamereonEntity, BinarySensorEntity):
     """Representation of plugged status."""
-
-    @property
-    def _entity_name(self):
-        return 'plugged_in'
+    _attr_device_class = BinarySensorDeviceClass.PLUG
+    _attr_name = "Plugged In"
 
     @property
     def icon(self):
@@ -73,11 +69,6 @@ class PluggedStatusEntity(KamereonEntity, BinarySensorEntity):
         if self.vehicle.plugged_in is None:
             return STATE_UNKNOWN
         return self.vehicle.plugged_in is PluggedStatus.PLUGGED
-
-    @property
-    def device_class(self):
-        """Return the class of this sensor."""
-        return 'plug'
 
     @property
     def device_state_attributes(self):
