@@ -45,6 +45,8 @@ This integration exposes the following entities. Please note that entities will 
     * External Temperature
     * Range
     * Odometer
+    * Daily Distance
+    * Monthly Distance
 * Climate
 * Device Tracker
 * Buttons

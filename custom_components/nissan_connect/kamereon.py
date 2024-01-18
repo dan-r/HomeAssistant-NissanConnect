@@ -1149,7 +1149,10 @@ class Vehicle:
     def fetch_trip_histories(self, period: Period=None, start: datetime.date=None, end: datetime.date=None):
         if period is None:
             period = Period.DAILY
-        if start is None:
+        if start is None and end is None and period == Period.MONTHLY:
+            end = datetime.date.today()
+            start = end.replace(day=1)
+        elif start is None:
             start = datetime.date.today()
         if end is None:
             end = start
@@ -1291,7 +1294,7 @@ class TripSummary:
                 end_month = 1
                 end_year = end_year + 1
             self.start = datetime.date(start_year, start_month, 1)
-            self.end = datetime.date(end_year, end_month) - datetime.timedelta(days=1)
+            self.end = datetime.date(end_year, end_month, 1) - datetime.timedelta(days=1)
         elif 'year' in data:
             self.start = datetime.date(int(data['year']), 1, 1)
             self.end = datetime.date(int(data['year']) + 1, 1, 1) - datetime.timedelta(days=1)

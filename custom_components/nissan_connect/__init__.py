@@ -1,6 +1,6 @@
 import logging
 from .kamereon import NCISession
-from .coordinator import KamereonCoordinator
+from .coordinator import KamereonCoordinator, StatisticsCoordinator
 from .const import *
 
 _LOGGER = logging.getLogger(__name__)
@@ -53,14 +53,16 @@ async def async_setup_entry(hass, entry):
             data[DATA_VEHICLES][vehicle.vin] = vehicle
 
     coordinator = data[DATA_COORDINATOR] = KamereonCoordinator(hass, config)
-
-    await coordinator.async_config_entry_first_refresh()
+    stats_coordinator = data[DATA_COORDINATOR_STATISTICS] = StatisticsCoordinator(hass, config)
 
     _LOGGER.debug("Initialising entities")
     for component in ENTITY_TYPES:
             hass.async_create_task(
                 hass.config_entries.async_forward_entry_setup(entry, component)
             )
+
+    await coordinator.async_config_entry_first_refresh()
+    await stats_coordinator.async_config_entry_first_refresh()
 
     entry.async_on_unload(entry.add_update_listener(async_update_listener))
 

@@ -88,7 +88,7 @@ class KamereonClimate(KamereonEntity, ClimateEntity):
             self.vehicle.set_hvac_status(HVACAction.STOP)
             self._fetch_loop(HVACStatus.OFF)
         elif hvac_mode == HVACMode.HEAT_COOL:
-            self.vehicle.set_hvac_status(HVACAction.START, self._target)
+            self.vehicle.set_hvac_status(HVACAction.START, int(self._target))
             self._fetch_loop(HVACStatus.ON)
 
     def _fetch_loop(self, target_state):
