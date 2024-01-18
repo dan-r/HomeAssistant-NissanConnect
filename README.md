@@ -7,7 +7,7 @@ This is quite heavily EV-focussed as thats what I have.
 This is an unofficial integration. I have no affiliation with Nissan besides owning one of their cars.
 
 Tested with the following vehicles:
-* Nissan Leaf (2022) - UK
+* Nissan Leaf Tekna (2022) - UK
 
 If you find any bugs or would like to request a feature, please open an issue.
 
@@ -30,11 +30,22 @@ This is the recommended installation method.
 From the Home Assistant Integrations page, search for and add the Nissan Connect integration.
 
 ## Update Time
-Following the model of leaf2mqtt, this integration can be set to use a different update time when plugged in.
+Following the model of leaf2mqtt, this integration can be set to use a different update time when plugged in. When HVAC is turned on the update time drops to once per minute.
 
 ## Entities
-This integration exposes the following entities:
+This integration exposes the following entities. Please note that entities will only be shown if the functionality is supported by your car.
 
 * Binary Sensors
     * Car Connected - On when the car is plugged in (EV Only)
     * Car Charging - On when the car is plugged in and drawing power (EV Only)
+* Sensors
+    * Battery Level
+    * Charge Time
+    * Internal Temperature
+    * External Temperature
+    * Range
+    * Odometer
+* Climate
+* Device Tracker
+* Buttons
+    * Update Data - Force an update

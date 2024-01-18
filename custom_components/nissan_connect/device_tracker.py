@@ -1,35 +1,53 @@
 """Support for tracking a Kamereon car."""
 import logging
 
-from homeassistant.components.device_tracker import SOURCE_TYPE_GPS
-from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from homeassistant.util import slugify
+from homeassistant.components.device_tracker import TrackerEntity
+from homeassistant.components.device_tracker.const import SourceType
+from .base import KamereonEntity
+from .kamereon import Feature
+from .const import DOMAIN, DATA_COORDINATOR, DATA_VEHICLES
 
 _LOGGER = logging.getLogger(__name__)
 
+async def async_setup_entry(hass, entry, async_add_entities):
+    data = hass.data[DOMAIN][DATA_VEHICLES]
+    coordinator = hass.data[DOMAIN][DATA_COORDINATOR]
 
-async def async_setup_scanner(hass, config, async_see, vehicle=None):
-    """Set up the Kamereon tracker."""
-    if vehicle is None:
-        return
+    entities = []
 
-    async def see_vehicle():
-        """Handle the reporting of the vehicle position."""
-        host_name = slugify(vehicle.nickname or vehicle.model_name)
-        await async_see(
-            dev_id=host_name,
-            host_name=host_name,
-            source_type=SOURCE_TYPE_GPS,
-            gps=vehicle.location,
-            attributes={
-                'last_updated': vehicle.location_last_updated.isoformat(),
-                'manufacturer': vehicle.session.tenant,
-                'vin': vehicle.vin,
-                'name': vehicle.nickname or vehicle.model_name,
-                'model': vehicle.model_name,
-                'registration_number': vehicle.registration_number,
-            },
-            icon="mdi:car",
-        )
+    for vehicle in data:
+        if Feature.MY_CAR_FINDER in data[vehicle].features:
+            entities.append(KamereonDeviceTracker(coordinator, data[vehicle]))
+
+    async_add_entities(entities, update_before_add=True)
 
     return True
+
+class KamereonDeviceTracker(KamereonEntity, TrackerEntity):
+    _attr_name = "Location"
+
+    @property
+    def latitude(self) -> float:
+        """Return latitude value of the device."""
+        if not self.vehicle:
+            return None
+        
+        return self.vehicle.location[0]
+
+    @property
+    def longitude(self) -> float:
+        """Return longitude value of the device."""
+        if not self.vehicle:
+            return None
+        
+        return self.vehicle.location[1]
+
+    @property
+    def source_type(self):
+        """Return the source type, eg gps or router, of the device."""
+        return SourceType.GPS
+
+    @property
+    def icon(self):
+        """Return the icon."""
+        return "mdi:car"
