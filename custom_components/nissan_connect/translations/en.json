@@ -14,7 +14,7 @@
         }
       },
       "error": {
-        "auth_error": "Invalid credentials provided. Please ensure you are using an Ohme account and not a social account (eg. Google)."
+        "auth_error": "Invalid credentials provided."
       },
       "abort": {}
     },
