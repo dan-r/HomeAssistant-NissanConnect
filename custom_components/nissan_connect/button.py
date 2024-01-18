@@ -35,4 +35,4 @@ class ForceUpdateButton(KamereonEntity, ButtonEntity):
         return 'mdi:update'
 
     async def async_press(self):
-        await self._hass.async_add_executor_job(self.vehicle.refresh)
+        await self.coordinator.force_update()

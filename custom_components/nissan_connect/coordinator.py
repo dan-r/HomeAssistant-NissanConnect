@@ -7,13 +7,11 @@ from homeassistant.helpers.update_coordinator import (
 )
 from time import time
 from .const import DOMAIN, DATA_VEHICLES
-from .kamereon import Feature, PluggedStatus
+from .kamereon import Feature, PluggedStatus, HVACStatus
 _LOGGER = logging.getLogger(__name__)
 
 
 class KamereonCoordinator(DataUpdateCoordinator):
-    """Coordinator to pull main charge state and power/current draw."""
-
     def __init__(self, hass, config):
         """Initialise coordinator."""
         super().__init__(
@@ -31,7 +29,7 @@ class KamereonCoordinator(DataUpdateCoordinator):
 
     async def force_update(self):
         self._last_update = {}
-        await self._async_update_data()
+        await self.async_refresh()
 
     async def _async_update_data(self):
         """Fetch data from API."""
@@ -40,16 +38,21 @@ class KamereonCoordinator(DataUpdateCoordinator):
                 if not vehicle in self._last_update:
                     self._last_update[vehicle] = 0
                 
-                interval = self._interval
+                interval = 2 or self._interval
 
                 # EV, decide which time to use
                 if Feature.BATTERY_STATUS in self._vehicles[vehicle].features and self._vehicles[vehicle].plugged_in == PluggedStatus.PLUGGED:
                     interval = self._interval_charging
 
+                # Update on every cycle if HVAC on
+                if self._vehicles[vehicle].hvac_status == HVACStatus.ON:
+                    interval = 0
+
                 # If we are overdue an update
                 if time() > self._last_update[vehicle] + (interval * 60):
                     await self._hass.async_add_executor_job(self._vehicles[vehicle].refresh)
                     self._last_update[vehicle] = time()
+                    
         except BaseException:
             raise UpdateFailed("Error communicating with API")
         return True

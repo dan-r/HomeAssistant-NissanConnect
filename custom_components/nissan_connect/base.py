@@ -1,5 +1,5 @@
 from homeassistant.helpers.entity import Entity, DeviceInfo
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import callback
 from .const import DOMAIN
 
 class KamereonEntity(Entity):
@@ -21,7 +21,7 @@ class KamereonEntity(Entity):
     
     @callback
     def _handle_coordinator_update(self) -> None:
-        return
+        self.async_write_ha_state()
 
     @property
     def icon(self):
