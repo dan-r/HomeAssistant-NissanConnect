@@ -25,6 +25,8 @@ import pytz
 import requests
 from requests_oauthlib import OAuth2Session
 
+import logging
+_LOGGER = logging.getLogger(__name__)
 
 API_VERSION = 'protocol=1.0,resource=2.1'
 SRP_KEY = 'D5AF0E14718E662D12DBB4FE42304DF5A8E48359E22261138B40AA16CC85C76A11B43200A1EECB3C9546A262D1FBD51ACE6FCDE558C00665BBF93FF86B9F8F76AA7A53CA74F5B4DFF9A4B847295E7D82450A2078B5A28814A7A07F8BBDD34F8EEB42B0E70499087A242AA2C5BA9513C8F9D35A81B33A121EEF0A71F3F9071CCD'
@@ -34,15 +36,15 @@ settings_map = {
     'nissan': {
         'EU': {
             'client_id': 'a-ncb-prod-android',
-            'client_secret': '3LBs0yOx2XO-3m4mMRW27rKeJzskhfWF0A8KUtnim8i/qYQPl8ZItp3IaqJXaYj_',
+            'client_secret': '0sAcrtwvwEXXZp5nzQhPexSRhxUVKa0d76F4uqDvxvvKFHXpo4myoJwUuV4vuNqC',
             'scope': 'openid profile vehicles',
-            'auth_base_url': 'https://prod.eu.auth.kamereon.org/kauth/',
+            'auth_base_url': 'https://prod.eu2.auth.kamereon.org/kauth/',
             'realm': 'a-ncb-prod',
             'redirect_uri': 'org.kamereon.service.nci:/oauth2redirect',
-            'car_adapter_base_url': 'https://alliance-platform-caradapter-prod.apps.eu.kamereon.io/car-adapter/',
-            'notifications_base_url': 'https://alliance-platform-notifications-prod.apps.eu.kamereon.io/notifications/',
-            'user_adapter_base_url': 'https://alliance-platform-usersadapter-prod.apps.eu.kamereon.io/user-adapter/',
-            'user_base_url': 'https://nci-bff-web-prod.apps.eu.kamereon.io/bff-web/',
+            'car_adapter_base_url': 'https://alliance-platform-caradapter-prod.apps.eu2.kamereon.io/car-adapter/',
+            'notifications_base_url': 'https://alliance-platform-notifications-prod.apps.eu2.kamereon.io/notifications/',
+            'user_adapter_base_url': 'https://alliance-platform-usersadapter-prod.apps.eu2.kamereon.io/user-adapter/',
+            'user_base_url': 'https://nci-bff-web-prod.apps.eu2.kamereon.io/bff-web/',
         },
         'JP': {},
         'RU': {},
@@ -701,7 +703,7 @@ class KamereonSession:
 
     def fetch_vehicles(self):
         resp = self.oauth.get(
-            '{}v2/users/{}/cars'.format(self.settings['user_base_url'], self.user_id)
+            '{}v5/users/{}/cars'.format(self.settings['user_base_url'], self.user_id)
         )
         vehicles = []
         for vehicle_data in resp.json()['data']:
