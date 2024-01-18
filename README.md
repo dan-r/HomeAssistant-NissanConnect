@@ -1,49 +1,36 @@
-# kamereon-python
+# Nissan Connect for Home Assistant
 
-Kamereon is platform used for connected cars from the Renault-Nissan-Mitsubishi Alliance from 2019 onwards.
+A basic integration for interacting with Nissan Connect vehicles. Based on the work of @mitchellrj and tobiaswkjeldsen.
 
-## Compatible models
+This is an unofficial integration. I have no affiliation with Nissan besides owning one of their cars.
 
-Theoretically...
+Tested with the following vehicles:
+* Nissan Leaf (2022) - UK
 
-* Nissan Navara (from July 2019)
-* Nissan Leaf (from May 2019)
-* Nissan Juke (from November 2019)
-* Renault Zoe?
+If you find any bugs or would like to request a feature, please open an issue.
 
-## Example usage
 
-    pip install -r requirements.txt
-    python kamereon/__init__.py EU my-email-login@foo.bar my-password
+## Installation
 
-## This project
+### HACS
+This is the recommended installation method.
+1. Add this repository to HACS as a [custom repository](https://hacs.xyz/docs/faq/custom_repositories)
+2. Search for and install the Ohme addon from HACS
+3. Restart Home Assistant
 
-Is a proof-of-concept, and my goal is to build this into a general library for this platform, and use that to build a [Home Assistant](https://www.home-assistant.io/) component.
+### Manual
+1. Download the [latest release](https://github.com/dan-r/HomeAssistant-NissanConnect/releases)
+2. Copy the contents of `custom_components` into the `<config directory>/custom_components` directory of your Home Assistant installation
+3. Restart Home Assistant
 
-### License
 
-Apache 2
+## Setup
+From the Home Assistant Integrations page, search for and add the Nissan Connect integration.
 
-## References
 
-This wouldn't have been half as easy to put together if it wasn't for the work by [Tobias Westergaard Kjeldsen](https://gitlab.com/tobiaswkjeldsen) on reverse engineering Nissan Connect Services apps for his [dartnissanconnect](https://gitlab.com/tobiaswkjeldsen/dartnissanconnect) library and [My Leaf app](https://gitlab.com/tobiaswkjeldsen/carwingsflutter)
+## Entities
+This integration exposes the following entities:
 
-### Acronyms and initialisms
-
-* SVT: Stolen Vehicle Tracking
-* SRP: ?? PIN (PIN used for remote control actions)
-* FOTA: ???
-* EPS: ???
-* RGDC: ???
-* NCI: Nissan Connect ???
-* NCB: Nissan Connect ???
-* ACMS: ??? the server-side platform used to handle requests
-* ICE: Internal Combustion Engine
-* RHL: Remote Horn / Lights
-* RC: Remove Charge
-* RLU: Remote Lock / Unlock
-* BCI: ?
-* RES: Remote Electric Start / Stop?
-* CCS: Climate Control System
-* RPC/RPU: ?
-* SVTB: Stolen Vehicle Tracking Block / Unblock
+* Binary Sensors
+    * Car Connected - On when the car is plugged in (EV Only)
+    * Car Charging - On when the car is plugged in and drawing power (EV Only)
