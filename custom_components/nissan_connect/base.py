@@ -29,26 +29,22 @@ class KamereonEntity(Entity):
         return 'mdi:car'
 
     @property
-    def _entity_name(self):
-        return None
-
-    @property
     def _vehicle_name(self):
         return self.vehicle.nickname or self.vehicle.model_name
 
     @property
     def name(self):
         """Return full name of the entity."""
-        if not self._entity_name:
+        if not self._attr_name:
             return self._vehicle_name
-        return f"{self._vehicle_name} {self._entity_name}"
+        return f"{self._vehicle_name} {self._attr_name}"
 
     @property
     def unique_id(self):
         """Return unique ID of the entity."""
-        if not self._entity_name:
+        if not self._attr_name:
             return None
-        return f"{self._vehicle_name}_{self._entity_name}"
+        return f"{self._vehicle_name}_{self._attr_name}"
 
     @property
     def should_poll(self):

@@ -1,6 +1,6 @@
 import voluptuous as vol
 from homeassistant.config_entries import (ConfigFlow, OptionsFlow)
-from .const import DOMAIN, CONFIG_VERSION, DEFAULT_UPDATE_INTERVAL
+from .const import DOMAIN, CONFIG_VERSION
 import homeassistant.helpers.config_validation as cv
 
 
@@ -8,7 +8,10 @@ USER_SCHEMA = vol.Schema({
     vol.Required("email"): cv.string,
     vol.Required("password"): cv.string,
     vol.Optional(
-        "interval", default=DEFAULT_UPDATE_INTERVAL
+        "interval", default=60
+    ): int,
+    vol.Optional(
+        "interval_charging", default=15
     ): int,
     vol.Optional(
         "region", default="EU"): cv.string,
@@ -23,7 +26,6 @@ class NissanConfigFlow(ConfigFlow, domain=DOMAIN):
         errors = {}
 
         if info is not None:
-            # await self.async_set_unique_id("ohm)
             self._abort_if_unique_id_configured()
         
             return self.async_create_entry(

@@ -36,14 +36,38 @@ async def async_setup_entry(hass, entry):
         if vehicle.vin not in data[DATA_VEHICLES]:
             data[DATA_VEHICLES][vehicle.vin] = vehicle
 
-    coordinator = data[DATA_COORDINATOR] = KamereonCoordinator(hass=hass)
+    coordinator = data[DATA_COORDINATOR] = KamereonCoordinator(hass, config)
 
     await coordinator.async_config_entry_first_refresh()
 
     _LOGGER.debug("Initialising entities")
-    for component in ('binary_sensor',):
+    for component in ENTITY_TYPES:
             hass.async_create_task(
                 hass.config_entries.async_forward_entry_setup(entry, component)
             )
+
+    return True
+
+async def async_unload_entry(hass, entry):
+    """Unload a config entry."""
+
+    return await hass.config_entries.async_unload_platforms(entry, ENTITY_TYPES)
+
+async def async_migrate_entry(hass, config_entry) -> bool:
+    """Migrate old entry."""
+    # Version number has gone backwards
+    if CONFIG_VERSION < config_entry.version:
+        _LOGGER.error("Backwards migration not possible. Please update the integration.")
+        return False
+    
+    # Version number has gone up
+    if config_entry.version < CONFIG_VERSION:
+        _LOGGER.debug("Migrating from version %s", config_entry.version)
+        new_data = config_entry.data
+
+        config_entry.version = CONFIG_VERSION
+        hass.config_entries.async_update_entry(config_entry, data=new_data)
+
+        _LOGGER.debug("Migration to version %s successful", config_entry.version)
 
     return True

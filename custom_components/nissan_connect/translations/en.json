@@ -8,6 +8,7 @@
             "email": "Email address",
             "password": "Password",
             "interval": "Update interval (minutes)",
+            "interval_charging": "Update interval while charging (minutes)",
             "region": "Region (EU, US)"
           }
         }
