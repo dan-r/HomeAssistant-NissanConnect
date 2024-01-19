@@ -764,6 +764,8 @@ class Vehicle:
         self.first_registration_date = data.get('firstRegistrationDate')
         self.ice_or_ev = data.get('iceEvFlag')
         self.model_name = data.get('modelName')
+        self.model_code = data.get('modelCode')
+        self.model_year = data.get('modelYear')
         self.nickname = data.get('nickname')
         self.phase = data.get('phase')
         self.picture_url = data.get('pictureURL')

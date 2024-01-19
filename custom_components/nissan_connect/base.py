@@ -62,5 +62,7 @@ class KamereonEntity(Entity):
             identifiers={(DOMAIN, self.vehicle.session.tenant, self.vehicle.vin)},
             name=self.vehicle.nickname or self.vehicle.model_name,
             manufacturer=self.vehicle.session.tenant.capitalize(),
+            model=f"{self.vehicle.model_year} {self.vehicle.model_name}",
+            hw_version=self.vehicle.model_code,
             serial_number=self.vehicle.vin,
         )
