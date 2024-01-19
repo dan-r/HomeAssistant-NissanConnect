@@ -39,10 +39,13 @@ async def async_setup_entry(hass, config, async_add_entities):
             entities += [
                 StatisticSensor(coordinator_stats, data[vehicle], 'daily', lambda x: x.total_distance, 'Daily Distance', 'mdi:map-marker-distance', SensorDeviceClass.DISTANCE, UnitOfLength.KILOMETERS, 0, imperial_distance),
                 StatisticSensor(coordinator_stats, data[vehicle], 'daily', lambda x: x.trip_count, 'Daily Trips', 'mdi:hiking', None, None, 0),
-                StatisticSensor(coordinator_stats, data[vehicle], 'daily', lambda x: x.total_distance / x.consumed_electricity, 'Daily Efficiency', 'mdi:ev-station', SensorDeviceClass.DISTANCE, UnitOfLength.KILOMETERS, 2, imperial_distance),
                 StatisticSensor(coordinator_stats, data[vehicle], 'monthly', lambda x: x.total_distance, 'Monthly Distance', 'mdi:map-marker-distance', SensorDeviceClass.DISTANCE, UnitOfLength.KILOMETERS, 0, imperial_distance),
                 StatisticSensor(coordinator_stats, data[vehicle], 'monthly', lambda x: x.trip_count, 'Monthly Trips', 'mdi:hiking',  None, None, 0),
-                StatisticSensor(coordinator_stats, data[vehicle], 'monthly', lambda x: x.total_distance / x.consumed_electricity, 'Monthly Efficiency', 'mdi:ev-station', SensorDeviceClass.DISTANCE, UnitOfLength.KILOMETERS, 2, imperial_distance),
+            ]
+            if Feature.BATTERY_STATUS in data[vehicle].features:
+                entities += [
+                    StatisticSensor(coordinator_stats, data[vehicle], 'daily', lambda x: x.total_distance / x.consumed_electricity, 'Daily Efficiency', 'mdi:ev-station', SensorDeviceClass.DISTANCE, UnitOfLength.KILOMETERS, 2, imperial_distance),
+                    StatisticSensor(coordinator_stats, data[vehicle], 'monthly', lambda x: x.total_distance / x.consumed_electricity, 'Monthly Efficiency', 'mdi:ev-station', SensorDeviceClass.DISTANCE, UnitOfLength.KILOMETERS, 2, imperial_distance),
                 ]
 
         entities.append(OdometerSensor(coordinator, data[vehicle], imperial_distance))
