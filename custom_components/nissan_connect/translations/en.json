@@ -16,7 +16,8 @@
         }
       },
       "error": {
-        "auth_error": "Invalid credentials provided."
+        "auth_error": "Invalid credentials provided.",
+        "region_error": "Invalid region provided. Please provide a valid region."
       },
       "abort": {}
     },

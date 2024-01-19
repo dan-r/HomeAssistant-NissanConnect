@@ -1,6 +1,6 @@
 import voluptuous as vol
 from homeassistant.config_entries import (ConfigFlow, OptionsFlow)
-from .const import DOMAIN, CONFIG_VERSION, DEFAULT_INTERVAL, DEFAULT_INTERVAL_CHARGING, DEFAULT_INTERVAL_STATISTICS, DEFAULT_REGION
+from .const import DOMAIN, CONFIG_VERSION, DEFAULT_INTERVAL, DEFAULT_INTERVAL_CHARGING, DEFAULT_INTERVAL_STATISTICS, DEFAULT_REGION, REGIONS
 from .kamereon import NCISession
 import homeassistant.helpers.config_validation as cv
 
@@ -29,8 +29,9 @@ class NissanConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(self, info):
         errors = {}
-
-        if info is not None:
+        if info is not None and info["region"] not in REGIONS:
+            errors["base"] = "region_error"
+        elif info is not None:
             # Validate credentials
             kamereon_session = NCISession(
                 region=info["region"]
@@ -69,7 +70,7 @@ class NissanOptionsFlow(OptionsFlow):
         # If form filled
         if options is not None:
             data = dict(self._config_entry.data)
-             # Validate credentials
+            # Validate credentials
             kamereon_session = NCISession(
                 region=data["region"]
             )

@@ -99,14 +99,15 @@ class KamereonClimate(KamereonEntity, ClimateEntity):
         _LOGGER.debug("Beginning HVAC fetch loop")
         self._loop_mutex = True
         for _ in range(6):
+            asyncio.run_coroutine_threadsafe(
+                self.coordinator.force_update(), self._hass.loop
+            ).result()
+
             # We have our update, break out
             if target_state == self.vehicle.hvac_status:
                 _LOGGER.debug("Breaking out of HVAC fetch loop")
                 break
 
-            asyncio.run_coroutine_threadsafe(
-                self.coordinator.force_update(), self._hass.loop
-            ).result()
             sleep(5)
         
         _LOGGER.debug("Ending HVAC fetch loop")
