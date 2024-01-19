@@ -1,21 +1,24 @@
 import voluptuous as vol
 from homeassistant.config_entries import (ConfigFlow, OptionsFlow)
-from .const import DOMAIN, CONFIG_VERSION
+from .const import DOMAIN, CONFIG_VERSION, DEFAULT_INTERVAL, DEFAULT_INTERVAL_CHARGING, DEFAULT_INTERVAL_STATISTICS, DEFAULT_REGION
 from .kamereon import NCISession
 import homeassistant.helpers.config_validation as cv
 
 USER_SCHEMA = vol.Schema({
     vol.Required("email"): cv.string,
     vol.Required("password"): cv.string,
-    vol.Optional(
-        "interval", default=60
+    vol.Required(
+        "interval", default=DEFAULT_INTERVAL
     ): int,
-    vol.Optional(
-        "interval_charging", default=15
+    vol.Required(
+        "interval_charging", default=DEFAULT_INTERVAL_CHARGING
     ): int,
-    vol.Optional(
-        "region", default="EU"): cv.string,
-    vol.Optional(
+    vol.Required(
+        "interval_statistics", default=DEFAULT_INTERVAL_STATISTICS
+    ): int,
+    vol.Required(
+        "region", default=DEFAULT_REGION): cv.string,
+    vol.Required(
         "imperial_distance", default=False): bool
 })
 
@@ -102,13 +105,16 @@ class NissanOptionsFlow(OptionsFlow):
             step_id="init", data_schema=vol.Schema({
                 vol.Required("email", default=self._config_entry.data.get("email", "")): cv.string,
                 vol.Optional("password"): cv.string,
-                vol.Optional(
-                    "interval", default=self._config_entry.data.get("interval", 60)
+                vol.Required(
+                    "interval", default=self._config_entry.data.get("interval", DEFAULT_INTERVAL)
                 ): int,
-                vol.Optional(
-                    "interval_charging", default=self._config_entry.data.get("interval_charging", 15)
+                vol.Required(
+                    "interval_charging", default=self._config_entry.data.get("interval_charging", DEFAULT_INTERVAL_CHARGING)
                 ): int,
-                vol.Optional(
-                    "imperial_distance", default=False): bool
+                vol.Required(
+                    "interval_statistics", default=self._config_entry.data.get("interval_statistics", DEFAULT_INTERVAL_STATISTICS)
+                ): int,
+                vol.Required(
+                    "imperial_distance", default=self._config_entry.data.get("imperial_distance", False)): bool
             }), errors=errors
         )

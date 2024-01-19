@@ -12,13 +12,12 @@ async def async_setup(hass, config) -> bool:
 
 async def async_update_listener(hass, entry):
     """Handle options flow credentials update."""
-
     # Loop each vehicle and update its session with the new credentials
     for vehicle in hass.data[DOMAIN][DATA_VEHICLES]:
         await hass.async_add_executor_job(hass.data[DOMAIN][DATA_VEHICLES][vehicle].session.login,
-                                          entry.data.get("email"),
-                                          entry.data.get("password")
-                                          )
+                                            entry.data.get("email"),
+                                            entry.data.get("password")
+                                            )
 
     # Refresh coordinator
     await hass.data[DOMAIN][DATA_COORDINATOR].force_update()

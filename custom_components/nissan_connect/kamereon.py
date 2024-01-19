@@ -602,10 +602,9 @@ class KamereonSession:
     tenant = None
     copy_realm = None
 
-    def __init__(self, region, session=None):
+    def __init__(self, region):
         self.settings = settings_map[self.tenant][region]
-        if session is None:
-            session = requests.session()
+        session = requests.session()
         self.session = session
         self._oauth = None
         self._user_id = None
@@ -620,6 +619,9 @@ class KamereonSession:
         # Cache credentials
         self._username = username
         self._password = password
+
+        # Reset session
+        self.session = requests.session()
 
         # grab an auth ID to use as part of the username/password login request,
         # then move to the regular OAuth2 process

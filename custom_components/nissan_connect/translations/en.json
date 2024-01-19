@@ -9,6 +9,7 @@
             "password": "Password",
             "interval": "Update interval (minutes)",
             "interval_charging": "Update interval while charging (minutes)",
+            "interval_statistics": "Update interval for daily/monthly statistics (minutes)",
             "region": "Region (EU, US)",
             "imperial_distance": "Use imperial distance units"
           }
@@ -28,7 +29,7 @@
             "password": "Password",
             "interval": "Update interval (minutes)",
             "interval_charging": "Update interval while charging (minutes)",
-            "region": "Region (EU, US)",
+            "interval_statistics": "Update interval for daily/monthly statistics (minutes)",
             "imperial_distance": "Use imperial distance units"
           },
           "data_description": {
