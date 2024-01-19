@@ -6,6 +6,7 @@ import asyncio
 from time import sleep
 from homeassistant.components.climate import ClimateEntity
 from homeassistant.components.climate.const import (HVACMode, ClimateEntityFeature)
+from homeassistant.components.climate.const import HVACAction as HASSHVACAction
 from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 
 SUPPORT_HVAC = [HVACMode.HEAT_COOL, HVACMode.OFF]
@@ -34,6 +35,7 @@ class KamereonClimate(KamereonEntity, ClimateEntity):
     _attr_name = "Climate"
     _attr_min_temp = 16
     _attr_max_temp = 26
+    _attr_target_temperature_step = 1
     _target = 20
     _loop_mutex = False
 
@@ -63,6 +65,16 @@ class KamereonClimate(KamereonEntity, ClimateEntity):
     def target_temperature(self):
         """Return the temperature we try to reach."""
         return float(self._target)
+    
+    @property
+    def hvac_action(self):
+        """Shows heating or cooling depending on temperature."""
+        if self.vehicle.hvac_status is not None and self.vehicle.hvac_status is HVACStatus.ON:
+            if self._target < self.vehicle.internal_temperature:
+                return HASSHVACAction.COOLING
+            else:
+                return HASSHVACAction.HEATING
+        return HASSHVACAction.OFF
 
     def set_temperature(self, **kwargs):
         """Set new target temperatures."""
