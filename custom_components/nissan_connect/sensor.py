@@ -12,6 +12,7 @@ from .kamereon import ChargingSpeed, Feature
 from .const import DOMAIN, DATA_VEHICLES, DATA_COORDINATOR, DATA_COORDINATOR_STATISTICS
 _LOGGER = logging.getLogger(__name__)
 
+
 async def async_setup_entry(hass, config, async_add_entities):
     """Set up the Kamereon sensors."""
     data = hass.data[DOMAIN][DATA_VEHICLES]
@@ -20,23 +21,31 @@ async def async_setup_entry(hass, config, async_add_entities):
 
     entities = []
 
+    imperial_distance = config.data.get("imperial_distance", False)
+
     for vehicle in data:
         if Feature.BATTERY_STATUS in data[vehicle].features:
-            entities.append(BatteryLevelSensor(coordinator, data[vehicle]))
-            entities.append(RangeSensor(coordinator, data[vehicle], True))
-            entities.append(RangeSensor(coordinator, data[vehicle], False))
-            entities.append(ChargeTimeRequiredSensor(coordinator, data[vehicle], ChargingSpeed.NORMAL))
-            entities.append(ChargeTimeRequiredSensor(coordinator, data[vehicle], ChargingSpeed.FAST))
-            entities.append(TimestampSensor(coordinator, data[vehicle], 'battery_status_last_updated', 'Last Updated', 'mdi:clock-time-eleven-outline'))
+            entities += [BatteryLevelSensor(coordinator, data[vehicle]),
+                         RangeSensor(coordinator, data[vehicle], True, imperial_distance),
+                         RangeSensor(coordinator, data[vehicle], False, imperial_distance),
+                         ChargeTimeRequiredSensor(coordinator, data[vehicle], ChargingSpeed.NORMAL),
+                         ChargeTimeRequiredSensor(coordinator, data[vehicle], ChargingSpeed.FAST),
+                         TimestampSensor(coordinator, data[vehicle], 'battery_status_last_updated', 'Last Updated', 'mdi:clock-time-eleven-outline')]
         if data[vehicle].internal_temperature is not None:
             entities.append(InternalTemperatureSensor(coordinator, data[vehicle]))
         if data[vehicle].external_temperature is not None:
             entities.append(ExternalTemperatureSensor(coordinator, data[vehicle]))
         if Feature.DRIVING_JOURNEY_HISTORY in data[vehicle].features:
-            entities.append(StatisticSensor(coordinator_stats, data[vehicle], 'daily', 'Daily Distance' ))
-            entities.append(StatisticSensor(coordinator_stats, data[vehicle], 'monthly', 'Monthly Distance' ))
+            entities += [
+                StatisticSensor(coordinator_stats, data[vehicle], 'daily', lambda x: x.total_distance, 'Daily Distance', 'mdi:map-marker-distance', SensorDeviceClass.DISTANCE, UnitOfLength.KILOMETERS, 0, imperial_distance),
+                StatisticSensor(coordinator_stats, data[vehicle], 'daily', lambda x: x.trip_count, 'Daily Trips', 'mdi:hiking', None, None, 0),
+                StatisticSensor(coordinator_stats, data[vehicle], 'daily', lambda x: x.total_distance / x.consumed_electricity, 'Daily Efficiency', 'mdi:ev-station', SensorDeviceClass.DISTANCE, UnitOfLength.KILOMETERS, 2, imperial_distance),
+                StatisticSensor(coordinator_stats, data[vehicle], 'monthly', lambda x: x.total_distance, 'Monthly Distance', 'mdi:map-marker-distance', SensorDeviceClass.DISTANCE, UnitOfLength.KILOMETERS, 0, imperial_distance),
+                StatisticSensor(coordinator_stats, data[vehicle], 'monthly', lambda x: x.trip_count, 'Monthly Trips', 'mdi:hiking',  None, None, 0),
+                StatisticSensor(coordinator_stats, data[vehicle], 'monthly', lambda x: x.total_distance / x.consumed_electricity, 'Monthly Efficiency', 'mdi:ev-station', SensorDeviceClass.DISTANCE, UnitOfLength.KILOMETERS, 2, imperial_distance),
+                ]
 
-        entities.append(OdometerSensor(coordinator, data[vehicle]))
+        entities.append(OdometerSensor(coordinator, data[vehicle], imperial_distance))
 
     async_add_entities(entities, update_before_add=True)
 
@@ -50,7 +59,7 @@ class BatteryLevelSensor(KamereonEntity, SensorEntity):
     def state(self):
         """Return the state."""
         return self.vehicle.battery_level
-    
+
     @property
     def icon(self):
         """Icon of the sensor."""
@@ -65,6 +74,7 @@ class BatteryLevelSensor(KamereonEntity, SensorEntity):
             'battery_level': self.vehicle.battery_level,
         })
 
+
 class InternalTemperatureSensor(KamereonEntity, SensorEntity):
     _attr_name = "Internal Temperature"
     _attr_device_class = SensorDeviceClass.TEMPERATURE
@@ -74,7 +84,7 @@ class InternalTemperatureSensor(KamereonEntity, SensorEntity):
     def native_value(self):
         """Return the state."""
         return self.vehicle.internal_temperature
-    
+
     @property
     def icon(self):
         """Icon of the sensor."""
@@ -89,6 +99,7 @@ class InternalTemperatureSensor(KamereonEntity, SensorEntity):
             'battery_bar_level': self.vehicle.battery_bar_level,
         })
         return a
+
 
 class ExternalTemperatureSensor(KamereonEntity, SensorEntity):
     _attr_name = "External Temperature"
@@ -104,7 +115,7 @@ class ExternalTemperatureSensor(KamereonEntity, SensorEntity):
     def icon(self):
         """Icon of the sensor."""
         return "mdi:thermometer"
-    
+
     @property
     def device_state_attributes(self):
         """Return device specific state attributes."""
@@ -115,12 +126,16 @@ class ExternalTemperatureSensor(KamereonEntity, SensorEntity):
         })
         return a
 
+
 class RangeSensor(KamereonEntity, SensorEntity):
     _attr_name = "Range"
     _attr_device_class = SensorDeviceClass.DISTANCE
     _attr_native_unit_of_measurement = UnitOfLength.KILOMETERS
 
-    def __init__(self, coordinator, vehicle, hvac):
+    def __init__(self, coordinator, vehicle, hvac, imperial_distance):
+        if imperial_distance:
+            self._attr_suggested_unit_of_measurement = UnitOfLength.MILES
+
         self._attr_name = "Range (AC On)" if hvac else "Range (AC Off)"
         KamereonEntity.__init__(self, coordinator, vehicle)
         self.hvac = hvac
@@ -128,37 +143,48 @@ class RangeSensor(KamereonEntity, SensorEntity):
     @property
     def native_value(self):
         """Return the state."""
-        val = getattr(self.vehicle, 'range_hvac_{}'.format('on' if self.hvac else 'off'))
+        val = getattr(self.vehicle, 'range_hvac_{}'.format(
+            'on' if self.hvac else 'off'))
         return val
-    
+
     @property
     def icon(self):
         """Icon of the sensor."""
         return "mdi:map-marker-distance"
+
 
 class OdometerSensor(KamereonEntity, SensorEntity):
     _attr_name = "Odometer"
     _attr_device_class = SensorDeviceClass.DISTANCE
     _attr_native_unit_of_measurement = UnitOfLength.KILOMETERS
 
+    def __init__(self, coordinator, vehicle, imperial_distance):
+        if imperial_distance:
+            self._attr_suggested_unit_of_measurement = UnitOfLength.MILES
+        KamereonEntity.__init__(self, coordinator, vehicle)
+
     @property
     def native_value(self):
         """Return the state."""
         return getattr(self.vehicle, "total_mileage")
-    
+
     @property
     def icon(self):
         """Icon of the sensor."""
         return "mdi:counter"
-    
-class StatisticSensor(KamereonEntity, SensorEntity):
-    _attr_device_class = SensorDeviceClass.DISTANCE
-    _attr_native_unit_of_measurement = UnitOfLength.KILOMETERS
-    _attr_suggested_display_precision = 0
 
-    def __init__(self, coordinator, vehicle, key, name):
+
+class StatisticSensor(KamereonEntity, SensorEntity):
+    def __init__(self, coordinator, vehicle, key, func, name, icon, device_class, unit, precision, imperial_distance=False):
+        self._attr_device_class = device_class
+        self._attr_native_unit_of_measurement = unit
+        self._attr_suggested_display_precision = precision
+        if imperial_distance:
+            self._attr_suggested_unit_of_measurement = UnitOfLength.MILES
         self._attr_name = name
+        self._icon = icon
         self._key = key
+        self._lambda = func
         self._state = None
         self._attributes = {}
         KamereonEntity.__init__(self, coordinator, vehicle)
@@ -167,43 +193,34 @@ class StatisticSensor(KamereonEntity, SensorEntity):
     def native_value(self):
         """Return the state."""
         return self._state
-    
+
     @property
     def extra_state_attributes(self):
         """Attributes of the sensor."""
         return self._attributes
-    
+
     @callback
     def _handle_coordinator_update(self) -> None:
         if self.coordinator.data is None or self.vehicle.vin not in self.coordinator.data:
             return
-        
+
         summary = self.coordinator.data[self.vehicle.vin][self._key]
-        
+
         # No summaries yet, return 0
         if len(summary) == 0:
             self._state = 0
             self.async_write_ha_state()
             return
-        
-        summary = summary[0]
-        
-        self._state = summary.total_distance
-        self._attributes = {
-            'trip_count': summary.trip_count,
-            'duration': summary.total_duration,
-            'consumed_electricity': summary.consumed_electricity,
-            'kwh_per_100km': (summary.consumed_electricity / summary.total_distance) * 100,
-            'miles_per_kwh': (summary.total_distance * 0.6214) / summary.consumed_electricity
 
-        }
+        self._state = self._lambda(summary[0])
 
         self.async_write_ha_state()
-    
+
     @property
     def icon(self):
         """Icon of the sensor."""
-        return "mdi:calendar-today"
+        return self._icon
+
 
 class ChargeTimeRequiredSensor(KamereonEntity, SensorEntity):
     _attr_name = "Charge Time"
@@ -226,11 +243,12 @@ class ChargeTimeRequiredSensor(KamereonEntity, SensorEntity):
     def native_value(self):
         """Return the state."""
         return self.vehicle.charge_time_required_to_full[self.charging_speed]
- 
+
     @property
     def icon(self):
         """Icon of the sensor."""
-        return "mdi:timer-sand-complete"
+        return "mdi:battery-clock"
+
 
 class TimestampSensor(KamereonEntity, SensorEntity):
     _attr_device_class = SensorDeviceClass.TIMESTAMP
@@ -245,7 +263,7 @@ class TimestampSensor(KamereonEntity, SensorEntity):
     def icon(self):
         """Icon of the sensor."""
         return self._icon
-    
+
     @property
     def state(self):
         """Return the state."""

@@ -15,6 +15,8 @@ USER_SCHEMA = vol.Schema({
     ): int,
     vol.Optional(
         "region", default="EU"): cv.string,
+    vol.Optional(
+        "imperial_distance", default=False): bool
 })
 
 
@@ -105,6 +107,8 @@ class NissanOptionsFlow(OptionsFlow):
                 ): int,
                 vol.Optional(
                     "interval_charging", default=self._config_entry.data.get("interval_charging", 15)
-                ): int
+                ): int,
+                vol.Optional(
+                    "imperial_distance", default=False): bool
             }), errors=errors
         )

@@ -34,8 +34,6 @@ async def async_setup_entry(hass, entry):
         region=config["region"]
     )
 
-    interval = config["interval"]
-
     data = hass.data[DOMAIN] = {
         DATA_VEHICLES: {}
     }

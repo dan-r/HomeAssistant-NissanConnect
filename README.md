@@ -46,7 +46,11 @@ This integration exposes the following entities. Please note that entities will 
     * Range
     * Odometer
     * Daily Distance
+    * Daily Trips
+    * Daily Efficiency
     * Monthly Distance
+    * Monthly Trips
+    * Monthly Efficiency
 * Climate
 * Device Tracker
 * Buttons
