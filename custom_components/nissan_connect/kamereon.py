@@ -17,15 +17,12 @@ import datetime
 import enum
 import json
 import os
-from typing import List
-from urllib.parse import urljoin, urlparse, parse_qs
-
-from oauthlib.common import generate_nonce
-import pytz
 import requests
+import logging
+from typing import List
+from oauthlib.common import generate_nonce
 from requests_oauthlib import OAuth2Session
 
-import logging
 _LOGGER = logging.getLogger(__name__)
 
 API_VERSION = 'protocol=1.0,resource=2.1'
@@ -590,7 +587,7 @@ class Notification:
     def fetch_details(self, language: Language=None):
         if language is None:
             language = self.language
-        resp = self.session.oauth.get(
+        resp = self._get(
             '{}v2/notifications/users/{}/vehicles/{}/notifications/{}'.format(
                 self.session.settings['notifications_base_url'],
                 self.user_id, self.vin, self.id
@@ -615,10 +612,17 @@ class KamereonSession:
         # ugly hack
         os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
+    def login(self):
+        """Login with cached credentials."""
+        return self.login(self._username, self._password)
+
     def login(self, username, password):
+        # Cache credentials
+        self._username = username
+        self._password = password
+
         # grab an auth ID to use as part of the username/password login request,
         # then move to the regular OAuth2 process
-
         auth_url = '{}json/realms/root/realms/{}/authenticate'.format(
             self.settings['auth_base_url'],
             self.settings['realm'],
@@ -800,6 +804,24 @@ class Vehicle:
         self.mileage = None
         self.total_mileage = None
 
+    def _get(self, url, headers=None, params=None):
+        """Try logging in again before returning a failure."""
+        resp = self.session.oauth.get(url, headers=headers, params=params)
+        if resp.status_code == 401:
+            self.session.login()
+            return self.session.oauth.get(url, headers=headers, params=params)
+        
+        return resp
+
+    def _post(self, url, data=None, headers=None):
+        """Try logging in again before returning a failure."""
+        resp = self.session.oauth.post(url, data=data, headers=headers)
+        if resp.status_code == 401:
+            self.session.login()
+            return self.session.oauth.post(url, data=data, headers=headers)
+        
+        return resp
+
     def refresh(self):
         self.refresh_location()
         self.refresh_battery_status()
@@ -814,7 +836,7 @@ class Vehicle:
         self.fetch_lock_status()
 
     def refresh_location(self):
-        resp = self.session.oauth.post(
+        resp = self._post(
             '{}v1/cars/{}/actions/refresh-location'.format(self.session.settings['car_adapter_base_url'], self.vin),
             data=json.dumps({
                 'data': {'type': 'RefreshLocation'}
@@ -827,7 +849,7 @@ class Vehicle:
         return body
 
     def fetch_location(self):
-        resp = self.session.oauth.get(
+        resp = self._get(
             '{}v1/cars/{}/location'.format(self.session.settings['car_adapter_base_url'], self.vin),
             headers={'Content-Type': 'application/vnd.api+json'}
         )
@@ -839,7 +861,7 @@ class Vehicle:
         self.location_last_updated = datetime.datetime.fromisoformat(location_data['lastUpdateTime'].replace('Z','+00:00'))
 
     def refresh_lock_status(self):
-        resp = self.session.oauth.post(
+        resp = self._post(
             '{}v1/cars/{}/actions/refresh-lock-status'.format(self.session.settings['car_adapter_base_url'], self.vin),
             data=json.dumps({
                 'data': {'type': 'RefreshLockStatus'}
@@ -854,7 +876,7 @@ class Vehicle:
     def fetch_lock_status(self):
         if Feature.LOCK_STATUS_CHECK not in self.features:
             return
-        resp = self.session.oauth.get(
+        resp = self._get(
             '{}v1/cars/{}/lock-status'.format(self.session.settings['car_adapter_base_url'], self.vin),
             headers={'Content-Type': 'application/vnd.api+json'}
         )
@@ -871,7 +893,7 @@ class Vehicle:
         self.lock_status_last_updated = datetime.datetime.fromisoformat(lock_data['lastUpdateTime'].replace('Z','+00:00'))
 
     def refresh_hvac_status(self):
-        resp = self.session.oauth.post(
+        resp = self._post(
             '{}v1/cars/{}/actions/refresh-hvac-status'.format(self.session.settings['car_adapter_base_url'], self.vin),
             data=json.dumps({
                 'data': {'type': 'RefreshHvacStatus'}
@@ -885,7 +907,7 @@ class Vehicle:
 
     def initiate_srp(self):
         (salt, verifier) = SRP.enroll(self.user_id, self.vin)
-        resp = self.session.oauth.post(
+        resp = self._post(
             '{}v1/cars/{}/actions/srp-initiates'.format(self.session.settings['car_adapter_base_url'], self.vin),
             data=json.dumps({
                 "data": {
@@ -906,7 +928,7 @@ class Vehicle:
 
     def validate_srp(self):
         a = SRP.generate_a()
-        resp = self.session.oauth.post(
+        resp = self._post(
             '{}v1/cars/{}/actions/srp-sets'.format(self.session.settings['car_adapter_base_url'], self.vin),
             data=json.dumps({
                 "data": {
@@ -952,7 +974,7 @@ class Vehicle:
         }
         if srp is not None:
             attributes['srp'] = srp
-        resp = self.session.oauth.post(
+        resp = self._post(
             '{}v1/cars/{}/actions/charging-start'.format(self.session.settings['car_adapter_base_url'], self.vin),
             data=json.dumps({
                 'data': {
@@ -979,7 +1001,7 @@ class Vehicle:
         }
         if srp is not None:
             attributes['srp'] = srp
-        resp = self.session.oauth.post(
+        resp = self._post(
             '{}v1/cars/{}/actions/horn-lights'.format(self.session.settings['car_adapter_base_url'], self.vin),
             data=json.dumps({
                 'data': {
@@ -1011,7 +1033,7 @@ class Vehicle:
         if srp is not None:
             attributes['srp'] = srp
 
-        resp = self.session.oauth.post(
+        resp = self._post(
             '{}v1/cars/{}/actions/hvac-start'.format(self.session.settings['car_adapter_base_url'], self.vin),
             data=json.dumps({
                 'data': {
@@ -1032,7 +1054,7 @@ class Vehicle:
         assert action in ('lock', 'unlock')
         if group is None:
             group = LockableDoorGroup.DOORS_AND_HATCH
-        resp = self.session.oauth.post(
+        resp = self._post(
             '{}v1/cars/{}/actions/lock-unlock"'.format(self.session.settings['car_adapter_base_url'], self.vin),
             data=json.dumps({
                 'data': {
@@ -1058,7 +1080,7 @@ class Vehicle:
         return self.lock_unlock(srp, 'unlock', group)
 
     def fetch_hvac_status(self):
-        resp = self.session.oauth.get(
+        resp = self._get(
             '{}v1/cars/{}/hvac-status'.format(self.session.settings['car_adapter_base_url'], self.vin),
             headers={'Content-Type': 'application/vnd.api+json'}
         )
@@ -1076,7 +1098,7 @@ class Vehicle:
         self.hvac_status_last_updated = datetime.datetime.fromisoformat(hvac_data['lastUpdateTime'].replace('Z','+00:00'))
 
     def refresh_battery_status(self):
-        resp = self.session.oauth.post(
+        resp = self._post(
             '{}v1/cars/{}/actions/refresh-battery-status'.format(self.session.settings['car_adapter_base_url'], self.vin),
             data=json.dumps({
                 'data': {'type': 'RefreshBatteryStatus'}
@@ -1091,7 +1113,7 @@ class Vehicle:
     def fetch_battery_status(self):
         if Feature.BATTERY_STATUS not in self.features:
             return
-        resp = self.session.oauth.get(
+        resp = self._get(
             '{}v1/cars/{}/battery-status'.format(self.session.settings['car_adapter_base_url'], self.vin),
             headers={'Content-Type': 'application/vnd.api+json'}
         )
@@ -1122,7 +1144,7 @@ class Vehicle:
         self.battery_status_last_updated = datetime.datetime.fromisoformat(battery_data['lastUpdateTime'].replace('Z','+00:00'))
 
     def fetch_energy_unit_cost(self):
-        resp = self.session.oauth.get(
+        resp = self._get(
             '{}v1/cars/{}/energy-unit-cost'.format(self.session.settings['car_adapter_base_url'], self.vin)
         )
         body = resp.json()
@@ -1134,7 +1156,7 @@ class Vehicle:
         return body
 
     def set_energy_unit_cost(self, cost):
-        resp = self.session.oauth.post(
+        resp = self._post(
             '{}v1/cars/{}/energy-unit-cost'.format(self.session.settings['car_adapter_base_url'], self.vin),
             data=json.dumps({
                 'data': {
@@ -1156,7 +1178,7 @@ class Vehicle:
             start = datetime.date.today()
         if end is None:
             end = start
-        resp = self.session.oauth.get(
+        resp = self._get(
             '{}v1/cars/{}/trip-history'.format(self.session.settings['car_adapter_base_url'], self.vin),
             params={
                 'type': period.value,
@@ -1203,7 +1225,7 @@ class Vehicle:
             if end.tzinfo is None:
                 # Assume UTC
                 params['end'] += 'Z'
-        resp = self.session.oauth.get(
+        resp = self._get(
             '{}v2/notifications/users/{}/vehicles/{}'.format(self.session.settings['notifications_base_url'], self.user_id, self.vin),
             params=params
         )
@@ -1216,7 +1238,7 @@ class Vehicle:
         """Take a list of notifications and set their status remotely
         to the one held locally (read / unread)."""
 
-        resp = self.session.oauth.post(
+        resp = self._post(
             '{}v2/notifications/users/{}/vehicles/{}'.format(self.session.settings['notifications_base_url'], self.user_id, self.vin),
             data=json.dumps([
                 {'notificationId': m.id, 'status': m.status.value}
@@ -1234,7 +1256,7 @@ class Vehicle:
         params = {
             'langCode': language.value,
         }
-        resp = self.session.oauth.get(
+        resp = self._get(
             '{}v1/rules/settings/users/{}/vehicles/{}'.format(self.session.settings['notifications_base_url'], self.user_id, self.vin),
             params=params
         )
@@ -1251,7 +1273,7 @@ class Vehicle:
         pass
 
     def fetch_cockpit(self):
-        resp = self.session.oauth.get(
+        resp = self._get(
             "{}v1/cars/{}/cockpit".format(self.session.settings['car_adapter_base_url'], self.vin)
         )
         body = resp.json()

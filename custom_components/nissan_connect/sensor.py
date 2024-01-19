@@ -149,7 +149,7 @@ class OdometerSensor(KamereonEntity, SensorEntity):
     @property
     def icon(self):
         """Icon of the sensor."""
-        return "mdi:gauge"
+        return "mdi:counter"
     
 class StatisticSensor(KamereonEntity, SensorEntity):
     _attr_device_class = SensorDeviceClass.DISTANCE
@@ -176,8 +176,17 @@ class StatisticSensor(KamereonEntity, SensorEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         if self.coordinator.data is None or self.vehicle.vin not in self.coordinator.data:
-            return None
-        summary = self.coordinator.data[self.vehicle.vin][self._key][0]
+            return
+        
+        summary = self.coordinator.data[self.vehicle.vin][self._key]
+        
+        # No summaries yet, return 0
+        if len(summary) == 0:
+            self._state = 0
+            self.async_write_ha_state()
+            return
+        
+        summary = summary[0]
         
         self._state = summary.total_distance
         self._attributes = {
