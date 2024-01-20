@@ -621,15 +621,16 @@ class KamereonSession:
         # ugly hack
         os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
-    def login(self):
-        """Login with cached credentials."""
-        return self.login(self._username, self._password)
-
-    def login(self, username, password):
-        # Cache credentials
-        self._username = username
-        self._password = password
-
+    def login(self, username=None, password=None):
+        if username is not None and password is not None:
+            # Cache credentials
+            self._username = username
+            self._password = password
+        else:
+            # Use cached credentials
+            username = self._username
+            password = self._password
+        
         # Reset session
         self.session = requests.session()
 
@@ -751,10 +752,16 @@ class Vehicle:
     def __init__(self, data, user_id):
         self.user_id = user_id
         self.vin = data['vin'].upper()
-        self.features = [
-            Feature(str(u['id']))
-            for u in data.get('services', [])
-            if u['activationState'] == "ACTIVATED"]
+        self.features = []
+
+        # Try to parse every feature, but dont fail if we dont recognise one
+        for u in data.get('services', []):
+            if u['activationState'] == "ACTIVATED":
+                try:
+                    self.features.append(Feature(str(u['id'])))
+                except ValueError:
+                    pass
+        
         self.can_generation = data.get('canGeneration')
         self.color = data.get('color')
         self.energy = data.get('energy')
@@ -1094,6 +1101,9 @@ class Vehicle:
         return self.lock_unlock(srp, 'unlock', group)
 
     def fetch_hvac_status(self):
+        if Feature.INTERIOR_TEMP_SETTINGS not in self.features and Feature.TEMPERATURE not in self.features:
+            return
+        
         resp = self._get(
             '{}v1/cars/{}/hvac-status'.format(self.session.settings['car_adapter_base_url'], self.vin),
             headers={'Content-Type': 'application/vnd.api+json'}

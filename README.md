@@ -8,6 +8,7 @@ This is an unofficial integration. I have no affiliation with Nissan besides own
 
 Tested with the following vehicles:
 * Nissan Leaf Tekna (2022) - UK
+* Nissan Qashqai (2021) - EU 
 
 If you find any bugs or would like to request a feature, please open an issue.
 
@@ -36,22 +37,22 @@ Following the model of leaf2mqtt, this integration can be set to use a different
 This integration exposes the following entities. Please note that entities will only be shown if the functionality is supported by your car.
 
 * Binary Sensors
-    * Car Connected - On when the car is plugged in (EV Only)
-    * Car Charging - On when the car is plugged in and drawing power (EV Only)
+    * Car Plugged In (EV Only)
+    * Car Charging (EV Only)
 * Sensors
     * Battery Level
     * Charge Time
     * Internal Temperature
     * External Temperature
-    * Range
+    * Range (EV Only)
     * Odometer
     * Daily Distance
     * Daily Trips
-    * Daily Efficiency
+    * Daily Efficiency (EV Only)
     * Monthly Distance
     * Monthly Trips
-    * Monthly Efficiency
+    * Monthly Efficiency (EV Only)
 * Climate
 * Device Tracker
 * Buttons
-    * Update Data - Force an update
+    * Update Data
