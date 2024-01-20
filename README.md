@@ -39,6 +39,7 @@ This integration exposes the following entities. Please note that entities will 
 * Binary Sensors
     * Car Plugged In (EV Only)
     * Car Charging (EV Only)
+    * Doors Locked
 * Sensors
     * Battery Level
     * Charge Time
