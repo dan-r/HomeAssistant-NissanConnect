@@ -47,16 +47,6 @@ class KamereonEntity(Entity):
         return f"{self._vehicle_name}_{self._attr_name}"
 
     @property
-    def should_poll(self):
-        """Return the polling state."""
-        return False
-
-    @property
-    def assumed_state(self):
-        """Return true if unable to access real state of entity."""
-        return True
-
-    @property
     def device_info(self):
         return DeviceInfo(
             identifiers={(DOMAIN, self.vehicle.session.tenant, self.vehicle.vin)},

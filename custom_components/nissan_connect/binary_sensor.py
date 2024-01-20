@@ -5,7 +5,7 @@ from homeassistant.components.binary_sensor import BinarySensorEntity, BinarySen
 from homeassistant.const import STATE_UNKNOWN
 
 from .base import KamereonEntity
-from .kamereon import ChargingStatus, PluggedStatus, Feature
+from .kamereon import ChargingStatus, PluggedStatus, LockStatus, Feature
 from .const import DOMAIN, DATA_VEHICLES, DATA_COORDINATOR
 
 _LOGGER = logging.getLogger(__name__)
@@ -20,8 +20,10 @@ async def async_setup_entry(hass, config, async_add_entities):
 
     for vehicle in data:
         if Feature.BATTERY_STATUS in data[vehicle].features:
-            entities.append(ChargingStatusEntity(coordinator, data[vehicle]))
-            entities.append(PluggedStatusEntity(coordinator, data[vehicle]))
+            entities += [ChargingStatusEntity(coordinator, data[vehicle]),
+                         PluggedStatusEntity(coordinator, data[vehicle])]
+        if Feature.APP_DOOR_LOCKING in data[vehicle].features:
+            entities += [LockStatusEntity(coordinator, data[vehicle])]
 
     async_add_entities(entities, update_before_add=True)
 
@@ -79,3 +81,17 @@ class PluggedStatusEntity(KamereonEntity, BinarySensorEntity):
             'last_updated': self.vehicle.battery_status_last_updated,
         })
         return a
+
+
+class LockStatusEntity(KamereonEntity, BinarySensorEntity):
+    _attr_device_class = BinarySensorDeviceClass.LOCK
+    _attr_name = "Doors Locked"
+
+    @property
+    def icon(self):
+        """Return the icon."""
+        return 'mdi:car-door-lock' if self.vehicle.lock_status == LockStatus.LOCKED else 'mdi:car-door-lock-open'
+
+    @property
+    def is_on(self):
+        return self.vehicle.lock_status == LockStatus.UNLOCKED
