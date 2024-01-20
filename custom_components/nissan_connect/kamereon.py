@@ -1101,6 +1101,9 @@ class Vehicle:
         return self.lock_unlock(srp, 'unlock', group)
 
     def fetch_hvac_status(self):
+        if Feature.INTERIOR_TEMP_SETTINGS not in self.features and Feature.TEMPERATURE not in self.features:
+            return
+        
         resp = self._get(
             '{}v1/cars/{}/hvac-status'.format(self.session.settings['car_adapter_base_url'], self.vin),
             headers={'Content-Type': 'application/vnd.api+json'}

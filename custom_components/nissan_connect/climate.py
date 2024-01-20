@@ -23,7 +23,7 @@ async def async_setup_entry(hass, config, async_add_entities):
     coordinator = hass.data[DOMAIN][DATA_COORDINATOR]
 
     for vehicle in data:
-        if Feature.TEMPERATURE in data[vehicle].features or Feature.INTERIOR_TEMP_SETTINGS in data[vehicle].features:
+        if Feature.INTERIOR_TEMP_SETTINGS in data[vehicle].features:
             async_add_entities([KamereonClimate(coordinator, data[vehicle], hass)], update_before_add=True)
 
 
