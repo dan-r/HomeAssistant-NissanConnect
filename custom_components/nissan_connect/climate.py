@@ -23,7 +23,7 @@ async def async_setup_entry(hass, config, async_add_entities):
     coordinator = hass.data[DOMAIN][DATA_COORDINATOR]
 
     for vehicle in data:
-        if Feature.INTERIOR_TEMP_SETTINGS in data[vehicle].features:
+        if Feature.CLIMATE_ON_OFF in data[vehicle].features:
             async_add_entities([KamereonClimate(coordinator, data[vehicle], hass)], update_before_add=True)
 
 
@@ -45,11 +45,8 @@ class KamereonClimate(KamereonEntity, ClimateEntity):
 
     @property
     def hvac_mode(self):
-        """Return hvac operation ie. heat, cool mode.
-        Need to be one of HVAC_MODE_*.
-        """
         if self.vehicle.hvac_status is None:
-            return None
+            return HVACMode.OFF
         elif self.vehicle.hvac_status is HVACStatus.ON:
             return HVACMode.HEAT_COOL
         return HVACMode.OFF
