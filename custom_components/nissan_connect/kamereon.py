@@ -621,15 +621,16 @@ class KamereonSession:
         # ugly hack
         os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
-    def login(self):
-        """Login with cached credentials."""
-        return self.login(self._username, self._password)
-
-    def login(self, username, password):
-        # Cache credentials
-        self._username = username
-        self._password = password
-
+    def login(self, username=None, password=None):
+        if username is not None and password is not None:
+            # Cache credentials
+            self._username = username
+            self._password = password
+        else:
+            # Use cached credentials
+            username = self._username
+            password = self._password
+        
         # Reset session
         self.session = requests.session()
 
