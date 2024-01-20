@@ -56,3 +56,5 @@ This integration exposes the following entities. Please note that entities will 
 * Device Tracker
 * Buttons
     * Update Data
+    * Flash Lights
+    * Honk Horn
