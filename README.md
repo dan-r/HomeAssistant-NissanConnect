@@ -1,6 +1,6 @@
 # Nissan Connect for Home Assistant
 
-A basic integration for interacting with Nissan Connect vehicles. Based on the work of @mitchellrj and tobiaswkjeldsen.
+An integration for interacting with Nissan Connect vehicles. Based on the work of [mitchellrj](https://github.com/mitchellrj) and [tobiaswk](https://github.com/Tobiaswk/dartnissanconnect).
 
 This is quite heavily EV-focussed as thats what I have.
 
