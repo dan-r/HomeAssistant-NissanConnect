@@ -921,12 +921,12 @@ class Vehicle:
         if 'errors' in body:
             raise ValueError(body['errors'])
         lock_data = body['data']['attributes']
-        self.door_status[Door.FRONT_LEFT] = LockStatus(lock_data['doorStatusFrontLeft'])
-        self.door_status[Door.FRONT_RIGHT] = LockStatus(lock_data['doorStatusFrontRight'])
-        self.door_status[Door.REAR_LEFT] = LockStatus(lock_data['doorStatusRearLeft'])
-        self.door_status[Door.REAR_RIGHT] = LockStatus(lock_data['doorStatusRearRight'])
-        self.door_status[Door.HATCH] = LockStatus(lock_data['hatchStatus'])
-        self.lock_status = LockStatus(lock_data['lockStatus'])
+        self.door_status[Door.FRONT_LEFT] = LockStatus(lock_data.get('doorStatusFrontLeft', LockStatus.CLOSED))
+        self.door_status[Door.FRONT_RIGHT] = LockStatus(lock_data.get('doorStatusFrontRight', LockStatus.CLOSED))
+        self.door_status[Door.REAR_LEFT] = LockStatus(lock_data.get('doorStatusRearLeft', LockStatus.CLOSED))
+        self.door_status[Door.REAR_RIGHT] = LockStatus(lock_data.get('doorStatusRearRight', LockStatus.CLOSED))
+        self.door_status[Door.HATCH] = LockStatus(lock_data.get('hatchStatus', LockStatus.CLOSED))
+        self.lock_status = LockStatus(lock_data.get('lockStatus', LockStatus.LOCKED))
         self.lock_status_last_updated = datetime.datetime.fromisoformat(lock_data['lastUpdateTime'].replace('Z','+00:00'))
 
     def refresh_hvac_status(self):
@@ -1328,10 +1328,10 @@ class Vehicle:
         self.fuel_economy = cockpit_data.get('fuelEconomy')
         self.fuel_level = cockpit_data.get('fuelLevel')
         if 'fuelLowWarning' in cockpit_data:
-            self.fuel_low_warning = bool(cockpit_data['fuelLowWarning'])
+            self.fuel_low_warning = bool(cockpit_data.get('fuelLowWarning', False))
         self.fuel_quantity = cockpit_data.get('fuelQuantity')  # litres
         self.mileage = cockpit_data.get('mileage')
-        self.total_mileage = cockpit_data['totalMileage']
+        self.total_mileage = cockpit_data.get('totalMileage')
 
 
 class TripSummary:
