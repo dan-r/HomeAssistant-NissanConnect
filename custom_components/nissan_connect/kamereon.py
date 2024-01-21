@@ -21,6 +21,7 @@ import requests
 import logging
 from typing import List
 from oauthlib.common import generate_nonce
+from oauthlib.oauth2 import TokenExpiredError
 from requests_oauthlib import OAuth2Session
 
 _LOGGER = logging.getLogger(__name__)
@@ -670,6 +671,9 @@ class KamereonSession:
             data=json.dumps(next_body))
 
         oauth_data = resp.json()
+
+        if 'realm' not in oauth_data:
+            raise RuntimeError("Invalid credentials")
         
         oauth_authorize_url = '{}oauth2{}/authorize'.format(
             self.settings['auth_base_url'],
@@ -827,8 +831,14 @@ class Vehicle:
 
     def _get(self, url, headers=None, params=None):
         """Try logging in again before returning a failure."""
-        resp = self.session.oauth.get(url, headers=headers, params=params)
-        if resp.status_code == 401:
+        expired = False
+        try:
+            resp = self.session.oauth.get(url, headers=headers, params=params)
+        except TokenExpiredError:
+            expired = True
+
+        if expired or resp.status_code == 401:
+            _LOGGER.debug("Refreshing session and retrying request as token expired")
             self.session.login()
             return self.session.oauth.get(url, headers=headers, params=params)
         
@@ -836,8 +846,14 @@ class Vehicle:
 
     def _post(self, url, data=None, headers=None):
         """Try logging in again before returning a failure."""
-        resp = self.session.oauth.post(url, data=data, headers=headers)
-        if resp.status_code == 401:
+        expired = False
+        try:
+            resp = self.session.oauth.post(url, data=data, headers=headers)
+        except TokenExpiredError:
+            expired = True
+
+        if expired or resp.status_code == 401:
+            _LOGGER.debug("Refreshing session and retrying request as token expired")
             self.session.login()
             return self.session.oauth.post(url, data=data, headers=headers)
         
