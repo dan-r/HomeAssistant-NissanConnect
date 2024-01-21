@@ -1161,27 +1161,28 @@ class Vehicle:
         if 'errors' in body:
             raise ValueError(body['errors'])
         battery_data = body['data']['attributes']
-        self.battery_capacity = battery_data['batteryCapacity']  # kWh
-        self.battery_level = battery_data['batteryLevel']  # %
+        self.battery_capacity = battery_data.get('batteryCapacity')  # kWh
+        self.battery_level = battery_data.get('batteryLevel')  # %
         self.battery_temperature = battery_data.get('batteryTemperature')  # Fahrenheit?
         # same meaning as battery level, different scale. 240 = 100%
-        self.battery_bar_level = battery_data['batteryBarLevel']
+        self.battery_bar_level = battery_data.get('batteryBarLevel')
         self.instantaneous_power = battery_data.get('instantaneousPower')  # kW
         self.charging_speed = ChargingSpeed(battery_data.get('chargePower'))
         self.charge_time_required_to_full = {
-            ChargingSpeed.FAST: battery_data['timeRequiredToFullFast'],
-            ChargingSpeed.NORMAL: battery_data['timeRequiredToFullNormal'],
-            ChargingSpeed.SLOW: battery_data['timeRequiredToFullSlow'],
+            ChargingSpeed.FAST: battery_data.get('timeRequiredToFullFast'),
+            ChargingSpeed.NORMAL: battery_data.get('timeRequiredToFullNormal'),
+            ChargingSpeed.SLOW: battery_data.get('timeRequiredToFullSlow'),
         }
-        self.range_hvac_off = battery_data['rangeHvacOff']
-        self.range_hvac_on = battery_data['rangeHvacOn']
-        self.charging = ChargingStatus(battery_data['chargeStatus'])
-        self.plugged_in = PluggedStatus(battery_data['plugStatus'])
+        self.range_hvac_off = battery_data.get('rangeHvacOff')
+        self.range_hvac_on = battery_data.get('rangeHvacOn')
+        self.charging = ChargingStatus(battery_data.get('chargeStatus', 0))
+        self.plugged_in = PluggedStatus(battery_data.get('plugStatus', 0))
         if 'vehiclePlugTimestamp' in battery_data:
             self.plugged_in_time = datetime.datetime.fromisoformat(battery_data['vehiclePlugTimestamp'].replace('Z','+00:00'))
         if 'vehicleUnplugTimestamp' in battery_data:
             self.unplugged_time = datetime.datetime.fromisoformat(battery_data['vehicleUnplugTimestamp'].replace('Z','+00:00'))
-        self.battery_status_last_updated = datetime.datetime.fromisoformat(battery_data['lastUpdateTime'].replace('Z','+00:00'))
+        if 'lastUpdateTime' in battery_data:
+            self.battery_status_last_updated = datetime.datetime.fromisoformat(battery_data['lastUpdateTime'].replace('Z','+00:00'))
 
     def fetch_energy_unit_cost(self):
         resp = self._get(
