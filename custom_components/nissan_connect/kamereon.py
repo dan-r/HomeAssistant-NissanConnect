@@ -764,6 +764,7 @@ class Vehicle:
                 try:
                     self.features.append(Feature(str(u['id'])))
                 except ValueError:
+                    _LOGGER.debug(f"Unknown feature {str(u['id'])}")
                     pass
         
         _LOGGER.debug(f"Active features: {self.features}")
