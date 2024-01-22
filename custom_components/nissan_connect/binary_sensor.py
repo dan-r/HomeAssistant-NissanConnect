@@ -22,7 +22,7 @@ async def async_setup_entry(hass, config, async_add_entities):
         if Feature.BATTERY_STATUS in data[vehicle].features:
             entities += [ChargingStatusEntity(coordinator, data[vehicle]),
                          PluggedStatusEntity(coordinator, data[vehicle])]
-        if Feature.APP_DOOR_LOCKING in data[vehicle].features:
+        if Feature.LOCK_STATUS_CHECK in data[vehicle].features:
             entities += [LockStatusEntity(coordinator, data[vehicle])]
 
     async_add_entities(entities, update_before_add=True)
