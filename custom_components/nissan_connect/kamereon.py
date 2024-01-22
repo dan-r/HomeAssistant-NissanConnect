@@ -790,6 +790,7 @@ class Vehicle:
         self.picture_url = data.get('pictureURL')
         self.privacy_mode = data.get('privacyMode')
         self.registration_number = data.get('registrationNumber')
+        self.battery_supported = True
         self.battery_capacity = None
         self.battery_level = None
         self.battery_temperature = None
@@ -876,7 +877,6 @@ class Vehicle:
         self.fetch_cockpit()
         self.fetch_location()
         self.fetch_battery_status()
-        self.fetch_energy_unit_cost()
         self.fetch_hvac_status()
         self.fetch_lock_status()
 
@@ -1159,15 +1159,21 @@ class Vehicle:
         return body
 
     def fetch_battery_status(self):
-        if Feature.DRIVING_JOURNEY_HISTORY not in self.features:
+        """The battery-status endpoint isn't just for EV's. ICE Nissans publish the range under this!
+           There is no obvious feature to qualify this, so we just suck it and see."""
+        if not self.battery_supported and Feature.BATTERY_STATUS not in self.features:
             return
         resp = self._get(
             '{}v1/cars/{}/battery-status'.format(self.session.settings['car_adapter_base_url'], self.vin),
             headers={'Content-Type': 'application/vnd.api+json'}
         )
         body = resp.json()
-        if 'errors' in body:
+        if 'errors' in body and Feature.BATTERY_STATUS in self.features:
             raise ValueError(body['errors'])
+
+        if not 'data' in body or not 'attributes' in body['data']:
+            self.battery_supported = False
+
         battery_data = body['data']['attributes']
         self.battery_capacity = battery_data.get('batteryCapacity')  # kWh
         self.battery_level = battery_data.get('batteryLevel')  # %
@@ -1183,6 +1189,12 @@ class Vehicle:
         }
         self.range_hvac_off = battery_data.get('rangeHvacOff')
         self.range_hvac_on = battery_data.get('rangeHvacOn')
+        
+        # For ICE vehicles, we should get the range at least. If not, dont bother again
+        if self.range_hvac_on is None and Feature.BATTERY_STATUS not in self.features:
+            self.battery_supported = False
+            return
+
         self.charging = ChargingStatus(battery_data.get('chargeStatus', 0))
         self.plugged_in = PluggedStatus(battery_data.get('plugStatus', 0))
         if 'vehiclePlugTimestamp' in battery_data:
@@ -1192,17 +1204,6 @@ class Vehicle:
         if 'lastUpdateTime' in battery_data:
             self.battery_status_last_updated = datetime.datetime.fromisoformat(battery_data['lastUpdateTime'].replace('Z','+00:00'))
 
-    def fetch_energy_unit_cost(self):
-        resp = self._get(
-            '{}v1/cars/{}/energy-unit-cost'.format(self.session.settings['car_adapter_base_url'], self.vin)
-        )
-        body = resp.json()
-        if 'errors' in body:
-            raise ValueError(body['errors'])
-        energy_cost_data = body['data']['attributes']
-        self.electricity_unit_cost = energy_cost_data.get('electricityUnitCost')
-        self.combustion_fuel_unit_cost = energy_cost_data.get('fuelUnitCost')
-        return body
 
     def set_energy_unit_cost(self, cost):
         resp = self._post(
@@ -1447,32 +1448,3 @@ class SRP:
         # * "RPU_SVTB/Disable"
         # * "RPU_SVTB/Enable"
         pass
-
-
-
-if __name__ == '__main__':
-    import pprint
-    import sys
-
-    region = sys.argv[1]
-    username = sys.argv[2]
-    password = sys.argv[3]
-    if len(sys.argv) > 4:
-        srp = sys.argv[4]
-
-    nci = NCISession(region)
-    nci.login(username, password)
-    user_id = nci.get_user_id()
-    vehicles = nci.fetch_vehicles()
-    for vehicle in vehicles:
-        vehicle.fetch_cockpit()
-        vehicle.fetch_all()
-        pprint.pprint(vars(vehicle))
-        print('today trip summary')
-        trip_summaries = vehicle.fetch_trip_histories()
-        print('\n'.join(map(str, trip_summaries)))
-        print('last notifications')
-        notifications = vehicle.fetch_notifications()
-        print('\n'.join(map(str, notifications)))
-        notifications[0].fetch_details()
-    
