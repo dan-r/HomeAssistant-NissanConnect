@@ -766,6 +766,8 @@ class Vehicle:
                 except ValueError:
                     pass
         
+        _LOGGER.debug(f"Active features: {self.features}")
+
         self.can_generation = data.get('canGeneration')
         self.color = data.get('color')
         self.energy = data.get('energy')
