@@ -1,15 +1,10 @@
 """Support for Kamereon cars."""
-import logging
-
 from homeassistant.components.binary_sensor import BinarySensorEntity, BinarySensorDeviceClass
 from homeassistant.const import STATE_UNKNOWN
 
 from .base import KamereonEntity
 from .kamereon import ChargingStatus, PluggedStatus, LockStatus, Feature
 from .const import DOMAIN, DATA_VEHICLES, DATA_COORDINATOR
-
-_LOGGER = logging.getLogger(__name__)
-
 
 async def async_setup_entry(hass, config, async_add_entities):
     """Set up the Kamereon sensors."""
@@ -22,7 +17,7 @@ async def async_setup_entry(hass, config, async_add_entities):
         if Feature.BATTERY_STATUS in data[vehicle].features:
             entities += [ChargingStatusEntity(coordinator, data[vehicle]),
                          PluggedStatusEntity(coordinator, data[vehicle])]
-        if Feature.APP_DOOR_LOCKING in data[vehicle].features:
+        if Feature.LOCK_STATUS_CHECK in data[vehicle].features:
             entities += [LockStatusEntity(coordinator, data[vehicle])]
 
     async_add_entities(entities, update_before_add=True)
@@ -31,7 +26,7 @@ async def async_setup_entry(hass, config, async_add_entities):
 class ChargingStatusEntity(KamereonEntity, BinarySensorEntity):
     """Representation of charging status."""
     _attr_device_class = BinarySensorDeviceClass.BATTERY_CHARGING
-    _attr_name = "Charging"
+    _attr_translation_key = "charging"
 
     @property
     def icon(self):
@@ -58,7 +53,7 @@ class ChargingStatusEntity(KamereonEntity, BinarySensorEntity):
 class PluggedStatusEntity(KamereonEntity, BinarySensorEntity):
     """Representation of plugged status."""
     _attr_device_class = BinarySensorDeviceClass.PLUG
-    _attr_name = "Plugged In"
+    _attr_translation_key = "plugged"
 
     @property
     def icon(self):
@@ -85,7 +80,7 @@ class PluggedStatusEntity(KamereonEntity, BinarySensorEntity):
 
 class LockStatusEntity(KamereonEntity, BinarySensorEntity):
     _attr_device_class = BinarySensorDeviceClass.LOCK
-    _attr_name = "Doors Locked"
+    _attr_translation_key = "doors_locked"
 
     @property
     def icon(self):

@@ -1,0 +1,128 @@
+{
+    "title": "NissanConnect",
+    "config": {
+        "step": {
+            "user": {
+                "description": "Configurez votre compte NissanConnect.",
+                "data": {
+                    "email": "Adresse e-mail",
+                    "password": "Mot de passe",
+                    "interval": "Intervalle de mise à jour (minutes)",
+                    "interval_charging": "Intervalle de mise à jour pendant la charge (minutes)",
+                    "interval_statistics": "Intervalle de mise à jour des statistiques quotidiennes/mensuelles (minutes)",
+                    "region": "Région (EU, US)",
+                    "imperial_distance": "Utiliser les unités de distance impériales"
+                }
+            }
+        },
+        "error": {
+            "auth_error": "Informations d'identification invalides.",
+            "region_error": "Région non valide fournie. Veuillez fournir une région valide."
+        },
+        "abort": {}
+    },
+    "options": {
+        "step": {
+            "init": {
+                "description": "Mettez à jour les informations de votre compte NissanConnect.",
+                "data": {
+                    "email": "Adresse e-mail",
+                    "password": "Mot de passe",
+                    "interval": "Intervalle de mise à jour (minutes)",
+                    "interval_charging": "Intervalle de mise à jour pendant la charge (minutes)",
+                    "interval_statistics": "Intervalle de mise à jour des statistiques quotidiennes/mensuelles (minutes)",
+                    "imperial_distance": "Utiliser les unités de distance impériales"
+                },
+                "data_description": {
+                    "password": "Si vous ne changez pas vos informations d'identification, laissez le champ du mot de passe vide."
+                }
+            }
+        },
+        "error": {
+            "auth_error": "Informations d'identification invalides."
+        },
+        "abort": {}
+    },
+    "issues": {},
+    "entity": {
+        "binary_sensor": {
+            "charging": {
+                "name": "En charge"
+            },
+            "doors_locked": {
+                "name": "Portes verrouillées"
+            },
+            "plugged": {
+                "name": "Branché"
+            }
+        },
+        "button": {
+            "flash_lights": {
+                "name": "Clignoter les feux"
+            },
+            "honk_horn": {
+                "name": "Biper le klaxon"
+            },
+            "update_data": {
+                "name": "Mettre à jour les données"
+            }
+        },
+        "climate": {
+            "climate": {
+                "name": "Climatisation"
+            }
+        },
+        "device_tracker": {
+            "location": {
+                "name": "Emplacement"
+            }
+        },
+        "sensor": {
+            "battery_level": {
+                "name": "Niveau de batterie"
+            },
+            "internal_temperature": {
+                "name": "Température interne"
+            },
+            "external_temperature": {
+                "name": "Température externe"
+            },
+            "range_ac_on": {
+                "name": "Autonomie (AC activé)"
+            },
+            "range_ac_off": {
+                "name": "Autonomie (AC désactivé)"
+            },
+            "odometer": {
+                "name": "Compteur kilométrique"
+            },
+            "charge_time_3kw": {
+                "name": "Temps de charge (3 kW)"
+            },
+            "charge_time_6kw": {
+                "name": "Temps de charge (6 kW)"
+            },
+            "last_updated": {
+                "name": "Dernière mise à jour"
+            },
+            "daily_distance": {
+                "name": "Distance quotidienne"
+            },
+            "daily_efficiency": {
+                "name": "Efficacité quotidienne"
+            },
+            "daily_trips": {
+                "name": "Trajets quotidiens"
+            },
+            "monthly_distance": {
+                "name": "Distance mensuelle"
+            },
+            "monthly_efficiency": {
+                "name": "Efficacité mensuelle"
+            },
+            "monthly_trips": {
+                "name": "Trajets mensuels"
+            }
+        }
+    }
+}

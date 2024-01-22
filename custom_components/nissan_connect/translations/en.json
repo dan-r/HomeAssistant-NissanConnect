@@ -43,5 +43,86 @@
       },
       "abort": {}
     },
-    "issues": {}
+    "issues": {},
+    "entity": {
+      "binary_sensor": {
+        "charging": {
+          "name": "Charging"
+        },
+        "doors_locked": {
+          "name": "Doors Locked"
+        },
+        "plugged": {
+          "name": "Plugged In"
+        }
+      },
+      "button": {
+        "flash_lights": {
+          "name": "Flash Lights"
+        },
+        "honk_horn": {
+          "name": "Honk Horn"
+        },
+        "update_data": {
+          "name": "Update Data"
+        }
+      },
+      "climate": {
+        "climate": {
+          "name": "Climate"
+        }
+      },
+      "device_tracker": {
+        "location": {
+          "name": "Location"
+        }
+      },
+      "sensor": {
+        "battery_level": {
+          "name": "Battery Level"
+        },
+        "internal_temperature": {
+          "name": "Internal Temperature"
+        },
+        "external_temperature": {
+          "name": "External Temperature"
+        },
+        "range_ac_on": {
+          "name": "Range (AC On)"
+        },
+        "range_ac_off": {
+          "name": "Range (AC Off)"
+        },
+        "odometer": {
+          "name": "Odometer"
+        },
+        "charge_time_3kw": {
+          "name": "Charge Time (3kW)"
+        },
+        "charge_time_6kw": {
+          "name": "Charge Time (6kW)"
+        },
+        "last_updated": {
+          "name": "Last Updated"
+        },
+        "daily_distance": {
+          "name": "Daily Distance"
+        },
+        "daily_efficiency": {
+          "name": "Daily Efficiency"
+        },
+        "daily_trips": {
+          "name": "Daily Trips"
+        },
+        "monthly_distance": {
+          "name": "Monthly Distance"
+        },
+        "monthly_efficiency": {
+          "name": "Monthly Efficiency"
+        },
+        "monthly_trips": {
+          "name": "Monthly Trips"
+        }
+      }
+    }
 }

@@ -24,28 +24,29 @@ async def async_setup_entry(hass, config, async_add_entities):
     imperial_distance = config.data.get("imperial_distance", False)
 
     for vehicle in data:
+        if Feature.BATTERY_STATUS in data[vehicle].features or data[vehicle].range_hvac_on is not None:
+            entities += [RangeSensor(coordinator, data[vehicle], True, imperial_distance)]
         if Feature.BATTERY_STATUS in data[vehicle].features:
             entities += [BatteryLevelSensor(coordinator, data[vehicle]),
-                         RangeSensor(coordinator, data[vehicle], True, imperial_distance),
                          RangeSensor(coordinator, data[vehicle], False, imperial_distance),
                          ChargeTimeRequiredSensor(coordinator, data[vehicle], ChargingSpeed.NORMAL),
                          ChargeTimeRequiredSensor(coordinator, data[vehicle], ChargingSpeed.FAST),
-                         TimestampSensor(coordinator, data[vehicle], 'battery_status_last_updated', 'Last Updated', 'mdi:clock-time-eleven-outline')]
+                         TimestampSensor(coordinator, data[vehicle], 'battery_status_last_updated', 'last_updated', 'mdi:clock-time-eleven-outline')]
         if data[vehicle].internal_temperature is not None:
             entities.append(InternalTemperatureSensor(coordinator, data[vehicle]))
         if data[vehicle].external_temperature is not None:
             entities.append(ExternalTemperatureSensor(coordinator, data[vehicle]))
         if Feature.DRIVING_JOURNEY_HISTORY in data[vehicle].features:
             entities += [
-                StatisticSensor(coordinator_stats, data[vehicle], 'daily', lambda x: x.total_distance, 'Daily Distance', 'mdi:map-marker-distance', SensorDeviceClass.DISTANCE, UnitOfLength.KILOMETERS, 0, imperial_distance),
-                StatisticSensor(coordinator_stats, data[vehicle], 'daily', lambda x: x.trip_count, 'Daily Trips', 'mdi:hiking', None, None, 0),
-                StatisticSensor(coordinator_stats, data[vehicle], 'monthly', lambda x: x.total_distance, 'Monthly Distance', 'mdi:map-marker-distance', SensorDeviceClass.DISTANCE, UnitOfLength.KILOMETERS, 0, imperial_distance),
-                StatisticSensor(coordinator_stats, data[vehicle], 'monthly', lambda x: x.trip_count, 'Monthly Trips', 'mdi:hiking',  None, None, 0),
+                StatisticSensor(coordinator_stats, data[vehicle], 'daily', lambda x: x.total_distance, 'daily_distance', 'mdi:map-marker-distance', SensorDeviceClass.DISTANCE, UnitOfLength.KILOMETERS, 0, imperial_distance),
+                StatisticSensor(coordinator_stats, data[vehicle], 'daily', lambda x: x.trip_count, 'daily_trips', 'mdi:hiking', None, None, 0),
+                StatisticSensor(coordinator_stats, data[vehicle], 'monthly', lambda x: x.total_distance, 'monthly_distance', 'mdi:map-marker-distance', SensorDeviceClass.DISTANCE, UnitOfLength.KILOMETERS, 0, imperial_distance),
+                StatisticSensor(coordinator_stats, data[vehicle], 'monthly', lambda x: x.trip_count, 'monthly_trips', 'mdi:hiking',  None, None, 0),
             ]
             if Feature.BATTERY_STATUS in data[vehicle].features:
                 entities += [
-                    StatisticSensor(coordinator_stats, data[vehicle], 'daily', lambda x: x.total_distance / x.consumed_electricity, 'Daily Efficiency', 'mdi:ev-station', SensorDeviceClass.DISTANCE, UnitOfLength.KILOMETERS, 2, imperial_distance),
-                    StatisticSensor(coordinator_stats, data[vehicle], 'monthly', lambda x: x.total_distance / x.consumed_electricity, 'Monthly Efficiency', 'mdi:ev-station', SensorDeviceClass.DISTANCE, UnitOfLength.KILOMETERS, 2, imperial_distance),
+                    StatisticSensor(coordinator_stats, data[vehicle], 'daily', lambda x: x.total_distance / x.consumed_electricity, 'daily_efficiency', 'mdi:ev-station', SensorDeviceClass.DISTANCE, UnitOfLength.KILOMETERS, 2, imperial_distance),
+                    StatisticSensor(coordinator_stats, data[vehicle], 'monthly', lambda x: x.total_distance / x.consumed_electricity, 'monthly_efficiency', 'mdi:ev-station', SensorDeviceClass.DISTANCE, UnitOfLength.KILOMETERS, 2, imperial_distance),
                 ]
 
         entities.append(OdometerSensor(coordinator, data[vehicle], imperial_distance))
@@ -54,10 +55,13 @@ async def async_setup_entry(hass, config, async_add_entities):
 
 
 class BatteryLevelSensor(KamereonEntity, SensorEntity):
-    _attr_name = "Battery Level"
+    _attr_translation_key = "battery_level"
     _attr_device_class = SensorDeviceClass.BATTERY
     _attr_native_unit_of_measurement = PERCENTAGE
 
+    def __init__(self, coordinator, vehicle):
+        KamereonEntity.__init__(self, coordinator, vehicle)
+        
     @property
     def state(self):
         """Return the state."""
@@ -79,7 +83,7 @@ class BatteryLevelSensor(KamereonEntity, SensorEntity):
 
 
 class InternalTemperatureSensor(KamereonEntity, SensorEntity):
-    _attr_name = "Internal Temperature"
+    _attr_translation_key = "internal_temperature"
     _attr_device_class = SensorDeviceClass.TEMPERATURE
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
 
@@ -105,7 +109,7 @@ class InternalTemperatureSensor(KamereonEntity, SensorEntity):
 
 
 class ExternalTemperatureSensor(KamereonEntity, SensorEntity):
-    _attr_name = "External Temperature"
+    _attr_translation_key = "external_temperature"
     _attr_device_class = SensorDeviceClass.TEMPERATURE
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
 
@@ -131,7 +135,6 @@ class ExternalTemperatureSensor(KamereonEntity, SensorEntity):
 
 
 class RangeSensor(KamereonEntity, SensorEntity):
-    _attr_name = "Range"
     _attr_device_class = SensorDeviceClass.DISTANCE
     _attr_native_unit_of_measurement = UnitOfLength.KILOMETERS
 
@@ -139,7 +142,7 @@ class RangeSensor(KamereonEntity, SensorEntity):
         if imperial_distance:
             self._attr_suggested_unit_of_measurement = UnitOfLength.MILES
 
-        self._attr_name = "Range (AC On)" if hvac else "Range (AC Off)"
+        self._attr_translation_key = "range_ac_on" if hvac else "range_ac_off"
         KamereonEntity.__init__(self, coordinator, vehicle)
         self.hvac = hvac
 
@@ -157,7 +160,7 @@ class RangeSensor(KamereonEntity, SensorEntity):
 
 
 class OdometerSensor(KamereonEntity, SensorEntity):
-    _attr_name = "Odometer"
+    _attr_translation_key = "odometer"
     _attr_device_class = SensorDeviceClass.DISTANCE
     _attr_native_unit_of_measurement = UnitOfLength.KILOMETERS
 
@@ -178,13 +181,13 @@ class OdometerSensor(KamereonEntity, SensorEntity):
 
 
 class StatisticSensor(KamereonEntity, SensorEntity):
-    def __init__(self, coordinator, vehicle, key, func, name, icon, device_class, unit, precision, imperial_distance=False):
+    def __init__(self, coordinator, vehicle, key, func, translation_key, icon, device_class, unit, precision, imperial_distance=False):
         self._attr_device_class = device_class
         self._attr_native_unit_of_measurement = unit
         self._attr_suggested_display_precision = precision
         if imperial_distance:
             self._attr_suggested_unit_of_measurement = UnitOfLength.MILES
-        self._attr_name = name
+        self._attr_translation_key = translation_key
         self._icon = icon
         self._key = key
         self._lambda = func
@@ -226,21 +229,21 @@ class StatisticSensor(KamereonEntity, SensorEntity):
 
 
 class ChargeTimeRequiredSensor(KamereonEntity, SensorEntity):
-    _attr_name = "Charge Time"
+    _attr_translation_key = "charge_time"
     _attr_device_class = SensorDeviceClass.DURATION
     _attr_native_unit_of_measurement = UnitOfTime.MINUTES
 
     CHARGING_SPEED_NAME = {
-        ChargingSpeed.FASTEST: '50kW',
-        ChargingSpeed.FAST: '6kW',
-        ChargingSpeed.NORMAL: '3kW',
-        ChargingSpeed.SLOW: '1kW',
+        ChargingSpeed.FASTEST: '50kw',
+        ChargingSpeed.FAST: '6kw',
+        ChargingSpeed.NORMAL: '3kw',
+        ChargingSpeed.SLOW: '1kw',
     }
 
     def __init__(self, coordinator, vehicle, charging_speed):
-        self._attr_name = f"Charge Time ({self.CHARGING_SPEED_NAME[charging_speed]})"
-        KamereonEntity.__init__(self, coordinator, vehicle)
         self.charging_speed = charging_speed
+        self._attr_translation_key = "charge_time_" + self.CHARGING_SPEED_NAME[charging_speed]
+        KamereonEntity.__init__(self, coordinator, vehicle)
 
     @property
     def native_value(self):
@@ -256,8 +259,8 @@ class ChargeTimeRequiredSensor(KamereonEntity, SensorEntity):
 class TimestampSensor(KamereonEntity, SensorEntity):
     _attr_device_class = SensorDeviceClass.TIMESTAMP
 
-    def __init__(self, coordinator, vehicle, attribute, name, icon):
-        self._attr_name = name
+    def __init__(self, coordinator, vehicle, attribute, translation_key, icon):
+        self._attr_translation_key = translation_key
         self._icon = icon
         KamereonEntity.__init__(self, coordinator, vehicle)
         self.attribute = attribute

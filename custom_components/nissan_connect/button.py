@@ -21,8 +21,8 @@ async def async_setup_entry(hass, config, async_add_entities):
         entities.append(ForceUpdateButton(coordinator, data[vehicle], hass, stats_coordinator))
         if Feature.HORN_AND_LIGHTS in data[vehicle].features:
             entities += [
-                HornLightsButtons(coordinator, data[vehicle], "Flash Lights", "mdi:car-light-high", "lights"),
-                HornLightsButtons(coordinator, data[vehicle], "Honk Horn", "mdi:bullhorn", "horn_lights")
+                HornLightsButtons(coordinator, data[vehicle], "flash_lights", "mdi:car-light-high", "lights"),
+                HornLightsButtons(coordinator, data[vehicle], "honk_horn", "mdi:bullhorn", "horn_lights")
             ]
 
 
@@ -30,7 +30,7 @@ async def async_setup_entry(hass, config, async_add_entities):
 
 
 class ForceUpdateButton(KamereonEntity, ButtonEntity):
-    _attr_name = "Update Data"
+    _attr_translation_key = "update_data"
 
     def __init__(self, coordinator, vehicle, hass, stats_coordinator):
         KamereonEntity.__init__(self, coordinator, vehicle)
@@ -47,8 +47,8 @@ class ForceUpdateButton(KamereonEntity, ButtonEntity):
         await self.coordinator_statistics.async_refresh()
         
 class HornLightsButtons(KamereonEntity, ButtonEntity):
-    def __init__(self, coordinator, vehicle, name, icon, action):
-        self._attr_name = name
+    def __init__(self, coordinator, vehicle, translation_key, icon, action):
+        self._attr_translation_key = translation_key
         self._icon = icon
         self._action = action
         KamereonEntity.__init__(self, coordinator, vehicle)

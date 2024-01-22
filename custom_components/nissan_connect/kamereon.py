@@ -21,6 +21,7 @@ import requests
 import logging
 from typing import List
 from oauthlib.common import generate_nonce
+from oauthlib.oauth2 import TokenExpiredError
 from requests_oauthlib import OAuth2Session
 
 _LOGGER = logging.getLogger(__name__)
@@ -227,6 +228,11 @@ class Feature(enum.Enum):
     TEMPERATURE = '2042'
     VALET_PARKING_CALL = '401'
     PANIC_CALL = '406'
+    VIRTUAL_PERSONAL_ASSISTANT = '734'
+    ALEXA_ONBOARD_ASSISTANT = '736'
+    SCHEDULED_ROUTE_CLIMATE_CONTROL = '747'
+    SCHEDULED_ROUTE_CALENDAR_INTERGRATION = '819'
+    OWNER_MANUAL = '827'
 
 
 class Language(enum.Enum):
@@ -670,6 +676,9 @@ class KamereonSession:
             data=json.dumps(next_body))
 
         oauth_data = resp.json()
+
+        if 'realm' not in oauth_data:
+            raise RuntimeError("Invalid credentials")
         
         oauth_authorize_url = '{}oauth2{}/authorize'.format(
             self.settings['auth_base_url'],
@@ -760,8 +769,11 @@ class Vehicle:
                 try:
                     self.features.append(Feature(str(u['id'])))
                 except ValueError:
+                    _LOGGER.debug(f"Unknown feature {str(u['id'])}")
                     pass
         
+        _LOGGER.debug(f"Active features: {self.features}")
+
         self.can_generation = data.get('canGeneration')
         self.color = data.get('color')
         self.energy = data.get('energy')
@@ -778,6 +790,7 @@ class Vehicle:
         self.picture_url = data.get('pictureURL')
         self.privacy_mode = data.get('privacyMode')
         self.registration_number = data.get('registrationNumber')
+        self.battery_supported = True
         self.battery_capacity = None
         self.battery_level = None
         self.battery_temperature = None
@@ -827,8 +840,14 @@ class Vehicle:
 
     def _get(self, url, headers=None, params=None):
         """Try logging in again before returning a failure."""
-        resp = self.session.oauth.get(url, headers=headers, params=params)
-        if resp.status_code == 401:
+        expired = False
+        try:
+            resp = self.session.oauth.get(url, headers=headers, params=params)
+        except TokenExpiredError:
+            expired = True
+
+        if expired or resp.status_code == 401:
+            _LOGGER.debug("Refreshing session and retrying request as token expired")
             self.session.login()
             return self.session.oauth.get(url, headers=headers, params=params)
         
@@ -836,8 +855,14 @@ class Vehicle:
 
     def _post(self, url, data=None, headers=None):
         """Try logging in again before returning a failure."""
-        resp = self.session.oauth.post(url, data=data, headers=headers)
-        if resp.status_code == 401:
+        expired = False
+        try:
+            resp = self.session.oauth.post(url, data=data, headers=headers)
+        except TokenExpiredError:
+            expired = True
+
+        if expired or resp.status_code == 401:
+            _LOGGER.debug("Refreshing session and retrying request as token expired")
             self.session.login()
             return self.session.oauth.post(url, data=data, headers=headers)
         
@@ -852,7 +877,6 @@ class Vehicle:
         self.fetch_cockpit()
         self.fetch_location()
         self.fetch_battery_status()
-        self.fetch_energy_unit_cost()
         self.fetch_hvac_status()
         self.fetch_lock_status()
 
@@ -905,12 +929,12 @@ class Vehicle:
         if 'errors' in body:
             raise ValueError(body['errors'])
         lock_data = body['data']['attributes']
-        self.door_status[Door.FRONT_LEFT] = LockStatus(lock_data['doorStatusFrontLeft'])
-        self.door_status[Door.FRONT_RIGHT] = LockStatus(lock_data['doorStatusFrontRight'])
-        self.door_status[Door.REAR_LEFT] = LockStatus(lock_data['doorStatusRearLeft'])
-        self.door_status[Door.REAR_RIGHT] = LockStatus(lock_data['doorStatusRearRight'])
-        self.door_status[Door.HATCH] = LockStatus(lock_data['hatchStatus'])
-        self.lock_status = LockStatus(lock_data['lockStatus'])
+        self.door_status[Door.FRONT_LEFT] = LockStatus(lock_data.get('doorStatusFrontLeft', LockStatus.CLOSED))
+        self.door_status[Door.FRONT_RIGHT] = LockStatus(lock_data.get('doorStatusFrontRight', LockStatus.CLOSED))
+        self.door_status[Door.REAR_LEFT] = LockStatus(lock_data.get('doorStatusRearLeft', LockStatus.CLOSED))
+        self.door_status[Door.REAR_RIGHT] = LockStatus(lock_data.get('doorStatusRearRight', LockStatus.CLOSED))
+        self.door_status[Door.HATCH] = LockStatus(lock_data.get('hatchStatus', LockStatus.CLOSED))
+        self.lock_status = LockStatus(lock_data.get('lockStatus', LockStatus.LOCKED))
         self.lock_status_last_updated = datetime.datetime.fromisoformat(lock_data['lastUpdateTime'].replace('Z','+00:00'))
 
     def refresh_hvac_status(self):
@@ -1135,49 +1159,51 @@ class Vehicle:
         return body
 
     def fetch_battery_status(self):
-        if Feature.BATTERY_STATUS not in self.features:
+        """The battery-status endpoint isn't just for EV's. ICE Nissans publish the range under this!
+           There is no obvious feature to qualify this, so we just suck it and see."""
+        if not self.battery_supported and Feature.BATTERY_STATUS not in self.features:
             return
         resp = self._get(
             '{}v1/cars/{}/battery-status'.format(self.session.settings['car_adapter_base_url'], self.vin),
             headers={'Content-Type': 'application/vnd.api+json'}
         )
         body = resp.json()
-        if 'errors' in body:
+        if 'errors' in body and Feature.BATTERY_STATUS in self.features:
             raise ValueError(body['errors'])
+
+        if not 'data' in body or not 'attributes' in body['data']:
+            self.battery_supported = False
+
         battery_data = body['data']['attributes']
-        self.battery_capacity = battery_data['batteryCapacity']  # kWh
-        self.battery_level = battery_data['batteryLevel']  # %
+        self.battery_capacity = battery_data.get('batteryCapacity')  # kWh
+        self.battery_level = battery_data.get('batteryLevel')  # %
         self.battery_temperature = battery_data.get('batteryTemperature')  # Fahrenheit?
         # same meaning as battery level, different scale. 240 = 100%
-        self.battery_bar_level = battery_data['batteryBarLevel']
+        self.battery_bar_level = battery_data.get('batteryBarLevel')
         self.instantaneous_power = battery_data.get('instantaneousPower')  # kW
         self.charging_speed = ChargingSpeed(battery_data.get('chargePower'))
         self.charge_time_required_to_full = {
-            ChargingSpeed.FAST: battery_data['timeRequiredToFullFast'],
-            ChargingSpeed.NORMAL: battery_data['timeRequiredToFullNormal'],
-            ChargingSpeed.SLOW: battery_data['timeRequiredToFullSlow'],
+            ChargingSpeed.FAST: battery_data.get('timeRequiredToFullFast'),
+            ChargingSpeed.NORMAL: battery_data.get('timeRequiredToFullNormal'),
+            ChargingSpeed.SLOW: battery_data.get('timeRequiredToFullSlow'),
         }
-        self.range_hvac_off = battery_data['rangeHvacOff']
-        self.range_hvac_on = battery_data['rangeHvacOn']
-        self.charging = ChargingStatus(battery_data['chargeStatus'])
-        self.plugged_in = PluggedStatus(battery_data['plugStatus'])
+        self.range_hvac_off = battery_data.get('rangeHvacOff')
+        self.range_hvac_on = battery_data.get('rangeHvacOn')
+        
+        # For ICE vehicles, we should get the range at least. If not, dont bother again
+        if self.range_hvac_on is None and Feature.BATTERY_STATUS not in self.features:
+            self.battery_supported = False
+            return
+
+        self.charging = ChargingStatus(battery_data.get('chargeStatus', 0))
+        self.plugged_in = PluggedStatus(battery_data.get('plugStatus', 0))
         if 'vehiclePlugTimestamp' in battery_data:
             self.plugged_in_time = datetime.datetime.fromisoformat(battery_data['vehiclePlugTimestamp'].replace('Z','+00:00'))
         if 'vehicleUnplugTimestamp' in battery_data:
             self.unplugged_time = datetime.datetime.fromisoformat(battery_data['vehicleUnplugTimestamp'].replace('Z','+00:00'))
-        self.battery_status_last_updated = datetime.datetime.fromisoformat(battery_data['lastUpdateTime'].replace('Z','+00:00'))
+        if 'lastUpdateTime' in battery_data:
+            self.battery_status_last_updated = datetime.datetime.fromisoformat(battery_data['lastUpdateTime'].replace('Z','+00:00'))
 
-    def fetch_energy_unit_cost(self):
-        resp = self._get(
-            '{}v1/cars/{}/energy-unit-cost'.format(self.session.settings['car_adapter_base_url'], self.vin)
-        )
-        body = resp.json()
-        if 'errors' in body:
-            raise ValueError(body['errors'])
-        energy_cost_data = body['data']['attributes']
-        self.electricity_unit_cost = energy_cost_data.get('electricityUnitCost')
-        self.combustion_fuel_unit_cost = energy_cost_data.get('fuelUnitCost')
-        return body
 
     def set_energy_unit_cost(self, cost):
         resp = self._post(
@@ -1311,10 +1337,10 @@ class Vehicle:
         self.fuel_economy = cockpit_data.get('fuelEconomy')
         self.fuel_level = cockpit_data.get('fuelLevel')
         if 'fuelLowWarning' in cockpit_data:
-            self.fuel_low_warning = bool(cockpit_data['fuelLowWarning'])
+            self.fuel_low_warning = bool(cockpit_data.get('fuelLowWarning', False))
         self.fuel_quantity = cockpit_data.get('fuelQuantity')  # litres
         self.mileage = cockpit_data.get('mileage')
-        self.total_mileage = cockpit_data['totalMileage']
+        self.total_mileage = cockpit_data.get('totalMileage')
 
 
 class TripSummary:
@@ -1422,32 +1448,3 @@ class SRP:
         # * "RPU_SVTB/Disable"
         # * "RPU_SVTB/Enable"
         pass
-
-
-
-if __name__ == '__main__':
-    import pprint
-    import sys
-
-    region = sys.argv[1]
-    username = sys.argv[2]
-    password = sys.argv[3]
-    if len(sys.argv) > 4:
-        srp = sys.argv[4]
-
-    nci = NCISession(region)
-    nci.login(username, password)
-    user_id = nci.get_user_id()
-    vehicles = nci.fetch_vehicles()
-    for vehicle in vehicles:
-        vehicle.fetch_cockpit()
-        vehicle.fetch_all()
-        pprint.pprint(vars(vehicle))
-        print('today trip summary')
-        trip_summaries = vehicle.fetch_trip_histories()
-        print('\n'.join(map(str, trip_summaries)))
-        print('last notifications')
-        notifications = vehicle.fetch_notifications()
-        print('\n'.join(map(str, notifications)))
-        notifications[0].fetch_details()
-    

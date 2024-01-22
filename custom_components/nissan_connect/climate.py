@@ -32,7 +32,7 @@ class KamereonClimate(KamereonEntity, ClimateEntity):
     _attr_supported_features = ClimateEntityFeature.TARGET_TEMPERATURE
     _attr_hvac_modes = SUPPORT_HVAC
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
-    _attr_name = "Climate"
+    _attr_translation_key = "climate"
     _attr_min_temp = 16
     _attr_max_temp = 26
     _attr_target_temperature_step = 1
