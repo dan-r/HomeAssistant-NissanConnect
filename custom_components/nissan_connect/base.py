@@ -5,6 +5,8 @@ from .const import DOMAIN
 class KamereonEntity(Entity):
     """Base class for all Kamereon car entities."""
 
+    _attr_has_entity_name = True
+
     def __init__(self, cooordinator, vehicle):
         """Initialize the entity."""
         self.vehicle = vehicle
@@ -33,18 +35,9 @@ class KamereonEntity(Entity):
         return self.vehicle.nickname or self.vehicle.model_name
 
     @property
-    def name(self):
-        """Return full name of the entity."""
-        if not self._attr_name:
-            return self._vehicle_name
-        return f"{self._vehicle_name} {self._attr_name}"
-
-    @property
     def unique_id(self):
         """Return unique ID of the entity."""
-        if not self._attr_name:
-            return None
-        return f"{self._vehicle_name}_{self._attr_name}"
+        return f"{self._vehicle_name}_{self._attr_translation_key}"
 
     @property
     def device_info(self):

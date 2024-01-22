@@ -33,6 +33,11 @@ From the Home Assistant Integrations page, search for and add the Nissan Connect
 ## Update Time
 Following the model of leaf2mqtt, this integration can be set to use a different update time when plugged in. When HVAC is turned on the update time drops to once per minute.
 
+## Translations
+I have provided machine translations from English to the following languages as a start, but welcome native speakers to give feedback on these and to improve them:
+* French
+* Italian
+
 ## Entities
 This integration exposes the following entities. Please note that entities will only be shown if the functionality is supported by your car.
 

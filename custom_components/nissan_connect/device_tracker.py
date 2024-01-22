@@ -24,7 +24,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
     return True
 
 class KamereonDeviceTracker(KamereonEntity, TrackerEntity):
-    _attr_name = "Location"
+    _attr_translation_key = "location"
 
     @property
     def latitude(self) -> float:
