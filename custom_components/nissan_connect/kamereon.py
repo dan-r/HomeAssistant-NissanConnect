@@ -1153,7 +1153,7 @@ class Vehicle:
         return body
 
     def fetch_battery_status(self):
-        if Feature.BATTERY_STATUS not in self.features:
+        if Feature.DRIVING_JOURNEY_HISTORY not in self.features:
             return
         resp = self._get(
             '{}v1/cars/{}/battery-status'.format(self.session.settings['car_adapter_base_url'], self.vin),
