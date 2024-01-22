@@ -24,7 +24,7 @@ async def async_setup_entry(hass, config, async_add_entities):
     imperial_distance = config.data.get("imperial_distance", False)
 
     for vehicle in data:
-        if Feature.DRIVING_JOURNEY_HISTORY in data[vehicle].features or Feature.BATTERY_STATUS in data[vehicle].features:
+        if Feature.BATTERY_STATUS in data[vehicle].features or data[vehicle].range_hvac_on is not None:
             entities += [RangeSensor(coordinator, data[vehicle], True, imperial_distance)]
         if Feature.BATTERY_STATUS in data[vehicle].features:
             entities += [BatteryLevelSensor(coordinator, data[vehicle]),
