@@ -16,8 +16,8 @@
             }
         },
         "error": {
-            "auth_error": "Credenziali non valide fornite.",
-            "region_error": "Regione non valida fornita. Fornisci una regione valida."
+            "auth_error": "Credenziali fornite non valide.",
+            "region_error": "Regione fornita non valida. Fornisci una regione valida."
         },
         "abort": {}
     },
@@ -39,7 +39,7 @@
             }
         },
         "error": {
-            "auth_error": "Credenziali non valide fornite."
+            "auth_error": "Credenziali fornite non valide."
         },
         "abort": {}
     },
@@ -53,7 +53,7 @@
                 "name": "Porte chiuse a chiave"
             },
             "plugged": {
-                "name": "Inserito"
+                "name": "Collegata"
             }
         },
         "button": {
@@ -69,7 +69,7 @@
         },
         "climate": {
             "climate": {
-                "name": "Clima"
+                "name": "Climatizzatore"
             }
         },
         "device_tracker": {
@@ -94,7 +94,7 @@
                 "name": "Autonomia (AC disattivato)"
             },
             "odometer": {
-                "name": "Contachilometri"
+                "name": "Conta chilometri"
             },
             "charge_time_3kw": {
                 "name": "Tempo di ricarica (3 kW)"
