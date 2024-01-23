@@ -20,7 +20,7 @@ async def async_update_listener(hass, entry):
                                             )
 
     # Refresh coordinator
-    await hass.data[DOMAIN][DATA_COORDINATOR].force_update()
+    await hass.data[DOMAIN][DATA_COORDINATOR].async_refresh()
 
 
 async def async_setup_entry(hass, entry):

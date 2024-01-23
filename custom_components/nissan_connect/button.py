@@ -43,7 +43,7 @@ class ForceUpdateButton(KamereonEntity, ButtonEntity):
         return 'mdi:update'
 
     async def async_press(self):
-        await self.coordinator.force_update()
+        await self.coordinator.async_refresh()
         await self.coordinator_statistics.async_refresh()
         
 class HornLightsButtons(KamereonEntity, ButtonEntity):

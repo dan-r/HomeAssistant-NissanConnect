@@ -18,46 +18,43 @@ class KamereonCoordinator(DataUpdateCoordinator):
             hass,
             _LOGGER,
             name="Kamereon Coordinator",
-            update_interval=timedelta(minutes=1),
+            # This interval is overwritten by _set_next_interval in the first run
+            update_interval=timedelta(minutes=15),
         )
         self._hass = hass
         self._vehicles = hass.data[DOMAIN][DATA_VEHICLES]
         self._config = config
 
-        self._last_update = {}
+    def _set_next_interval(self):
+        """Calculate the next update interval."""
+        interval = self._config.get("interval", DEFAULT_INTERVAL)
+        interval_charging = self._config.get("interval_charging", DEFAULT_INTERVAL_CHARGING)
+        
+        # Get the shortest interval from all vehicles
+        for vehicle in self._vehicles:
+            # EV, decide which time to use
+            if Feature.BATTERY_STATUS in self._vehicles[vehicle].features and self._vehicles[vehicle].plugged_in == PluggedStatus.PLUGGED:
+                interval = interval_charging if interval_charging < interval else interval
 
-    async def force_update(self):
-        self._last_update = {}
-        await self.async_refresh()
+            # Update every minute if HVAC on
+            if self._vehicles[vehicle].hvac_status == HVACStatus.ON:
+                interval = 1
+        
+        if interval != (self.update_interval.seconds / 60):
+            _LOGGER.debug(f"Changing next update interval to {interval} minutes")
+            self.update_interval = timedelta(minutes=interval)
 
     async def _async_update_data(self):
         """Fetch data from API."""
-        interval = self._config.get("interval", DEFAULT_INTERVAL)
-        interval_charging = self._config.get("interval_charging", DEFAULT_INTERVAL_CHARGING)
-
         try:
             for vehicle in self._vehicles:
-                if not vehicle in self._last_update:
-                    self._last_update[vehicle] = 0
-
-                # EV, decide which time to use
-                if Feature.BATTERY_STATUS in self._vehicles[vehicle].features and self._vehicles[vehicle].plugged_in == PluggedStatus.PLUGGED:
-                    _LOGGER.debug("Charging, using charging interval")
-                    interval = interval_charging
-
-                # Update on every cycle if HVAC on
-                if self._vehicles[vehicle].hvac_status == HVACStatus.ON:
-                    _LOGGER.debug("HVAC on, updating every cycle")
-                    interval = 0
-
-                # If we are overdue an update
-                if time() > self._last_update[vehicle] + (interval * 60):
-                    _LOGGER.debug("Update overdue, updating")
-                    await self._hass.async_add_executor_job(self._vehicles[vehicle].refresh)
-                    self._last_update[vehicle] = time()
+                await self._hass.async_add_executor_job(self._vehicles[vehicle].refresh)
                    
         except BaseException:
             _LOGGER.warning("Error communicating with API")
+            return False
+        
+        self._set_next_interval()
         return True
 
 

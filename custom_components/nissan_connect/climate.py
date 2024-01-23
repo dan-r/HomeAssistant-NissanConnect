@@ -109,7 +109,7 @@ class KamereonClimate(KamereonEntity, ClimateEntity):
         self._loop_mutex = True
         for _ in range(6):
             asyncio.run_coroutine_threadsafe(
-                self.coordinator.force_update(), self._hass.loop
+                self.coordinator.async_refresh(), self._hass.loop
             ).result()
 
             # We have our update, break out
