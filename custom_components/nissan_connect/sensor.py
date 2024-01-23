@@ -25,13 +25,13 @@ async def async_setup_entry(hass, config, async_add_entities):
 
     for vehicle in data:
         if Feature.BATTERY_STATUS in data[vehicle].features or data[vehicle].range_hvac_on is not None:
-            entities += [RangeSensor(coordinator, data[vehicle], True, imperial_distance)]
+            entities += [RangeSensor(coordinator, data[vehicle], True, imperial_distance),
+                         TimestampSensor(coordinator, data[vehicle], 'battery_status_last_updated', 'last_updated', 'mdi:clock-time-eleven-outline')]
         if Feature.BATTERY_STATUS in data[vehicle].features:
             entities += [BatteryLevelSensor(coordinator, data[vehicle]),
                          RangeSensor(coordinator, data[vehicle], False, imperial_distance),
                          ChargeTimeRequiredSensor(coordinator, data[vehicle], ChargingSpeed.NORMAL),
-                         ChargeTimeRequiredSensor(coordinator, data[vehicle], ChargingSpeed.FAST),
-                         TimestampSensor(coordinator, data[vehicle], 'battery_status_last_updated', 'last_updated', 'mdi:clock-time-eleven-outline')]
+                         ChargeTimeRequiredSensor(coordinator, data[vehicle], ChargingSpeed.FAST)]
         if data[vehicle].internal_temperature is not None:
             entities.append(InternalTemperatureSensor(coordinator, data[vehicle]))
         if data[vehicle].external_temperature is not None:
