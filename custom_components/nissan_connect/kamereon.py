@@ -881,7 +881,7 @@ class Vehicle:
         self.fetch_lock_status()
 
     def refresh_location(self):
-        if Feature.MY_CAR_FINDER in self.features:
+        if Feature.MY_CAR_FINDER not in self.features:
             return
         
         resp = self._post(
@@ -897,7 +897,7 @@ class Vehicle:
         return body
 
     def fetch_location(self):
-        if Feature.MY_CAR_FINDER in self.features:
+        if Feature.MY_CAR_FINDER not in self.features:
             return
         
         resp = self._get(
