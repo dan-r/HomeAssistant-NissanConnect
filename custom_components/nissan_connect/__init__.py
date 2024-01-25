@@ -1,4 +1,5 @@
 import logging
+from datetime import timedelta
 from .kamereon import NCISession
 from .coordinator import KamereonFetchCoordinator, KamereonPollCoordinator, StatisticsCoordinator
 from .const import *
@@ -12,13 +13,18 @@ async def async_setup(hass, config) -> bool:
 
 async def async_update_listener(hass, entry):
     """Handle options flow credentials update."""
+    config = entry.data
     # Loop each vehicle and update its session with the new credentials
     for vehicle in hass.data[DOMAIN][DATA_VEHICLES]:
         await hass.async_add_executor_job(hass.data[DOMAIN][DATA_VEHICLES][vehicle].session.login,
-                                            entry.data.get("email"),
-                                            entry.data.get("password")
+                                            config.get("email"),
+                                            config.get("password")
                                             )
 
+    # Update intervals for coordinators
+    hass.data[DOMAIN][DATA_COORDINATOR_STATISTICS].update_interval = timedelta(minutes=config.get("interval_statistics", DEFAULT_INTERVAL_STATISTICS))
+    hass.data[DOMAIN][DATA_COORDINATOR_FETCH].update_interval = timedelta(minutes=config.get("interval_fetch", DEFAULT_INTERVAL_FETCH))
+    
     # Refresh coordinator
     await hass.data[DOMAIN][DATA_COORDINATOR_FETCH].async_refresh()
 

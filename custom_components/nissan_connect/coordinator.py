@@ -2,7 +2,7 @@ import logging
 
 from datetime import timedelta
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
-from .const import DOMAIN, DATA_VEHICLES, DEFAULT_INTERVAL, DEFAULT_INTERVAL_CHARGING, DEFAULT_INTERVAL_STATISTICS, DATA_COORDINATOR_FETCH
+from .const import DOMAIN, DATA_VEHICLES, DEFAULT_INTERVAL, DEFAULT_INTERVAL_CHARGING, DEFAULT_INTERVAL_STATISTICS, DEFAULT_INTERVAL_FETCH, DATA_COORDINATOR_FETCH
 from .kamereon import Feature, PluggedStatus, HVACStatus, Period
 
 _LOGGER = logging.getLogger(__name__)
@@ -15,7 +15,7 @@ class KamereonFetchCoordinator(DataUpdateCoordinator):
             hass,
             _LOGGER,
             name="Fetch Coordinator",
-            update_interval=timedelta(minutes=10),
+            update_interval=timedelta(minutes=config.get("interval_fetch", DEFAULT_INTERVAL_FETCH)),
         )
         self._hass = hass
         self._vehicles = hass.data[DOMAIN][DATA_VEHICLES]
