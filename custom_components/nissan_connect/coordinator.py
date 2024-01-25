@@ -2,7 +2,7 @@ import logging
 
 from datetime import timedelta
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
-from .const import DOMAIN, DATA_VEHICLES, DEFAULT_INTERVAL_POLL, DEFAULT_INTERVAL_CHARGING, DEFAULT_INTERVAL_STATISTICS, DEFAULT_INTERVAL_FETCH, DATA_COORDINATOR_FETCH
+from .const import DOMAIN, DATA_VEHICLES, DEFAULT_INTERVAL_POLL, DEFAULT_INTERVAL_CHARGING, DEFAULT_INTERVAL_STATISTICS, DEFAULT_INTERVAL_FETCH, DATA_COORDINATOR_FETCH, DATA_COORDINATOR_POLL
 from .kamereon import Feature, PluggedStatus, HVACStatus, Period
 
 _LOGGER = logging.getLogger(__name__)
@@ -30,6 +30,9 @@ class KamereonFetchCoordinator(DataUpdateCoordinator):
             _LOGGER.warning("Error communicating with API")
             return False
         
+        # Set interval for polling (the other coordinator)
+        self._hass.data[DOMAIN][DATA_COORDINATOR_POLL].set_next_interval()
+
         return True
 
 
@@ -47,7 +50,7 @@ class KamereonPollCoordinator(DataUpdateCoordinator):
         self._vehicles = hass.data[DOMAIN][DATA_VEHICLES]
         self._config = config
 
-    def _set_next_interval(self):
+    def set_next_interval(self):
         """Calculate the next update interval."""
         interval = self._config.get("interval", DEFAULT_INTERVAL_POLL)
         interval_charging = self._config.get("interval_charging", DEFAULT_INTERVAL_CHARGING)
@@ -77,7 +80,6 @@ class KamereonPollCoordinator(DataUpdateCoordinator):
             _LOGGER.warning("Error communicating with API")
             return False
         
-        self._set_next_interval()
         return await self._hass.data[DOMAIN][DATA_COORDINATOR_FETCH].async_refresh()
 
 

@@ -13,7 +13,7 @@ SUPPORT_HVAC = [HVACMode.HEAT_COOL, HVACMode.OFF]
 
 from .base import KamereonEntity
 from .kamereon import Feature, HVACAction, HVACStatus
-from .const import DOMAIN, DATA_VEHICLES, DATA_COORDINATOR_FETCH
+from .const import DOMAIN, DATA_VEHICLES, DATA_COORDINATOR_FETCH, DATA_COORDINATOR_POLL
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -88,19 +88,19 @@ class KamereonClimate(KamereonEntity, ClimateEntity):
         else:
             self._target = temperature
 
-    def set_hvac_mode(self, hvac_mode):
+    async def async_set_hvac_mode(self, hvac_mode):
         """Set new target hvac mode."""
         if Feature.CLIMATE_ON_OFF not in self.vehicle.features:
             raise NotImplementedError()
 
         if hvac_mode == HVACMode.OFF:
-            self.vehicle.set_hvac_status(HVACAction.STOP)
-            self._fetch_loop(HVACStatus.OFF)
+            await self._hass.async_add_executor_job(self.vehicle.set_hvac_status, HVACAction.STOP)
+            self._hass.async_create_task(self._async_fetch_loop(HVACStatus.OFF))
         elif hvac_mode == HVACMode.HEAT_COOL:
-            self.vehicle.set_hvac_status(HVACAction.START, int(self._target))
-            self._fetch_loop(HVACStatus.ON)
+            await self._hass.async_add_executor_job(self.vehicle.set_hvac_status, HVACAction.START, int(self._target))
+            self._hass.async_create_task(self._async_fetch_loop(HVACStatus.ON))
 
-    def _fetch_loop(self, target_state):
+    async def _async_fetch_loop(self, target_state):
         """Fetch every 5 seconds for 30s so we get a timely state update."""
         if self._loop_mutex:
             return
@@ -108,16 +108,14 @@ class KamereonClimate(KamereonEntity, ClimateEntity):
         _LOGGER.debug("Beginning HVAC fetch loop")
         self._loop_mutex = True
         for _ in range(6):
-            asyncio.run_coroutine_threadsafe(
-                self.coordinator.async_refresh(), self._hass.loop
-            ).result()
+            await self._hass.data[DOMAIN][DATA_COORDINATOR_POLL].async_refresh()
 
             # We have our update, break out
             if target_state == self.vehicle.hvac_status:
                 _LOGGER.debug("Breaking out of HVAC fetch loop")
                 break
 
-            sleep(5)
+            await asyncio.sleep(5)
         
         _LOGGER.debug("Ending HVAC fetch loop")
         self._loop_mutex = False
