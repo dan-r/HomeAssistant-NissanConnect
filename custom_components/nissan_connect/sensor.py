@@ -9,14 +9,14 @@ from homeassistant.core import callback
 from homeassistant.const import PERCENTAGE, UnitOfLength, UnitOfTime
 from .base import KamereonEntity
 from .kamereon import ChargingSpeed, Feature
-from .const import DOMAIN, DATA_VEHICLES, DATA_COORDINATOR, DATA_COORDINATOR_STATISTICS
+from .const import DOMAIN, DATA_VEHICLES, DATA_COORDINATOR_FETCH, DATA_COORDINATOR_STATISTICS
 _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(hass, config, async_add_entities):
     """Set up the Kamereon sensors."""
     data = hass.data[DOMAIN][DATA_VEHICLES]
-    coordinator = hass.data[DOMAIN][DATA_COORDINATOR]
+    coordinator = hass.data[DOMAIN][DATA_COORDINATOR_FETCH]
     coordinator_stats = hass.data[DOMAIN][DATA_COORDINATOR_STATISTICS]
 
     entities = []

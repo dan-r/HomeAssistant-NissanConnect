@@ -1,6 +1,6 @@
 import logging
 from .kamereon import NCISession
-from .coordinator import KamereonCoordinator, StatisticsCoordinator
+from .coordinator import KamereonFetchCoordinator, KamereonPollCoordinator, StatisticsCoordinator
 from .const import *
 
 _LOGGER = logging.getLogger(__name__)
@@ -20,7 +20,7 @@ async def async_update_listener(hass, entry):
                                             )
 
     # Refresh coordinator
-    await hass.data[DOMAIN][DATA_COORDINATOR].async_refresh()
+    await hass.data[DOMAIN][DATA_COORDINATOR_FETCH].async_refresh()
 
 
 async def async_setup_entry(hass, entry):
@@ -49,7 +49,8 @@ async def async_setup_entry(hass, entry):
         if vehicle.vin not in data[DATA_VEHICLES]:
             data[DATA_VEHICLES][vehicle.vin] = vehicle
 
-    coordinator = data[DATA_COORDINATOR] = KamereonCoordinator(hass, config)
+    coordinator = data[DATA_COORDINATOR_FETCH] = KamereonFetchCoordinator(hass, config)
+    poll_coordinator = data[DATA_COORDINATOR_POLL] = KamereonPollCoordinator(hass, config)
     stats_coordinator = data[DATA_COORDINATOR_STATISTICS] = StatisticsCoordinator(
         hass, config)
 
@@ -59,8 +60,17 @@ async def async_setup_entry(hass, entry):
             hass.config_entries.async_forward_entry_setup(entry, component)
         )
 
+    # Init fetch and state coordinators
     await coordinator.async_config_entry_first_refresh()
     await stats_coordinator.async_config_entry_first_refresh()
+
+    # Init poll coordinator and ensure it runs
+    entry.async_on_unload(
+            poll_coordinator.async_add_listener(
+                lambda *args: None, None
+            )
+    )
+    await poll_coordinator.async_config_entry_first_refresh()
 
     entry.async_on_unload(entry.add_update_listener(async_update_listener))
 

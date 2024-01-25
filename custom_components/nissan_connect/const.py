@@ -3,7 +3,8 @@ CONFIG_VERSION = 1
 ENTITY_TYPES = ["binary_sensor", "sensor", "button", "climate", "device_tracker"]
 
 DATA_VEHICLES = "vehicles"
-DATA_COORDINATOR = "coordinator"
+DATA_COORDINATOR_FETCH = "coordinator_fetch"
+DATA_COORDINATOR_POLL = "coordinator_poll"
 DATA_COORDINATOR_STATISTICS = "coordinator_statistics"
 
 DEFAULT_INTERVAL = 60

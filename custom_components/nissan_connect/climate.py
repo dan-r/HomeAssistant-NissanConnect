@@ -13,14 +13,14 @@ SUPPORT_HVAC = [HVACMode.HEAT_COOL, HVACMode.OFF]
 
 from .base import KamereonEntity
 from .kamereon import Feature, HVACAction, HVACStatus
-from .const import DOMAIN, DATA_VEHICLES, DATA_COORDINATOR
+from .const import DOMAIN, DATA_VEHICLES, DATA_COORDINATOR_FETCH
 
 _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(hass, config, async_add_entities):
     data = hass.data[DOMAIN][DATA_VEHICLES]
-    coordinator = hass.data[DOMAIN][DATA_COORDINATOR]
+    coordinator = hass.data[DOMAIN][DATA_COORDINATOR_FETCH]
 
     for vehicle in data:
         if Feature.CLIMATE_ON_OFF in data[vehicle].features:
