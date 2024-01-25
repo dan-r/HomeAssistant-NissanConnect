@@ -31,10 +31,15 @@ This is the recommended installation method.
 From the Home Assistant Integrations page, search for and add the Nissan Connect integration.
 
 ## Update Time
+Terminology used for this integration:
+* Polling - the car is woken up and new status is reported
+* Update - data is fetched from Nissan but the car is not woken up
+
 Following the model of leaf2mqtt, this integration can be set to use a different update time when plugged in. When HVAC is turned on the update time drops to once per minute.
 
 ## Translations
-I have provided machine translations from English to the following languages as a start, but welcome native speakers to give feedback on these and to improve them:
+Translations are provided for the following languages. If you are a native speaker and spot any mistakes, please let me know.
+* English
 * French
 * Italian
 

@@ -14,7 +14,7 @@ class KamereonFetchCoordinator(DataUpdateCoordinator):
         super().__init__(
             hass,
             _LOGGER,
-            name="Fetch Coordinator",
+            name="Update Coordinator",
             update_interval=timedelta(minutes=config.get("interval_fetch", DEFAULT_INTERVAL_FETCH)),
         )
         self._hass = hass

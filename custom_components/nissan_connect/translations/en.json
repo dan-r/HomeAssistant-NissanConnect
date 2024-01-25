@@ -15,8 +15,8 @@
             "imperial_distance": "Use imperial distance units"
           },
           "data_description": {
-            "interval_charging": "The car will be woken up at every polling interval.",
-            "interval_statistics": "Fetch intervals will get the latest data from Nissan but the car will not be woken up."
+            "interval_charging": "The car will be woken up and new data requested at every polling interval.",
+            "interval_statistics": "On update intervals, the latest data will be fetched from Nissan but the car will not be woken up."
           }
         }
       },
@@ -41,7 +41,7 @@
           },
           "data_description": {
             "password": "If you are not changing your credentials, leave the password field empty.",
-            "interval_charging": "The car will be woken up at every polling interval.",
+            "interval_charging": "The car will be woken up and new data requested at every polling interval.",
             "interval_statistics": "On update intervals, the latest data will be fetched from Nissan but the car will not be woken up."
           }
         }

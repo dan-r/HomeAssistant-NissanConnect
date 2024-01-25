@@ -25,7 +25,7 @@ async def async_update_listener(hass, entry):
     hass.data[DOMAIN][DATA_COORDINATOR_STATISTICS].update_interval = timedelta(minutes=config.get("interval_statistics", DEFAULT_INTERVAL_STATISTICS))
     hass.data[DOMAIN][DATA_COORDINATOR_FETCH].update_interval = timedelta(minutes=config.get("interval_fetch", DEFAULT_INTERVAL_FETCH))
     
-    # Refresh coordinator
+    # Refresh fetch coordinator
     await hass.data[DOMAIN][DATA_COORDINATOR_FETCH].async_refresh()
 
 
