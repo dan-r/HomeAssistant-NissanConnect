@@ -1,6 +1,6 @@
 import voluptuous as vol
 from homeassistant.config_entries import (ConfigFlow, OptionsFlow)
-from .const import DOMAIN, CONFIG_VERSION, DEFAULT_INTERVAL, DEFAULT_INTERVAL_CHARGING, DEFAULT_INTERVAL_STATISTICS, DEFAULT_REGION, REGIONS
+from .const import DOMAIN, CONFIG_VERSION, DEFAULT_INTERVAL_POLL, DEFAULT_INTERVAL_CHARGING, DEFAULT_INTERVAL_STATISTICS, DEFAULT_INTERVAL_FETCH, DEFAULT_REGION, REGIONS
 from .kamereon import NCISession
 import homeassistant.helpers.config_validation as cv
 
@@ -8,10 +8,13 @@ USER_SCHEMA = vol.Schema({
     vol.Required("email"): cv.string,
     vol.Required("password"): cv.string,
     vol.Required(
-        "interval", default=DEFAULT_INTERVAL
+        "interval", default=DEFAULT_INTERVAL_POLL
     ): int,
     vol.Required(
         "interval_charging", default=DEFAULT_INTERVAL_CHARGING
+    ): int,
+    vol.Required(
+        "interval_fetch", default=DEFAULT_INTERVAL_FETCH
     ): int,
     vol.Required(
         "interval_statistics", default=DEFAULT_INTERVAL_STATISTICS
@@ -107,10 +110,13 @@ class NissanOptionsFlow(OptionsFlow):
                 vol.Required("email", default=self._config_entry.data.get("email", "")): cv.string,
                 vol.Optional("password"): cv.string,
                 vol.Required(
-                    "interval", default=self._config_entry.data.get("interval", DEFAULT_INTERVAL)
+                    "interval", default=self._config_entry.data.get("interval", DEFAULT_INTERVAL_POLL)
                 ): int,
                 vol.Required(
                     "interval_charging", default=self._config_entry.data.get("interval_charging", DEFAULT_INTERVAL_CHARGING)
+                ): int,
+                vol.Required(
+                    "interval_fetch", default=self._config_entry.data.get("interval_fetch", DEFAULT_INTERVAL_FETCH)
                 ): int,
                 vol.Required(
                     "interval_statistics", default=self._config_entry.data.get("interval_statistics", DEFAULT_INTERVAL_STATISTICS)

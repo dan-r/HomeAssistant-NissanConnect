@@ -2,7 +2,7 @@ import logging
 
 from datetime import timedelta
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
-from .const import DOMAIN, DATA_VEHICLES, DEFAULT_INTERVAL, DEFAULT_INTERVAL_CHARGING, DEFAULT_INTERVAL_STATISTICS, DEFAULT_INTERVAL_FETCH, DATA_COORDINATOR_FETCH
+from .const import DOMAIN, DATA_VEHICLES, DEFAULT_INTERVAL_POLL, DEFAULT_INTERVAL_CHARGING, DEFAULT_INTERVAL_STATISTICS, DEFAULT_INTERVAL_FETCH, DATA_COORDINATOR_FETCH
 from .kamereon import Feature, PluggedStatus, HVACStatus, Period
 
 _LOGGER = logging.getLogger(__name__)
@@ -49,7 +49,7 @@ class KamereonPollCoordinator(DataUpdateCoordinator):
 
     def _set_next_interval(self):
         """Calculate the next update interval."""
-        interval = self._config.get("interval", DEFAULT_INTERVAL)
+        interval = self._config.get("interval", DEFAULT_INTERVAL_POLL)
         interval_charging = self._config.get("interval_charging", DEFAULT_INTERVAL_CHARGING)
         
         # Get the shortest interval from all vehicles
