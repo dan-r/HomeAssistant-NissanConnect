@@ -7,11 +7,16 @@
                 "data": {
                     "email": "Indirizzo email",
                     "password": "Password",
-                    "interval": "Intervallo di aggiornamento (minuti)",
-                    "interval_charging": "Intervallo di aggiornamento durante la ricarica (minuti)",
+                    "interval": "Intervallo di polling (minuti)",
+                    "interval_charging": "Intervallo di polling durante la ricarica (minuti)",
                     "interval_statistics": "Intervallo di aggiornamento per le statistiche giornaliere/mensili (minuti)",
+                    "interval_fetch": "Intervallo di aggiornamento (minuti)",
                     "region": "Regione (EU, US)",
                     "imperial_distance": "Utilizza unità di misura imperiali per la distanza"
+                },
+                "data_description": {
+                    "interval_charging": "La macchina verrà svegliata e verranno richiesti nuovi dati ad ogni intervallo di aggiornamento.",
+                    "interval_statistics": "Agli intervalli di aggiornamento, i dati più recenti verranno recuperati da Nissan ma l'auto non verrà svegliata."
                 }
             }
         },
@@ -28,13 +33,16 @@
                 "data": {
                     "email": "Indirizzo email",
                     "password": "Password",
-                    "interval": "Intervallo di aggiornamento (minuti)",
-                    "interval_charging": "Intervallo di aggiornamento durante la ricarica (minuti)",
+                    "interval": "Intervallo di polling (minuti)",
+                    "interval_charging": "Intervallo di polling durante la ricarica (minuti)",
                     "interval_statistics": "Intervallo di aggiornamento per le statistiche giornaliere/mensili (minuti)",
+                    "interval_fetch": "Intervallo di aggiornamento (minuti)",
                     "imperial_distance": "Utilizza unità di misura imperiali per la distanza"
                 },
                 "data_description": {
-                    "password": "Se non stai cambiando le tue credenziali, lascia vuoto il campo della password."
+                    "password": "Se non stai cambiando le tue credenziali, lascia vuoto il campo della password.",
+                    "interval_charging": "La macchina verrà svegliata e verranno richiesti nuovi dati ad ogni intervallo di aggiornamento.",
+                    "interval_statistics": "Agli intervalli di aggiornamento, i dati più recenti verranno recuperati da Nissan ma l'auto non verrà svegliata."
                 }
             }
         },
