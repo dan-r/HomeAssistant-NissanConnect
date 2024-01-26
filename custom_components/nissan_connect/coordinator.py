@@ -80,7 +80,8 @@ class KamereonPollCoordinator(DataUpdateCoordinator):
             _LOGGER.warning("Error communicating with API")
             return False
         
-        return await self._hass.data[DOMAIN][DATA_COORDINATOR_FETCH].async_refresh()
+        self._hass.async_create_task(self._hass.data[DOMAIN][DATA_COORDINATOR_FETCH].async_refresh())
+        return True
 
 
 class StatisticsCoordinator(DataUpdateCoordinator):
