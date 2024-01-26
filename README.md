@@ -18,7 +18,7 @@ If you find any bugs or would like to request a feature, please open an issue.
 ### HACS
 This is the recommended installation method.
 1. Add this repository to HACS as a [custom repository](https://hacs.xyz/docs/faq/custom_repositories)
-2. Search for and install the Ohme addon from HACS
+2. Search for and install the NissanConnect addon from HACS
 3. Restart Home Assistant
 
 ### Manual
