@@ -54,7 +54,7 @@ class KamereonClimate(KamereonEntity, ClimateEntity):
     @property
     def current_temperature(self):
         """Return the current temperature."""
-        if self.vehicle.internal_temperature:
+        if self.vehicle.internal_temperature is not None:
             return float(self.vehicle.internal_temperature)
         return None
 
