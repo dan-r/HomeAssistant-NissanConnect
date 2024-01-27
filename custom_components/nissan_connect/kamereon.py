@@ -881,6 +881,9 @@ class Vehicle:
         self.fetch_lock_status()
 
     def refresh_location(self):
+        if Feature.MY_CAR_FINDER not in self.features:
+            return
+        
         resp = self._post(
             '{}v1/cars/{}/actions/refresh-location'.format(self.session.settings['car_adapter_base_url'], self.vin),
             data=json.dumps({
@@ -894,6 +897,9 @@ class Vehicle:
         return body
 
     def fetch_location(self):
+        if Feature.MY_CAR_FINDER not in self.features:
+            return
+        
         resp = self._get(
             '{}v1/cars/{}/location'.format(self.session.settings['car_adapter_base_url'], self.vin),
             headers={'Content-Type': 'application/vnd.api+json'}

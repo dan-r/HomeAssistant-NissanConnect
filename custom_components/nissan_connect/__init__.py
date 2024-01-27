@@ -1,6 +1,7 @@
 import logging
+from datetime import timedelta
 from .kamereon import NCISession
-from .coordinator import KamereonCoordinator, StatisticsCoordinator
+from .coordinator import KamereonFetchCoordinator, KamereonPollCoordinator, StatisticsCoordinator
 from .const import *
 
 _LOGGER = logging.getLogger(__name__)
@@ -12,15 +13,20 @@ async def async_setup(hass, config) -> bool:
 
 async def async_update_listener(hass, entry):
     """Handle options flow credentials update."""
+    config = entry.data
     # Loop each vehicle and update its session with the new credentials
     for vehicle in hass.data[DOMAIN][DATA_VEHICLES]:
         await hass.async_add_executor_job(hass.data[DOMAIN][DATA_VEHICLES][vehicle].session.login,
-                                            entry.data.get("email"),
-                                            entry.data.get("password")
+                                            config.get("email"),
+                                            config.get("password")
                                             )
 
-    # Refresh coordinator
-    await hass.data[DOMAIN][DATA_COORDINATOR].async_refresh()
+    # Update intervals for coordinators
+    hass.data[DOMAIN][DATA_COORDINATOR_STATISTICS].update_interval = timedelta(minutes=config.get("interval_statistics", DEFAULT_INTERVAL_STATISTICS))
+    hass.data[DOMAIN][DATA_COORDINATOR_FETCH].update_interval = timedelta(minutes=config.get("interval_fetch", DEFAULT_INTERVAL_FETCH))
+    
+    # Refresh fetch coordinator
+    await hass.data[DOMAIN][DATA_COORDINATOR_FETCH].async_refresh()
 
 
 async def async_setup_entry(hass, entry):
@@ -49,7 +55,8 @@ async def async_setup_entry(hass, entry):
         if vehicle.vin not in data[DATA_VEHICLES]:
             data[DATA_VEHICLES][vehicle.vin] = vehicle
 
-    coordinator = data[DATA_COORDINATOR] = KamereonCoordinator(hass, config)
+    coordinator = data[DATA_COORDINATOR_FETCH] = KamereonFetchCoordinator(hass, config)
+    poll_coordinator = data[DATA_COORDINATOR_POLL] = KamereonPollCoordinator(hass, config)
     stats_coordinator = data[DATA_COORDINATOR_STATISTICS] = StatisticsCoordinator(
         hass, config)
 
@@ -59,8 +66,17 @@ async def async_setup_entry(hass, entry):
             hass.config_entries.async_forward_entry_setup(entry, component)
         )
 
+    # Init fetch and state coordinators
     await coordinator.async_config_entry_first_refresh()
     await stats_coordinator.async_config_entry_first_refresh()
+
+    # Init poll coordinator and ensure it runs
+    entry.async_on_unload(
+            poll_coordinator.async_add_listener(
+                lambda *args: None, None
+            )
+    )
+    await poll_coordinator.async_config_entry_first_refresh()
 
     entry.async_on_unload(entry.add_update_listener(async_update_listener))
 

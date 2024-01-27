@@ -4,12 +4,12 @@ from homeassistant.const import STATE_UNKNOWN
 
 from .base import KamereonEntity
 from .kamereon import ChargingStatus, PluggedStatus, LockStatus, Feature
-from .const import DOMAIN, DATA_VEHICLES, DATA_COORDINATOR
+from .const import DOMAIN, DATA_VEHICLES, DATA_COORDINATOR_FETCH
 
 async def async_setup_entry(hass, config, async_add_entities):
     """Set up the Kamereon sensors."""
     data = hass.data[DOMAIN][DATA_VEHICLES]
-    coordinator = hass.data[DOMAIN][DATA_COORDINATOR]
+    coordinator = hass.data[DOMAIN][DATA_COORDINATOR_FETCH]
 
     entities = []
 

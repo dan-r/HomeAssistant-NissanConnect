@@ -7,11 +7,16 @@
                 "data": {
                     "email": "Adresse e-mail",
                     "password": "Mot de passe",
-                    "interval": "Intervalle de mise à jour (minutes)",
-                    "interval_charging": "Intervalle de mise à jour pendant la charge (minutes)",
+                    "interval": "Intervalle de sondage (minutes)",
+                    "interval_charging": "Intervalle de sondage pendant la charge (minutes)",
                     "interval_statistics": "Intervalle de mise à jour des statistiques quotidiennes/mensuelles (minutes)",
+                    "interval_fetch": "Intervalle de mise à jour (minutes)",
                     "region": "Région (EU, US)",
                     "imperial_distance": "Utiliser les unités de distance impériales"
+                },
+                "data_description": {
+                    "interval_charging": "La voiture sera réveillée et de nouvelles données seront demandées à chaque intervalle de mise à jour.",
+                    "interval_statistics": "Aux intervalles de mise à jour, les dernières données seront récupérées auprès de Nissan mais la voiture ne sera pas réveillée."
                 }
             }
         },
@@ -28,13 +33,16 @@
                 "data": {
                     "email": "Adresse e-mail",
                     "password": "Mot de passe",
-                    "interval": "Intervalle de mise à jour (minutes)",
-                    "interval_charging": "Intervalle de mise à jour pendant la charge (minutes)",
+                    "interval": "Intervalle de sondage (minutes)",
+                    "interval_charging": "Intervalle de sondage pendant la charge (minutes)",
                     "interval_statistics": "Intervalle de mise à jour des statistiques quotidiennes/mensuelles (minutes)",
+                    "interval_fetch": "Intervalle de mise à jour (minutes)",
                     "imperial_distance": "Utiliser les unités de distance impériales"
                 },
                 "data_description": {
-                    "password": "Si vous ne changez pas vos informations d'identification, laissez le champ du mot de passe vide."
+                    "password": "Si vous ne changez pas vos informations d'identification, laissez le champ du mot de passe vide.",
+                    "interval_charging": "La voiture sera réveillée et de nouvelles données seront demandées à chaque intervalle de mise à jour.",
+                    "interval_statistics": "Aux intervalles de mise à jour, les dernières données seront récupérées auprès de Nissan mais la voiture ne sera pas réveillée."
                 }
             }
         },
