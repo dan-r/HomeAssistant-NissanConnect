@@ -167,12 +167,26 @@ class OdometerSensor(KamereonEntity, SensorEntity):
     def __init__(self, coordinator, vehicle, imperial_distance):
         if imperial_distance:
             self._attr_suggested_unit_of_measurement = UnitOfLength.MILES
+
+        self._state = None
+
         KamereonEntity.__init__(self, coordinator, vehicle)
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        new_state = getattr(self.vehicle, "total_mileage")
+
+        # This sometimes goes backwards? So only accept a positive odometer delta
+        if new_state is not None and new_state > (self._state or 0):
+            _LOGGER.debug(f"Updating odometer state")
+            
+            self._state = new_state
+            self.async_write_ha_state()
 
     @property
     def native_value(self):
         """Return the state."""
-        return getattr(self.vehicle, "total_mileage")
+        return self._state
 
     @property
     def icon(self):

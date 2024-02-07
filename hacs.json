@@ -1,6 +1,6 @@
 {
-    "name": "Nissan Connect",
+    "name": "NissanConnect [EU]",
     "render_readme": true,
-    "homeassistant": "2023.9.0"
+    "homeassistant": "2023.11.0"
   }
   

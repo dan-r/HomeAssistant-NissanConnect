@@ -1,17 +1,18 @@
-# Nissan Connect for Home Assistant
+# NissanConnect for Home Assistant
 
-An integration for interacting with Nissan Connect vehicles. Based on the work of [mitchellrj](https://github.com/mitchellrj) and [tobiaswk](https://github.com/Tobiaswk/dartnissanconnect).
+An unofficial integration for interacting with Nissan Connect vehicles. Based on the work of [mitchellrj](https://github.com/mitchellrj) and [tobiaswk](https://github.com/Tobiaswk/dartnissanconnect). I have no affiliation with Nissan besides owning one of their cars.
 
-This is quite heavily EV-focussed as thats what I have.
-
-This is an unofficial integration. I have no affiliation with Nissan besides owning one of their cars.
-
-Tested with the following vehicles:
-* Nissan Leaf Tekna (2022) - UK
-* Nissan Qashqai (2021) - EU 
+This integration is heavily EV-focussed as thats what I have, and currently has only been confirmed to work in Europe.
 
 If you find any bugs or would like to request a feature, please open an issue.
 
+## Tested Vehicles
+This integration has been tested with the following vehicles:
+* Nissan Leaf Tekna (2022) - UK [@dan-r]
+* Nissan Qashqai (2021) - EU 
+
+### North America
+The API used in North America is completely separate to Europe and it appears that Nissan USA are [a lot more hostile](https://tobis.dk/blog/the-farce-of-nissanconnect-north-america/) towards third-party access. Any future US support would rely on library support (such as [dartnissanconnectna](https://gitlab.com/tobiaswkjeldsen/dartnissanconnectna)) or someone in North America maintaining that side of things. If you're interested, get in touch!
 
 ## Installation
 
