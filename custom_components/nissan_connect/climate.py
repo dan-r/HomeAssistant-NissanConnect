@@ -29,7 +29,8 @@ async def async_setup_entry(hass, config, async_add_entities):
 
 class KamereonClimate(KamereonEntity, ClimateEntity):
     """Representation of a Kamereon Climate."""
-    _attr_supported_features = ClimateEntityFeature.TARGET_TEMPERATURE
+    _attr_supported_features = ClimateEntityFeature.TARGET_TEMPERATURE | ClimateEntityFeature.TURN_OFF | ClimateEntityFeature.TURN_ON
+    _enable_turn_on_off_backwards_compatibility = False
     _attr_hvac_modes = SUPPORT_HVAC
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_translation_key = "climate"
@@ -99,6 +100,12 @@ class KamereonClimate(KamereonEntity, ClimateEntity):
         elif hvac_mode == HVACMode.HEAT_COOL:
             await self._hass.async_add_executor_job(self.vehicle.set_hvac_status, HVACAction.START, int(self._target))
             self._hass.async_create_task(self._async_fetch_loop(HVACStatus.ON))
+
+    async def async_turn_off(self) -> None:
+        await self.async_set_hvac_mode(HVACMode.OFF)
+
+    async def async_turn_on(self) -> None:
+        await self.async_set_hvac_mode(HVACMode.HEAT_COOL)
 
     async def _async_fetch_loop(self, target_state):
         """Fetch every 5 seconds for 30s so we get a timely state update."""
