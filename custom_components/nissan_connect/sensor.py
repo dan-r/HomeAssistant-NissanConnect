@@ -232,7 +232,11 @@ class StatisticSensor(KamereonEntity, SensorEntity):
             self.async_write_ha_state()
             return
 
-        self._state = self._lambda(summary[0])
+        # For statistic sensors, default to 0 on error
+        try:
+            self._state = self._lambda(summary[0])
+        except:
+            self._state = 0
 
         self.async_write_ha_state()
 
