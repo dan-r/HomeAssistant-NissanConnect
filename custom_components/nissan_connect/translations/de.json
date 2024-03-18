@@ -3,20 +3,20 @@
     "config": {
       "step": {
         "user": {
-          "description": "Configure your NissanConnect account.",
+          "description": "Zugangsdaten für NissanConnect eingeben",
           "data": {
-            "email": "Email-Adresse",
-            "password": "Password",
-            "interval": "Polling interval (minutes)",
-            "interval_charging": "Polling interval while charging (minutes)",
-            "interval_statistics": "Update interval for daily/monthly statistics (minutes)",
-            "interval_fetch": "Update interval (minutes)",
+            "email": "E-Mail-Adresse",
+            "password": "Passwort",
+            "interval": "Polling-Intervall (Minuten)",
+            "interval_charging": "Polling-Intervall während des Ladevorgangs (Minuten)",
+            "interval_statistics": "Update-Intervall für Statistiken (Minuten)",
+            "interval_fetch": "Update-Intervall (Minuten)",
             "region": "Region (EU, US)",
-            "imperial_distance": "Use imperial distance units"
+            "imperial_distance": "Imperiale (amerikanische) Einheiten verwenden"
           },
           "data_description": {
-            "interval_charging": "The car will be woken up and new data requested at every polling interval.",
-            "interval_statistics": "On update intervals, the latest data will be fetched from Nissan but the car will not be woken up."
+            "interval_charging": "Polling-Intervall: Es werden Daten direkt vom Fahrzeug angefordert (beeinflusst Batterieverbrauch).",
+            "interval_statistics": "Update-Intervall: Es werden Daten aus der Cloud angefordert, ohne das Fahrzeug zu wecken."
           }
         }
       },
@@ -29,25 +29,25 @@
     "options": {
       "step": {
         "init": {
-          "description": "Update your NissanConnect account information.",
+          "description": "Zugangsdaten für NissanConnect aktualisieren",
           "data": {
-            "email": "Email address",
-            "password": "Password",
-            "interval": "Polling interval (minutes)",
-            "interval_charging": "Polling interval while charging (minutes)",
-            "interval_statistics": "Update interval for daily/monthly statistics (minutes)",
-            "interval_fetch": "Update interval (minutes)",
-            "imperial_distance": "Use imperial distance units"
+            "email": "E-Mail-Adresse",
+            "password": "Passwort",
+            "interval": "Polling-Intervall (Minuten)",
+            "interval_charging": "Polling-Intervall während des Ladevorgangs (Minuten)",
+            "interval_statistics": "Update-Intervall für Statistiken (Minuten)",
+            "interval_fetch": "Update-Intervall (Minuten)",
+            "imperial_distance": "Imperiale (amerikanische) Einheiten verwenden"
           },
           "data_description": {
-            "password": "If you are not changing your credentials, leave the password field empty.",
-            "interval_charging": "The car will be woken up and new data requested at every polling interval.",
-            "interval_statistics": "On update intervals, the latest data will be fetched from Nissan but the car will not be woken up."
+            "password": "Nur bei geänderten Zugangsdaten ausfüllen",
+            "interval_charging": "In diesem Intervall werden Daten vom Fahrzeug angefordert (beeinflusst Batterieverbrauch).",
+            "interval_statistics": "In diesem Intervall werden neue Daten aus der Cloud angefordert, ohne das Fahrzeug zu wecken."
           }
         }
       },
       "error": {
-        "auth_error": "Invalid credentials provided."
+        "auth_error": "Die Zugangsdaten sind ungültig."
       },
       "abort": {}
     },
@@ -82,7 +82,7 @@
       },
       "device_tracker": {
         "location": {
-          "name": "Location"
+          "name": "Standort"
         }
       },
       "sensor": {
