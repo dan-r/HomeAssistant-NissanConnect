@@ -1,0 +1,136 @@
+{
+    "title": "NissanConnect",
+    "config": {
+      "step": {
+        "user": {
+          "description": "Zugangsdaten für NissanConnect eingeben",
+          "data": {
+            "email": "E-Mail-Adresse",
+            "password": "Passwort",
+            "interval": "Polling-Intervall (Minuten)",
+            "interval_charging": "Polling-Intervall während des Ladevorgangs (Minuten)",
+            "interval_statistics": "Update-Intervall für Statistiken (Minuten)",
+            "interval_fetch": "Update-Intervall (Minuten)",
+            "region": "Region (EU, US)",
+            "imperial_distance": "Imperiale (amerikanische) Einheiten verwenden"
+          },
+          "data_description": {
+            "interval_charging": "Polling-Intervall: Es werden Daten direkt vom Fahrzeug angefordert (beeinflusst Batterieverbrauch).",
+            "interval_statistics": "Update-Intervall: Es werden Daten aus der Cloud angefordert, ohne das Fahrzeug zu wecken."
+          }
+        }
+      },
+      "error": {
+        "auth_error": "Die Zugangsdaten sind ungültig.",
+        "region_error": "Diese Region wird nicht unterstützt. Bitte eine unterstützte Region auswählen!"
+      },
+      "abort": {}
+    },
+    "options": {
+      "step": {
+        "init": {
+          "description": "Zugangsdaten für NissanConnect aktualisieren",
+          "data": {
+            "email": "E-Mail-Adresse",
+            "password": "Passwort",
+            "interval": "Polling-Intervall (Minuten)",
+            "interval_charging": "Polling-Intervall während des Ladevorgangs (Minuten)",
+            "interval_statistics": "Update-Intervall für Statistiken (Minuten)",
+            "interval_fetch": "Update-Intervall (Minuten)",
+            "imperial_distance": "Imperiale (amerikanische) Einheiten verwenden"
+          },
+          "data_description": {
+            "password": "Nur bei geänderten Zugangsdaten ausfüllen",
+            "interval_charging": "In diesem Intervall werden Daten vom Fahrzeug angefordert (beeinflusst Batterieverbrauch).",
+            "interval_statistics": "In diesem Intervall werden neue Daten aus der Cloud angefordert, ohne das Fahrzeug zu wecken."
+          }
+        }
+      },
+      "error": {
+        "auth_error": "Die Zugangsdaten sind ungültig."
+      },
+      "abort": {}
+    },
+    "issues": {},
+    "entity": {
+      "binary_sensor": {
+        "charging": {
+          "name": "Aufladen"
+        },
+        "doors_locked": {
+          "name": "Türverriegelung"
+        },
+        "plugged": {
+          "name": "Ladestation angeschlossen"
+        }
+      },
+      "button": {
+        "flash_lights": {
+          "name": "Lichthupe"
+        },
+        "honk_horn": {
+          "name": "Hupen"
+        },
+        "update_data": {
+          "name": "Daten aktualisieren"
+        }
+      },
+      "climate": {
+        "climate": {
+          "name": "Klimatisierung"
+        }
+      },
+      "device_tracker": {
+        "location": {
+          "name": "Standort"
+        }
+      },
+      "sensor": {
+        "battery_level": {
+          "name": "Batteriestand"
+        },
+        "internal_temperature": {
+          "name": "Innentemperatur"
+        },
+        "external_temperature": {
+          "name": "Außentemperatur"
+        },
+        "range_ac_on": {
+          "name": "Reichweite (mit Klima)"
+        },
+        "range_ac_off": {
+          "name": "Reichweite (ohne Klima)"
+        },
+        "odometer": {
+          "name": "Kilometerzähler"
+        },
+        "charge_time_3kw": {
+          "name": "Ladezeit (bei 3kW)"
+        },
+        "charge_time_6kw": {
+          "name": "Ladezeit (bei 6kW)"
+        },
+        "last_updated": {
+          "name": "zuletzt aktualisiert"
+        },
+        "daily_distance": {
+          "name": "zurückgelegte Entfernung (heute)"
+        },
+        "daily_efficiency": {
+          "name": "Effizienz (heute)"
+        },
+        "daily_trips": {
+          "name": "Anzahl Fahrten (heute)"
+        },
+        "monthly_distance": {
+          "name": "zurückgelegte Entfernung (akt. Monat)"
+        },
+        "monthly_efficiency": {
+          "name": "Effizient (akt. Monat)"
+        },
+        "monthly_trips": {
+          "name": "Anzahl Fahrten (akt. Monat)"
+        }
+      }
+    }
+}
