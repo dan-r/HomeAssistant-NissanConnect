@@ -38,6 +38,9 @@ Terminology used for this integration:
 
 Following the model of leaf2mqtt, this integration can be set to use a different update time when plugged in. When HVAC is turned on the update time drops to once per minute.
 
+To prevent excessive 12v battery drain when plugged in but not charging for extended periods of time, the interval reverts to the standard update interval after 4 consecutive updates show the car as plugged in but not charging.
+This logic was added to give the benefit of quicker response times on the charging status binary sensor, which can be especially useful when charging with load-balanced or 'smart' chargers.
+
 ## Translations
 Translations are provided for the following languages. If you are a native speaker and spot any mistakes, please let me know.
 * English
