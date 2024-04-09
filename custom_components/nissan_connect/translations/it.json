@@ -73,6 +73,9 @@
             },
             "update_data": {
                 "name": "Aggiorna dati"
+            },
+            "charge_start": {
+                "name": "Avvia carica"
             }
         },
         "climate": {

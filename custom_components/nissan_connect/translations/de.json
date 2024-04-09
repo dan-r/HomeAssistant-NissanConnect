@@ -73,6 +73,9 @@
         },
         "update_data": {
           "name": "Daten aktualisieren"
+        },
+        "charge_start": {
+          "name": "Starten Sie den Ladevorgang"
         }
       },
       "climate": {

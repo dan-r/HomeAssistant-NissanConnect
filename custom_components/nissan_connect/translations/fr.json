@@ -73,6 +73,9 @@
             },
             "update_data": {
                 "name": "Mettre à jour les données"
+            },
+            "charge_start": {
+                "name": "Démarrer la recharge"
             }
         },
         "climate": {
