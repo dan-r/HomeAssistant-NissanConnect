@@ -1228,10 +1228,10 @@ class Vehicle:
         if period is None:
             period = Period.DAILY
         if start is None and end is None and period == Period.MONTHLY:
-            end = datetime.date.today()
+            end = datetime.datetime.utcnow().date()
             start = end.replace(day=1)
         elif start is None:
-            start = datetime.date.today()
+            start = datetime.datetime.utcnow().date()
         if end is None:
             end = start
         resp = self._get(
