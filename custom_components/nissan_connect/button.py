@@ -24,7 +24,8 @@ async def async_setup_entry(hass, config, async_add_entities):
                 HornLightsButtons(coordinator, data[vehicle], "flash_lights", "mdi:car-light-high", "lights"),
                 HornLightsButtons(coordinator, data[vehicle], "honk_horn", "mdi:bullhorn", "horn_lights")
             ]
-
+        if Feature.CHARGING_START in data[vehicle].features:
+            entities.append(ChargeControlButtons(coordinator, data[vehicle], "charge_start", "mdi:play", "start"))
 
     async_add_entities(entities, update_before_add=True)
 
@@ -59,3 +60,18 @@ class HornLightsButtons(KamereonEntity, ButtonEntity):
 
     def press(self):
         self.vehicle.control_horn_lights('start', self._action)
+
+class ChargeControlButtons(KamereonEntity, ButtonEntity):
+    def __init__(self, coordinator, vehicle, translation_key, icon, action):
+        self._attr_translation_key = translation_key
+        self._icon = icon
+        self._action = action
+        KamereonEntity.__init__(self, coordinator, vehicle)
+    
+    @property
+    def icon(self):
+        return self._icon
+
+    def press(self):
+        self.vehicle.control_charging(self._action)
+
