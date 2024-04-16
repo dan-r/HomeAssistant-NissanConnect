@@ -1144,12 +1144,13 @@ class Vehicle:
         hvac_data = body['data']['attributes']
         self.external_temperature = hvac_data.get('externalTemperature')
         self.internal_temperature = hvac_data.get('internalTemperature')
+        self.next_target_temperature = hvac_data.get('nextTargetTemperature')
         if 'hvacStatus' in hvac_data:
             self.hvac_status = HVACStatus(hvac_data['hvacStatus'])
         if 'nextHvacStartDate' in hvac_data:
             self.next_hvac_start_date = datetime.datetime.fromisoformat(hvac_data['nextHvacStartDate'].replace('Z','+00:00'))
-        self.next_target_temperature = hvac_data.get('nextTargetTemperature')
-        self.hvac_status_last_updated = datetime.datetime.fromisoformat(hvac_data['lastUpdateTime'].replace('Z','+00:00'))
+        if 'lastUpdateTime' in hvac_data:
+            self.hvac_status_last_updated = datetime.datetime.fromisoformat(hvac_data['lastUpdateTime'].replace('Z','+00:00'))
 
     def refresh_battery_status(self):
         resp = self._post(
