@@ -33,8 +33,8 @@ SRP_KEY = 'D5AF0E14718E662D12DBB4FE42304DF5A8E48359E22261138B40AA16CC85C76A11B43
 settings_map = {
     'nissan': {
         'EU': {
-            'client_id': 'a-ncb-prod-android',
-            'client_secret': '0sAcrtwvwEXXZp5nzQhPexSRhxUVKa0d76F4uqDvxvvKFHXpo4myoJwUuV4vuNqC',
+            'client_id': 'a-ncb-nc-android-prod',
+            'client_secret': '6GKIax7fGT5yPHuNmWNVOc4q5POBw1WRSW39ubRA8WPBmQ7MOxhm75EsmKMKENem',
             'scope': 'openid profile vehicles',
             'auth_base_url': 'https://prod.eu2.auth.kamereon.org/kauth/',
             'realm': 'a-ncb-prod',
@@ -42,19 +42,7 @@ settings_map = {
             'car_adapter_base_url': 'https://alliance-platform-caradapter-prod.apps.eu2.kamereon.io/car-adapter/',
             'notifications_base_url': 'https://alliance-platform-notifications-prod.apps.eu2.kamereon.io/notifications/',
             'user_adapter_base_url': 'https://alliance-platform-usersadapter-prod.apps.eu2.kamereon.io/user-adapter/',
-            'user_base_url': 'https://nci-bff-web-prod.apps.eu2.kamereon.io/bff-web/',
-        },
-        'US': {
-            'client_id': 'a-ncb-prod-android',
-            'client_secret': '0sAcrtwvwEXXZp5nzQhPexSRhxUVKa0d76F4uqDvxvvKFHXpo4myoJwUuV4vuNqC',
-            'scope': 'openid profile vehicles',
-            'auth_base_url': 'https://prod.eu2.auth.kamereon.org/kauth/',
-            'realm': 'a-ncb-prod',
-            'redirect_uri': 'org.kamereon.service.nci:/oauth2redirect',
-            'car_adapter_base_url': 'https://alliance-platform-caradapter-prod.apps.eu2.kamereon.io/car-adapter/',
-            'notifications_base_url': 'https://alliance-platform-notifications-prod.apps.eu2.kamereon.io/notifications/',
-            'user_adapter_base_url': 'https://alliance-platform-usersadapter-prod.apps.eu2.kamereon.io/user-adapter/',
-            'user_base_url': 'https://nci-bff-web-prod.apps.eu2.kamereon.io/bff-web/',
+            'user_base_url': 'https://nci-bff-web-prod.apps.eu2.kamereon.io/bff-web/'
         }
     },
     'mitsubishi': {},
@@ -1144,12 +1132,13 @@ class Vehicle:
         hvac_data = body['data']['attributes']
         self.external_temperature = hvac_data.get('externalTemperature')
         self.internal_temperature = hvac_data.get('internalTemperature')
+        self.next_target_temperature = hvac_data.get('nextTargetTemperature')
         if 'hvacStatus' in hvac_data:
             self.hvac_status = HVACStatus(hvac_data['hvacStatus'])
         if 'nextHvacStartDate' in hvac_data:
             self.next_hvac_start_date = datetime.datetime.fromisoformat(hvac_data['nextHvacStartDate'].replace('Z','+00:00'))
-        self.next_target_temperature = hvac_data.get('nextTargetTemperature')
-        self.hvac_status_last_updated = datetime.datetime.fromisoformat(hvac_data['lastUpdateTime'].replace('Z','+00:00'))
+        if 'lastUpdateTime' in hvac_data:
+            self.hvac_status_last_updated = datetime.datetime.fromisoformat(hvac_data['lastUpdateTime'].replace('Z','+00:00'))
 
     def refresh_battery_status(self):
         resp = self._post(
