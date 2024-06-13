@@ -666,6 +666,7 @@ class KamereonSession:
         oauth_data = resp.json()
 
         if 'realm' not in oauth_data:
+            _LOGGER.error("Invalid credentials provided: %s", resp.text)
             raise RuntimeError("Invalid credentials")
         
         oauth_authorize_url = '{}oauth2{}/authorize'.format(

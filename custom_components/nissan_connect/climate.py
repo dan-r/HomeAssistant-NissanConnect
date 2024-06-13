@@ -108,13 +108,13 @@ class KamereonClimate(KamereonEntity, ClimateEntity):
         await self.async_set_hvac_mode(HVACMode.HEAT_COOL)
 
     async def _async_fetch_loop(self, target_state):
-        """Fetch every 5 seconds for 30s so we get a timely state update."""
+        """Fetch every 10 seconds for a while so we get a timely state update."""
         if self._loop_mutex:
             return
         
         _LOGGER.debug("Beginning HVAC fetch loop")
         self._loop_mutex = True
-        for _ in range(6):
+        for _ in range(10):
             await self._hass.data[DOMAIN][DATA_COORDINATOR_POLL].async_refresh()
 
             # We have our update, break out
@@ -122,7 +122,7 @@ class KamereonClimate(KamereonEntity, ClimateEntity):
                 _LOGGER.debug("Breaking out of HVAC fetch loop")
                 break
 
-            await asyncio.sleep(5)
+            await asyncio.sleep(10)
         
         _LOGGER.debug("Ending HVAC fetch loop")
         self._loop_mutex = False
