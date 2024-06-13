@@ -1,0 +1,139 @@
+{
+    "title": "NissanConectar",
+    "config": {
+        "step": {
+            "user": {
+                "description": "Configura tu cuenta NissanConnect.",
+                "data": {
+                    "email": "Dirección de correo electrónico",
+                    "password": "Contraseña",
+                    "interval": "Intervalo de sondeo (minutos)",
+                    "interval_charging": "Intervalo de sondeo durante la carga (minutos)",
+                    "interval_statistics": "Intervalo de actualización de estadísticas diarias/mensuales (minutos)",
+                    "interval_fetch": "Intervalo de actualización (minutos)",
+                    "region": "Región (UE, EE. UU.)",
+                    "imperial_distance": "Usar unidades de distancia imperiales"
+                },
+                "data_description": {
+                    "interval_charging": "El automóvil se despertará y se solicitarán nuevos datos en cada intervalo de sondeo.",
+                    "interval_statistics": "En los intervalos de actualización, se obtendrán los datos más recientes de Nissan, pero el automóvil no se activará."
+                }
+            }
+        },
+        "error": {
+            "auth_error": "Se proporcionaron credenciales no válidas.",
+            "region_error": "Región no válida proporcionada. "
+        },
+        "abort": {}
+    },
+    "options": {
+        "step": {
+            "init": {
+                "description": "Actualice la información de su cuenta NissanConnect.",
+                "data": {
+                    "email": "Dirección de correo electrónico",
+                    "password": "Contraseña",
+                    "interval": "Intervalo de sondeo (minutos)",
+                    "interval_charging": "Intervalo de sondeo durante la carga (minutos)",
+                    "interval_statistics": "Intervalo de actualización de estadísticas diarias/mensuales (minutos)",
+                    "interval_fetch": "Intervalo de actualización (minutos)",
+                    "imperial_distance": "Usar unidades de distancia imperiales"
+                },
+                "data_description": {
+                    "password": "Si no va a cambiar sus credenciales, deje el campo de contraseña vacío.",
+                    "interval_charging": "El automóvil se despertará y se solicitarán nuevos datos en cada intervalo de sondeo.",
+                    "interval_statistics": "En los intervalos de actualización, se obtendrán los datos más recientes de Nissan, pero el automóvil no se activará."
+                }
+            }
+        },
+        "error": {
+            "auth_error": "Se proporcionaron credenciales no válidas."
+        },
+        "abort": {}
+    },
+    "issues": {},
+    "entity": {
+        "binary_sensor": {
+            "charging": {
+                "name": "Cargando"
+            },
+            "doors_locked": {
+                "name": "Puertas cerradas"
+            },
+            "plugged": {
+                "name": "Conectado"
+            }
+        },
+        "button": {
+            "flash_lights": {
+                "name": "Luces de destello"
+            },
+            "honk_horn": {
+                "name": "Tocar la bocina"
+            },
+            "update_data": {
+                "name": "Actualizar datos"
+            },
+            "charge_start": {
+                "name": "Iniciar carga"
+            }
+        },
+        "climate": {
+            "climate": {
+                "name": "Clima"
+            }
+        },
+        "device_tracker": {
+            "location": {
+                "name": "Ubicación"
+            }
+        },
+        "sensor": {
+            "battery_level": {
+                "name": "Nivel de bateria"
+            },
+            "internal_temperature": {
+                "name": "Temperatura interna"
+            },
+            "external_temperature": {
+                "name": "Temperatura externa"
+            },
+            "range_ac_on": {
+                "name": "Rango (CA encendida)"
+            },
+            "range_ac_off": {
+                "name": "Rango (CA apagada)"
+            },
+            "odometer": {
+                "name": "Cuentakilómetros"
+            },
+            "charge_time_3kw": {
+                "name": "Tiempo de carga (3kW)"
+            },
+            "charge_time_6kw": {
+                "name": "Tiempo de carga (6kW)"
+            },
+            "last_updated": {
+                "name": "Última actualización"
+            },
+            "daily_distance": {
+                "name": "Distancia Diaria"
+            },
+            "daily_efficiency": {
+                "name": "Eficiencia diaria"
+            },
+            "daily_trips": {
+                "name": "Viajes diarios"
+            },
+            "monthly_distance": {
+                "name": "Distancia Mensual"
+            },
+            "monthly_efficiency": {
+                "name": "Eficiencia mensual"
+            },
+            "monthly_trips": {
+                "name": "Viajes Mensuales"
+            }
+        }
+    }
+}

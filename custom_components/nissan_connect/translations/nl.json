@@ -1,0 +1,139 @@
+{
+    "title": "NissanConnect",
+    "config": {
+        "step": {
+            "user": {
+                "description": "Configureer uw NissanConnect account.",
+                "data": {
+                    "email": "Email addres",
+                    "password": "Wachtwoord",
+                    "interval": "Polling interval (Minuten)",
+                    "interval_charging": "Polling interval tijdens laden (Minuten)",
+                    "interval_statistics": "Update-interval voor dagelijkse/maandelijkse statistieken (Minuten)",
+                    "interval_fetch": "Update interval (Minuten)",
+                    "region": "Regio (EU, US)",
+                    "imperial_distance": "Gebruik imperiale afstandseenheden"
+                },
+                "data_description": {
+                    "interval_charging": "Bij elk polling-interval wordt de auto gewekt en worden nieuwe gegevens opgevraagd.",
+                    "interval_statistics": "Bij update-intervallen worden de nieuwste gegevens opgehaald bij Nissan, maar wordt de auto niet gewekt."
+                }
+            }
+        },
+        "error": {
+            "auth_error": "Ongeldige inloggegevens opgegeven.",
+            "region_error": "Ongeldige regio opgegeven. Geef een geldige regio op."
+        },
+        "abort": {}
+    },
+    "options": {
+        "step": {
+            "init": {
+                "description": "Update uw NissanConnect-accountgegevens.",
+                "data": {
+                    "email": "Email addres",
+                    "password": "Wachtwoord",
+                    "interval": "Polling interval (Minuten)",
+                    "interval_charging": "Polling interval tijdens laden (Minuten))",
+                    "interval_statistics": "Update-interval voor dagelijkse/maandelijkse statistieken (Minuten)",
+                    "interval_fetch": "Update interval (Minuten)",
+                    "imperial_distance": "Gebruik imperiale afstandseenheden"
+                },
+                "data_description": {
+                    "password": "Als u uw inloggegevens niet wijzigt, laat u het wachtwoordveld leeg.",
+                    "interval_charging": "Bij elk polling-interval wordt de auto gewekt en worden nieuwe gegevens opgevraagd.",
+                    "interval_statistics": "Bij update-intervallen worden de nieuwste gegevens opgehaald bij Nissan, maar wordt de auto niet gewekt."
+                }
+            }
+        },
+        "error": {
+            "auth_error": "Ongeldige inloggegevens opgegeven."
+        },
+        "abort": {}
+    },
+    "issues": {},
+    "entity": {
+        "binary_sensor": {
+            "charging": {
+                "name": "Laden"
+            },
+            "doors_locked": {
+                "name": "Deuren op slot"
+            },
+            "plugged": {
+                "name": "Ingeplugd"
+            }
+        },
+        "button": {
+            "flash_lights": {
+                "name": "Knipper met lampen"
+            },
+            "honk_horn": {
+                "name": "Claxon activeren"
+            },
+            "update_data": {
+                "name": "Update Data"
+            },
+            "charge_start": {
+                "name": "Laden starten"
+            }
+        },
+        "climate": {
+            "climate": {
+                "name": "Climate"
+            }
+        },
+        "device_tracker": {
+            "location": {
+                "name": "Locatie"
+            }
+        },
+        "sensor": {
+            "battery_level": {
+                "name": "Batterij nivo"
+            },
+            "internal_temperature": {
+                "name": "Interne temperatuur"
+            },
+            "external_temperature": {
+                "name": "Externe temperatuur"
+            },
+            "range_ac_on": {
+                "name": "Bereik (AC Aan)"
+            },
+            "range_ac_off": {
+                "name": "Bereik (AC Uit)"
+            },
+            "odometer": {
+                "name": "Kilometerstand"
+            },
+            "charge_time_3kw": {
+                "name": "Oplaadtijd (3kW)"
+            },
+            "charge_time_6kw": {
+                "name": "Oplaadtijd (6kW)"
+            },
+            "last_updated": {
+                "name": "Laatst bijgewerkt"
+            },
+            "daily_distance": {
+                "name": "Dagelijkse afstand"
+            },
+            "daily_efficiency": {
+                "name": "Dagelijkse efficiëntie"
+            },
+            "daily_trips": {
+                "name": "Dagelijkse ritafstand"
+            },
+            "monthly_distance": {
+                "name": "Maandelijkse afstand"
+            },
+            "monthly_efficiency": {
+                "name": "Maandelijkse efficiëntie"
+            },
+            "monthly_trips": {
+                "name": "Maandelijkse ritafstand"
+            }
+        }
+    }
+}
