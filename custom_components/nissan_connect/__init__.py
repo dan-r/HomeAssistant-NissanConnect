@@ -61,10 +61,7 @@ async def async_setup_entry(hass, entry):
         hass, config)
 
     _LOGGER.debug("Initialising entities")
-    for component in ENTITY_TYPES:
-        hass.async_create_task(
-            hass.config_entries.async_forward_entry_setup(entry, component)
-        )
+    await hass.config_entries.async_forward_entry_setups(entry, ENTITY_TYPES)
 
     # Init fetch and state coordinators
     await coordinator.async_config_entry_first_refresh()
