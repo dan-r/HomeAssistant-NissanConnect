@@ -117,7 +117,7 @@ class StatisticsCoordinator(DataUpdateCoordinator):
                     'daily': await self._hass.async_add_executor_job(self._vehicles[vehicle].fetch_trip_histories, Period.DAILY),
                     'monthly': await self._hass.async_add_executor_job(self._vehicles[vehicle].fetch_trip_histories, Period.MONTHLY)
                 }
-        except BaseException:
-            _LOGGER.warning("Error communicating with statistics API")
+        except BaseException as e:
+            _LOGGER.warning("Error communicating with statistics API: "+str(e))
         
         return output

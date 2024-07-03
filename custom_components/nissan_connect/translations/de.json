@@ -11,7 +11,7 @@
             "interval_charging": "Polling-Intervall während des Ladevorgangs (Minuten)",
             "interval_statistics": "Update-Intervall für Statistiken (Minuten)",
             "interval_fetch": "Update-Intervall (Minuten)",
-            "region": "Region (EU, US)",
+            "region": "Region",
             "imperial_distance": "Imperiale (amerikanische) Einheiten verwenden"
           },
           "data_description": {

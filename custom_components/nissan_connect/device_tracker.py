@@ -29,7 +29,7 @@ class KamereonDeviceTracker(KamereonEntity, TrackerEntity):
     @property
     def latitude(self) -> float:
         """Return latitude value of the device."""
-        if not self.vehicle:
+        if not self.vehicle or not self.vehicle.location:
             return None
         
         return self.vehicle.location[0]
@@ -37,7 +37,7 @@ class KamereonDeviceTracker(KamereonEntity, TrackerEntity):
     @property
     def longitude(self) -> float:
         """Return longitude value of the device."""
-        if not self.vehicle:
+        if not self.vehicle or not self.vehicle.location:
             return None
         
         return self.vehicle.location[1]

@@ -1,6 +1,6 @@
 import logging
 from datetime import timedelta
-from .kamereon import NCISession
+from .kamereon import KamereonSession
 from .coordinator import KamereonFetchCoordinator, KamereonPollCoordinator, StatisticsCoordinator
 from .const import *
 
@@ -35,7 +35,7 @@ async def async_setup_entry(hass, entry):
 
     config = dict(entry.data)
 
-    kamereon_session = NCISession(
+    kamereon_session = KamereonSession(
         region=config["region"]
     )
 

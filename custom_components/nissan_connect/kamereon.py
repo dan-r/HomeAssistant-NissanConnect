@@ -43,10 +43,14 @@ settings_map = {
             'notifications_base_url': 'https://alliance-platform-notifications-prod.apps.eu2.kamereon.io/notifications/',
             'user_adapter_base_url': 'https://alliance-platform-usersadapter-prod.apps.eu2.kamereon.io/user-adapter/',
             'user_base_url': 'https://nci-bff-web-prod.apps.eu2.kamereon.io/bff-web/'
+        },
+        'JP': {
+            'car_adapter_base_url': 'https://nc-app-bff-prod.apps.jp.kamereon.io/nc-app-bff/alliance/car-adapter/',
+            'notifications_base_url': 'https://nc-app-bff-prod.apps.jp.kamereon.io/nc-app-bff/alliance/notifications/',
+            'user_adapter_base_url': 'https://nc-app-bff-prod.apps.jp.kamereon.io/nc-app-bff/alliance/user-adapter/',
+            'user_base_url': 'https://nc-app-bff-prod.apps.jp.kamereon.io/nc-app-bff/'
         }
     },
-    'mitsubishi': {},
-    'renault': {},
 }
 
 
@@ -603,19 +607,28 @@ class Notification:
 
 class KamereonSession:
 
-    tenant = None
-    copy_realm = None
+    tenant = 'nissan'
+    copy_realm = 'P_NCB'
 
     def __init__(self, region):
         self.settings = settings_map[self.tenant][region]
         session = requests.session()
         self.session = session
         self._oauth = None
+        self.region = region
+        self._token = None
         self._user_id = None
         # ugly hack
         os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
     def login(self, username=None, password=None):
+        if self.region == "EU":
+            return self.login_eu(username, password)
+        elif self.region == "JP":
+            return self.login_jp(username, password)
+
+
+    def login_eu(self, username=None, password=None):
         if username is not None and password is not None:
             # Cache credentials
             self._username = username
@@ -701,6 +714,44 @@ class KamereonSession:
             client_secret=self.settings['client_secret'],
             include_client_id=True)
 
+    
+    def login_jp(self, username=None, password=None):
+        if username is not None and password is not None:
+            # Cache credentials
+            self._username = username
+            self._password = password
+        else:
+            # Use cached credentials
+            username = self._username
+            password = self._password
+
+        # Reset session
+        self.session = requests.session()
+
+        # grab an auth ID to use as part of the username/password login request,
+        # then move to the regular OAuth2 process
+        auth_url = '{}nissan/account/v1/login'.format(
+            self.settings['user_base_url']
+        )
+
+        auth_result = self.session.post(auth_url, json=
+        {
+            "data": {
+                "type": "token",
+                "attributes": {
+                    "username": username,
+                    "password": password
+                }
+            }
+        }, headers={'x-app-id': 'jp.co.nissan.nissanconnect.ncx'}).json()
+
+        if 'errors' in auth_result:
+            raise RuntimeError(auth_result['errors'][0]['detail'])
+        self._token = auth_result["data"]["attributes"]["access_token"]
+        self._oauth = requests.session()
+        self._oauth.headers.update({'Authorization': 'Bearer '+self._token})
+
+
     @property
     def oauth(self):
         if self._oauth is None:
@@ -718,21 +769,29 @@ class KamereonSession:
         return self._user_id
 
     def fetch_vehicles(self):
-        resp = self.oauth.get(
-            '{}v5/users/{}/cars'.format(self.settings['user_base_url'], self.user_id)
-        )
         vehicles = []
-        for vehicle_data in resp.json()['data']:
-            vehicle = Vehicle(vehicle_data, self.user_id)
-            vehicles.append(vehicle)
-            _registry[VEHICLES][vehicle.vin] = vehicle
+
+        if self.region == "EU":
+            resp = self.oauth.get(
+                '{}v5/users/{}/cars'.format(self.settings['user_base_url'], self.user_id)
+            )
+            for vehicle_data in resp.json()['data']:
+                vehicle = Vehicle(vehicle_data, self.user_id)
+                vehicles.append(vehicle)
+                _registry[VEHICLES][vehicle.vin] = vehicle
+        elif self.region == "JP":
+            resp = self.oauth.get(
+                '{}nissan/account/v1/token-info'.format(self.settings['user_base_url'])
+            )
+            for vehicle_baseinfo in resp.json()['data']['attributes']['vehicles']:
+                vehicle_data = self.oauth.get(
+                    '{}nissan/config/v1/cars/{}/details'.format(self.settings['user_base_url'], vehicle_baseinfo["vin"])).json()
+                vehicle_data["services"] = vehicle_baseinfo["services"]
+                vehicle = Vehicle(vehicle_data, self.user_id)
+                vehicles.append(vehicle)
+                _registry[VEHICLES][vehicle.vin] = vehicle
+        
         return vehicles
-
-
-class NCISession(KamereonSession):
-
-    tenant = 'nissan'
-    copy_realm = 'P_NCB'
 
 
 class Vehicle:
@@ -771,12 +830,20 @@ class Vehicle:
         self.engine_type = data.get('engineType')
         self.first_registration_date = data.get('firstRegistrationDate')
         self.ice_or_ev = data.get('iceEvFlag')
-        self.model_name = data.get('modelName')
-        self.model_code = data.get('modelCode')
-        self.model_year = data.get('modelYear')
+
+        if self.session.region == "EU":
+            self.model_name = data.get('modelName')
+            self.model_code = data.get('modelCode')
+            self.model_year = data.get('modelYear')
+            self.picture_url = data.get('pictureURL')
+        elif self.session.region == "JP":
+            self.model_name = data.get('model', {}).get('displayModelName')
+            self.model_code = data.get('model', {}).get('code')
+            self.model_year = data.get('model', {}).get('year')
+            self.picture_url = data.get('vpaImageUrl')
+
         self.nickname = data.get('nickname')
         self.phase = data.get('phase')
-        self.picture_url = data.get('pictureURL')
         self.privacy_mode = data.get('privacyMode')
         self.registration_number = data.get('registrationNumber')
         self.battery_supported = True
@@ -860,6 +927,7 @@ class Vehicle:
     def refresh(self):
         self.refresh_location()
         self.refresh_battery_status()
+        self.refresh_hvac_status()
         self.fetch_all()
 
     def fetch_all(self):
@@ -888,7 +956,7 @@ class Vehicle:
     def fetch_location(self):
         if Feature.MY_CAR_FINDER not in self.features:
             return
-        
+
         resp = self._get(
             '{}v1/cars/{}/location'.format(self.session.settings['car_adapter_base_url'], self.vin),
             headers={'Content-Type': 'application/vnd.api+json'}
@@ -897,9 +965,12 @@ class Vehicle:
         if 'errors' in body:
             raise ValueError(body['errors'])
         location_data = body['data']['attributes']
-        self.location = (location_data['gpsLatitude'], location_data['gpsLongitude'])
-        self.location_last_updated = datetime.datetime.fromisoformat(location_data['lastUpdateTime'].replace('Z','+00:00'))
-
+        if "gpsLatitude" in location_data and "gpsLongitude" in location_data:
+            self.location = (location_data['gpsLatitude'], location_data['gpsLongitude'])
+        if "lastUpdateTime" in location_data:
+            self.location_last_updated = datetime.datetime.fromisoformat(
+                location_data['lastUpdateTime'].replace('Z', '+00:00'))
+    
     def refresh_lock_status(self):
         resp = self._post(
             '{}v1/cars/{}/actions/refresh-lock-status'.format(self.session.settings['car_adapter_base_url'], self.vin),
@@ -1224,13 +1295,22 @@ class Vehicle:
             start = datetime.datetime.utcnow().date()
         if end is None:
             end = start
-        resp = self._get(
-            '{}v1/cars/{}/trip-history'.format(self.session.settings['car_adapter_base_url'], self.vin),
+
+        if self.session.region == "EU":
             params={
                 'type': period.value,
                 'start': start.isoformat(),
                 'end': end.isoformat()
             }
+        elif self.session.region == "JP":
+            params={
+                'type': period.value,
+                'start': start.isoformat().replace("-", ""),
+                'end': end.isoformat().replace("-", "")
+            }
+        resp = self._get(
+            '{}v1/cars/{}/trip-history'.format(self.session.settings['car_adapter_base_url'], self.vin),
+            params=params
         )
         body = resp.json()
         if 'errors' in body:
@@ -1323,9 +1403,10 @@ class Vehicle:
             "{}v1/cars/{}/cockpit".format(self.session.settings['car_adapter_base_url'], self.vin)
         )
         body = resp.json()
+        # Not all vehicles support cockpit :D
         if 'errors' in body:
-            raise ValueError(body['errors'])
-
+            _LOGGER.warning(body['errors'])
+            return
         cockpit_data = body['data']['attributes']
         self.eco_score = cockpit_data.get('ecoScore')
         self.fuel_autonomy = cockpit_data.get('fuelAutonomy')

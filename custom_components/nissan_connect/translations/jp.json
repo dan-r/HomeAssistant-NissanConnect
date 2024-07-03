@@ -1,0 +1,139 @@
+{
+    "title": "NissanConnect Japan",
+    "config": {
+        "step": {
+            "user": {
+                "description": "あなたのNissanConnectアカウントを設定してください。",
+                "data": {
+                    "email": "メールアドレス",
+                    "password": "パスワード",
+                    "interval": "ポーリング間隔（分）",
+                    "interval_charging": "充電中のポーリング間隔（分）",
+                    "interval_statistics": "毎日/月ごとの統計のアップデート間隔（分）",
+                    "interval_fetch": "アップデート間隔（分）",
+                    "region": "地域",
+                    "imperial_distance": "帝国単位を使用"
+                },
+                "data_description": {
+                    "interval_charging": "車がポーリング間隔ごとに起動し、新しいデータを要求します。",
+                    "interval_statistics": "アップデート間隔では、最新のデータがNissanから取得されますが、車は起動しません。"
+                }
+            }
+        },
+        "error": {
+            "auth_error": "無効な資格情報が提供されました。",
+            "region_error": "無効な地域が提供されました。有効な地域を提供してください。"
+        },
+        "abort": {}
+    },
+    "options": {
+        "step": {
+            "init": {
+                "description": "あなたのNissanConnectアカウント情報を更新してください。",
+                "data": {
+                    "email": "メールアドレス",
+                    "password": "パスワード",
+                    "interval": "ポーリング間隔（分）",
+                    "interval_charging": "充電中のポーリング間隔（分）",
+                    "interval_statistics": "毎日/月ごとの統計のアップデート間隔（分）",
+                    "interval_fetch": "アップデート間隔（分）",
+                    "imperial_distance": "帝国単位を使用"
+                },
+                "data_description": {
+                    "password": "資格情報を変更しない場合は、パスワードフィールドを空のままにしてください。",
+                    "interval_charging": "車がポーリング間隔ごとに起動し、新しいデータを要求します。",
+                    "interval_statistics": "アップデート間隔では、最新のデータがNissanから取得されますが、車は起動しません。"
+                }
+            }
+        },
+        "error": {
+            "auth_error": "無効な資格情報が提供されました。"
+        },
+        "abort": {}
+    },
+    "issues": {},
+    "entity": {
+        "binary_sensor": {
+            "charging": {
+                "name": "充電中"
+            },
+            "doors_locked": {
+                "name": "ドアロック中"
+            },
+            "plugged": {
+                "name": "プラグイン中"
+            }
+        },
+        "button": {
+            "flash_lights": {
+                "name": "ライト点滅"
+            },
+            "honk_horn": {
+                "name": "ホーン"
+            },
+            "update_data": {
+                "name": "データ更新"
+            },
+            "charge_start": {
+                "name": "充電開始"
+            }
+        },
+        "climate": {
+            "climate": {
+                "name": "クライメイト"
+            }
+        },
+        "device_tracker": {
+            "location": {
+                "name": "位置"
+            }
+        },
+        "sensor": {
+            "battery_level": {
+                "name": "バッテリーレベル"
+            },
+            "internal_temperature": {
+                "name": "内部温度"
+            },
+            "external_temperature": {
+                "name": "外部温度"
+            },
+            "range_ac_on": {
+                "name": "走行可能距離（ACオン）"
+            },
+            "range_ac_off": {
+                "name": "走行可能距離（ACオフ）"
+            },
+            "odometer": {
+                "name": "オドメーター"
+            },
+            "charge_time_3kw": {
+                "name": "充電時間（3kW）"
+            },
+            "charge_time_6kw": {
+                "name": "充電時間（6kW）"
+            },
+            "last_updated": {
+                "name": "最終更新"
+            },
+            "daily_distance": {
+                "name": "日次距離"
+            },
+            "daily_efficiency": {
+                "name": "日次効率"
+            },
+            "daily_trips": {
+                "name": "日次旅行"
+            },
+            "monthly_distance": {
+                "name": "月次距離"
+            },
+            "monthly_efficiency": {
+                "name": "月次効率"
+            },
+            "monthly_trips": {
+                "name": "月次旅行"
+            }
+        }
+    }
+}

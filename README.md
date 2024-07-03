@@ -2,9 +2,10 @@
 
 An unofficial integration for interacting with Nissan Connect vehicles. Based on the work of [mitchellrj](https://github.com/mitchellrj) and [tobiaswk](https://github.com/Tobiaswk/dartnissanconnect). I have no affiliation with Nissan besides owning one of their cars.
 
-This integration is heavily EV-focussed as thats what I have, and currently has only been confirmed to work in Europe.
-
 If you find any bugs or would like to request a feature, please open an issue.
+
+## Regions
+This integration works with Nissan cars in Europe and Japan.
 
 ## Tested Vehicles
 This integration has been tested with the following vehicles:
@@ -51,6 +52,7 @@ Translations are provided for the following languages. If you are a native speak
 * Spanish
 * Dutch
 * Russian
+* Japanese
 
 ## Entities
 This integration exposes the following entities. Please note that entities will only be shown if the functionality is supported by your car.

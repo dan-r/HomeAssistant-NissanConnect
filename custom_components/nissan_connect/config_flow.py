@@ -1,8 +1,13 @@
 import voluptuous as vol
 from homeassistant.config_entries import (ConfigFlow, OptionsFlow)
 from .const import DOMAIN, CONFIG_VERSION, DEFAULT_INTERVAL_POLL, DEFAULT_INTERVAL_CHARGING, DEFAULT_INTERVAL_STATISTICS, DEFAULT_INTERVAL_FETCH, DEFAULT_REGION, REGIONS
-from .kamereon import NCISession
+from .kamereon import KamereonSession
 import homeassistant.helpers.config_validation as cv
+from homeassistant.helpers.selector import (
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode
+)
 
 USER_SCHEMA = vol.Schema({
     vol.Required("email"): cv.string,
@@ -20,7 +25,13 @@ USER_SCHEMA = vol.Schema({
         "interval_statistics", default=DEFAULT_INTERVAL_STATISTICS
     ): int,
     vol.Required(
-        "region", default=DEFAULT_REGION): cv.string,
+        "region", default=DEFAULT_REGION):  SelectSelector(
+        SelectSelectorConfig(
+            options=REGIONS,
+            mode=SelectSelectorMode.DROPDOWN,
+            sort=True,
+        )
+    ),
     vol.Required(
         "imperial_distance", default=False): bool
 })
@@ -36,7 +47,7 @@ class NissanConfigFlow(ConfigFlow, domain=DOMAIN):
             errors["base"] = "region_error"
         elif info is not None:
             # Validate credentials
-            kamereon_session = NCISession(
+            kamereon_session = KamereonSession(
                 region=info["region"]
             )
 
@@ -74,15 +85,15 @@ class NissanOptionsFlow(OptionsFlow):
         if options is not None:
             data = dict(self._config_entry.data)
             # Validate credentials
-            kamereon_session = NCISession(
+            kamereon_session = KamereonSession(
                 region=data["region"]
             )
             if "password" in options:
                 try:
                     await self.hass.async_add_executor_job(kamereon_session.login,
-                                                        options["email"],
-                                                        options["password"]
-                                                        )
+                                                           options["email"],
+                                                           options["password"]
+                                                           )
                 except:
                     errors["base"] = "auth_error"
 
@@ -92,7 +103,7 @@ class NissanOptionsFlow(OptionsFlow):
                 if not "password" in options:
                     options.pop('email', None)
                     options.pop('password', None)
-                
+
                 # Update data
                 data.update(options)
                 self.hass.config_entries.async_update_entry(
