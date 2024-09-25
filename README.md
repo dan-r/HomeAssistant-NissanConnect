@@ -11,6 +11,7 @@ This integration has been tested with the following vehicles:
 * Nissan Leaf (2022) - UK [@dan-r]
 * Nissan Qashqai (2021) - EU 
 * Nissan Ariya - EU
+* Nissan X-Trail (2024)
 
 ### North America
 The API used in North America is completely separate to Europe and it appears that Nissan USA are [a lot more hostile](https://tobis.dk/blog/the-farce-of-nissanconnect-north-america/) towards third-party access. Any future US support would rely on library support (such as [dartnissanconnectna](https://gitlab.com/tobiaswkjeldsen/dartnissanconnectna)) or someone in North America maintaining that side of things. If you're interested, get in touch!
@@ -45,12 +46,13 @@ This logic was added to give the benefit of quicker response times on the chargi
 ## Translations
 Translations are provided for the following languages. If you are a native speaker and spot any mistakes, please let me know.
 * English
-* French
-* Italian
-* German
-* Spanish
+* Danish
 * Dutch
+* French
+* German
+* Italian
 * Russian
+* Spanish
 
 ## Entities
 This integration exposes the following entities. Please note that entities will only be shown if the functionality is supported by your car.
