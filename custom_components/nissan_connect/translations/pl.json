@@ -1,0 +1,139 @@
+{
+    "title": "NissanConnect",
+    "config": {
+      "step": {
+        "user": {
+          "description": "Skonfiguruj konto NissanConnect.",
+          "data": {
+            "email": "Adres email",
+            "password": "Hasło",
+            "interval": "Interwał odpytywania (minuty)",
+            "interval_charging": "Interwał odpytywania podczas ładowania (minuty)",
+            "interval_statistics": "Interwał aktualizacji dziennych/miesięcznych statystyk (minuty)",
+            "interval_fetch": "Interwał aktualizacji (minuty)",
+            "region": "Region (EU, US)",
+            "imperial_distance": "Używaj jednostek imperialnych"
+          },
+          "data_description": {
+            "interval_charging": "Samochód zostanie obudzony i poproszony o nowe dane co każdy interwał odpytywania.",
+            "interval_statistics": "Co każdy interwał aktualizacji najnowsze dane zostaną pobrane z serwerów Nissana ale samochód nie zostanie obudzony."
+          }
+        }
+      },
+      "error": {
+        "auth_error": "Podane dane logowania są niepoprawne.",
+        "region_error": "Niepoprawny region. Proszę podać poprawny region."
+      },
+      "abort": {}
+    },
+    "options": {
+      "step": {
+        "init": {
+          "description": "Zaktualizuj dane konta NissanConnect.",
+          "data": {
+            "email": "Adres email",
+            "password": "Hasło",
+            "interval": "Interwał odpytywania (minuty)",
+            "interval_charging": "Interwał odpytywania podczas ładowania (minuty)",
+            "interval_statistics": "Interwał aktualizacji dziennych/miesięcznych statystyk (minuty)",
+            "interval_fetch": "Interwał aktualizacji (minuty)",
+            "imperial_distance": "Używaj jednostek imperialnych"
+          },
+          "data_description": {
+            "password": "Jeżeli nie zmieniasz danych logowania pozostaw hasło puste.",
+            "interval_charging": "Samochód zostanie obudzony i poproszony o nowe dane co każdy interwał odpytywania.",
+            "interval_statistics": "Co każdy interwał aktualizacji najnowsze dane zostaną pobrane z serwerów Nissana ale samochód nie zostanie obudzony."
+          }
+        }
+      },
+      "error": {
+        "auth_error": "Podane dane logowania są niepoprawne."
+      },
+      "abort": {}
+    },
+    "issues": {},
+    "entity": {
+      "binary_sensor": {
+        "charging": {
+          "name": "Ładowanie"
+        },
+        "doors_locked": {
+          "name": "Drzwi zamknięte"
+        },
+        "plugged": {
+          "name": "Podłączony"
+        }
+      },
+      "button": {
+        "flash_lights": {
+          "name": "Sygnał Świetlny"
+        },
+        "honk_horn": {
+          "name": "Sygnał Dźwiękowy"
+        },
+        "update_data": {
+          "name": "Odśwież Dane"
+        },
+        "charge_start": {
+          "name": "Rozpocznij Ładowanie"
+        }
+      },
+      "climate": {
+        "climate": {
+          "name": "Klimatyzacja"
+        }
+      },
+      "device_tracker": {
+        "location": {
+          "name": "Lokalizacja"
+        }
+      },
+      "sensor": {
+        "battery_level": {
+          "name": "Poziom Naładowania Akumulatora"
+        },
+        "internal_temperature": {
+          "name": "Temperatura Wewnętrzna"
+        },
+        "external_temperature": {
+          "name": "Temperatura Zewnętrzna"
+        },
+        "range_ac_on": {
+          "name": "Zasięg (klimatyzacja włączona)"
+        },
+        "range_ac_off": {
+          "name": "Zasięg (klimatyzacja wyłączona)"
+        },
+        "odometer": {
+          "name": "Drogomierz"
+        },
+        "charge_time_3kw": {
+          "name": "Czas Ładowania (3kW)"
+        },
+        "charge_time_6kw": {
+          "name": "Czas Ładowania (6kW)"
+        },
+        "last_updated": {
+          "name": "Ostatnia Aktualizacja"
+        },
+        "daily_distance": {
+          "name": "Dzienny Dystans"
+        },
+        "daily_efficiency": {
+          "name": "Dzienna Wydajność"
+        },
+        "daily_trips": {
+          "name": "Dzienne Trasy"
+        },
+        "monthly_distance": {
+          "name": "Miesięczny Dystans"
+        },
+        "monthly_efficiency": {
+          "name": "Miesięczna Wydajność"
+        },
+        "monthly_trips": {
+          "name": "Miesięczne Trasy"
+        }
+      }
+    }
+}
