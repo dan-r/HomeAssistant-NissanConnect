@@ -51,6 +51,7 @@ Translations are provided for the following languages. If you are a native speak
 * French
 * German
 * Italian
+* Polish
 * Russian
 * Spanish
 
