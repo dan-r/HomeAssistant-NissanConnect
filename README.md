@@ -51,9 +51,9 @@ Translations are provided for the following languages. If you are a native speak
 * French
 * German
 * Italian
+* Polish
 * Russian
 * Spanish
-* Polish
 
 ## Entities
 This integration exposes the following entities. Please note that entities will only be shown if the functionality is supported by your car.
