@@ -47,7 +47,7 @@
         }
       },
       "error": {
-        "auth_error": "Ugyldig innloggingsinformasjon""
+        "auth_error": "Ugyldig innloggingsinformasjon"
       },
       "abort": {}
     },
