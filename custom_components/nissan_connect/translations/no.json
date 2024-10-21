@@ -1,0 +1,139 @@
+{
+    "title": "NissanConnect",
+    "config": {
+      "step": {
+        "user": {
+          "description": "Sett opp din NissanConnect konto.",
+          "data": {
+            "email": "E-postadresse",
+            "password": "Passord",
+            "interval": "Oppdateringsfrekvens i HA (i minutter)",
+            "interval_charging": "Oppdateringsfrekvens under lading for henting av data (i minutter)",
+            "interval_statistics": "Oppdateringsfrekvens for daglig / månedlig statistikk (i minutter)",
+            "interval_fetch": "Oppdateringsfrekvens for henting av data (i minutter)",
+            "region": "Region (EU, US)",
+            "imperial_distance": "Bruk Britiske/Amerikanske (Imperial) måleenheter"
+          },
+          "data_description": {
+            "interval_charging": "Bilen vil vekkes ved hver spørring, som angitt i oppdateringsfrekvensen",
+            "interval_statistics": "Ved oppdatering av statistikk blir data forespurt fra Nissan, men bilen blir ikke vekket."
+          }
+        }
+      },
+      "error": {
+        "auth_error": "Ugyldig innloggingsinformasjon",
+        "region_error": "Ugyldig region angitt"
+      },
+      "abort": {}
+    },
+    "options": {
+      "step": {
+        "init": {
+          "description": "Oppdater NissanConnect kontoopplysninger",
+          "data": {
+            "email": "E-postadresse",
+            "password": "Passord",
+            "interval": "Oppdateringsfrekvens i HA (i minutter)",
+            "interval_charging": "Oppdateringsfrekvens under lading for henting av data (i minutter)",
+            "interval_statistics": "Oppdateringsfrekvens for daglig / månedlig statistikk (i minutter)",
+            "interval_fetch": "Oppdateringsfrekvens for henting av data (i minutter)",
+            "imperial_distance": "Bruk Britiske/Amerikanske (Imperial) måleenheter"
+          },
+          "data_description": {
+            "password": "La stå tomt hvis du ikke skal oppdatere innloggingsinformasjon",
+            "interval_charging": "Bilen vil vekkes ved hver spørring, som angitt i oppdateringsfrekvensen",
+            "interval_statistics": "Ved oppdatering av statistikk blir data forespurt fra Nissan, men bilen blir ikke vekket."
+          }
+        }
+      },
+      "error": {
+        "auth_error": "Ugyldig innloggingsinformasjon"
+      },
+      "abort": {}
+    },
+    "issues": {},
+    "entity": {
+      "binary_sensor": {
+        "charging": {
+          "name": "Lader"
+        },
+        "doors_locked": {
+          "name": "Låst"
+        },
+        "plugged": {
+          "name": "Plugget inn"
+        }
+      },
+      "button": {
+        "flash_lights": {
+          "name": "Blink med lys"
+        },
+        "honk_horn": {
+          "name": "Lydhorn"
+        },
+        "update_data": {
+          "name": "Oppdater data"
+        },
+        "charge_start": {
+          "name": "Start lading"
+        }
+      },
+      "climate": {
+        "climate": {
+          "name": "Klima"
+        }
+      },
+      "device_tracker": {
+        "location": {
+          "name": "Lokasjon"
+        }
+      },
+      "sensor": {
+        "battery_level": {
+          "name": "Batteri"
+        },
+        "internal_temperature": {
+          "name": "Kupétemperatur"
+        },
+        "external_temperature": {
+          "name": "Utendørs temperature"
+        },
+        "range_ac_on": {
+          "name": "Est. rekkevidde med klimaanlegg (på)"
+        },
+        "range_ac_off": {
+          "name": "Est. rekkevidde uten klimaanlegg (av)"
+        },
+        "odometer": {
+          "name": "Odometer"
+        },
+        "charge_time_3kw": {
+          "name": "Ladetid (3kW)"
+        },
+        "charge_time_6kw": {
+          "name": "Ladetid (6kW)"
+        },
+        "last_updated": {
+          "name": "Sist oppdatert"
+        },
+        "daily_distance": {
+          "name": "Daglig lengde"
+        },
+        "daily_efficiency": {
+          "name": "Daglig effektivitet"
+        },
+        "daily_trips": {
+          "name": "Daglige turer"
+        },
+        "monthly_distance": {
+          "name": "Månedlig lengde"
+        },
+        "monthly_efficiency": {
+          "name": "Månedlig effektivitet"
+        },
+        "monthly_trips": {
+          "name": "Månedlige turer"
+        }
+      }
+    }
+}
