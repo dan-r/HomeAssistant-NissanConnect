@@ -1,0 +1,139 @@
+{
+  "title": "NissanConnect",
+  "config": {
+    "step": {
+      "user": {
+        "description": "Configure a sua conta NissanConnect.",
+        "data": {
+          "email": "Endereço de Email",
+          "password": "Palavra-passe",
+          "interval": "Intervalo de consulta (minutos)",
+          "interval_charging": "Intervalo de consulta durante o carregamento (minutos)",
+          "interval_statistics": "Intervalo de atualização para estatísticas diárias/mensais (minutos)",
+          "interval_fetch": "Intervalo de atualização (minutos)",
+          "region": "Região (EU, US)",
+          "imperial_distance": "Usar unidades de distância imperiais"
+        },
+        "data_description": {
+          "interval_charging": "O carro será acordado e novos dados serão solicitados em cada intervalo de consulta.",
+          "interval_statistics": "Nos intervalos de atualização, os dados mais recentes serão obtidos da Nissan, mas o carro não será acordado."
+        }
+      }
+    },
+    "error": {
+      "auth_error": "Credenciais inválidas fornecidas.",
+      "region_error": "Região inválida fornecida. Por favor, forneça uma região válida."
+    },
+    "abort": {}
+  },
+  "options": {
+    "step": {
+      "init": {
+        "description": "Atualize as suas informações da conta NissanConnect.",
+        "data": {
+          "email": "Endereço de Email",
+          "password": "Palavra-passe",
+          "interval": "Intervalo de consulta (minutos)",
+          "interval_charging": "Intervalo de consulta durante o carregamento (minutos)",
+          "interval_statistics": "Intervalo de atualização para estatísticas diárias/mensais (minutos)",
+          "interval_fetch": "Intervalo de atualização (minutos)",
+          "imperial_distance": "Usar unidades de distância imperiais"
+        },
+        "data_description": {
+          "password": "Se não estiver a alterar as suas credenciais, deixe o campo da palavra-passe vazio.",
+          "interval_charging": "O carro será acordado e novos dados serão solicitados em cada intervalo de consulta.",
+          "interval_statistics": "Nos intervalos de atualização, os dados mais recentes serão obtidos da Nissan, mas o carro não será acordado."
+        }
+      }
+    },
+    "error": {
+      "auth_error": "Credenciais inválidas fornecidas."
+    },
+    "abort": {}
+  },
+  "issues": {},
+  "entity": {
+    "binary_sensor": {
+      "charging": {
+        "name": "A carregar"
+      },
+      "doors_locked": {
+        "name": "Portas trancadas"
+      },
+      "plugged": {
+        "name": "Ligado"
+      }
+    },
+    "button": {
+      "flash_lights": {
+        "name": "Piscar luzes"
+      },
+      "honk_horn": {
+        "name": "Buzinar"
+      },
+      "update_data": {
+        "name": "Atualizar dados"
+      },
+      "charge_start": {
+        "name": "Iniciar carregamento"
+      }
+    },
+    "climate": {
+      "climate": {
+        "name": "Climatização"
+      }
+    },
+    "device_tracker": {
+      "location": {
+        "name": "Localização"
+      }
+    },
+    "sensor": {
+      "battery_level": {
+        "name": "Nível de bateria"
+      },
+      "internal_temperature": {
+        "name": "Temperatura interna"
+      },
+      "external_temperature": {
+        "name": "Temperatura externa"
+      },
+      "range_ac_on": {
+        "name": "Autonomia (AC ligado)"
+      },
+      "range_ac_off": {
+        "name": "Autonomia (AC desligado)"
+      },
+      "odometer": {
+        "name": "Odómetro"
+      },
+      "charge_time_3kw": {
+        "name": "Tempo de carregamento (3kW)"
+      },
+      "charge_time_6kw": {
+        "name": "Tempo de carregamento (6kW)"
+      },
+      "last_updated": {
+        "name": "Última atualização"
+      },
+      "daily_distance": {
+        "name": "Distância diária"
+      },
+      "daily_efficiency": {
+        "name": "Eficiência diária"
+      },
+      "daily_trips": {
+        "name": "Viagens diárias"
+      },
+      "monthly_distance": {
+        "name": "Distância mensal"
+      },
+      "monthly_efficiency": {
+        "name": "Eficiência mensal"
+      },
+      "monthly_trips": {
+        "name": "Viagens mensais"
+      }
+    }
+  }
+}

@@ -52,6 +52,7 @@ Translations are provided for the following languages. If you are a native speak
 * Italian
 * Norwegian
 * Polish
+* Portuguese
 * Russian
 * Spanish
 
