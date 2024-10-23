@@ -19,6 +19,9 @@ The API used in North America is completely separate to Europe and it appears th
 ## Installation
 
 ### HACS
+
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=dan-r&repository=HomeAssistant-NissanConnect&category=integration)
+
 This is the recommended installation method.
 1. Search for and install the **NissanConnect [EU]** integration from HACS
 2. Restart Home Assistant
