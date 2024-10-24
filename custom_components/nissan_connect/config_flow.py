@@ -121,7 +121,8 @@ class NissanOptionsFlow(OptionsFlow):
                 vol.Required(
                     "interval_statistics", default=self._config_entry.data.get("interval_statistics", DEFAULT_INTERVAL_STATISTICS)
                 ): int,
-                vol.Required(
-                    "imperial_distance", default=self._config_entry.data.get("imperial_distance", False)): bool
+                # Excluded from config flow under #61
+                # vol.Required(
+                #     "imperial_distance", default=self._config_entry.data.get("imperial_distance", False)): bool
             }), errors=errors
         )
