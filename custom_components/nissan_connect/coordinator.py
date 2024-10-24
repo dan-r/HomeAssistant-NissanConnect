@@ -77,6 +77,9 @@ class KamereonPollCoordinator(DataUpdateCoordinator):
         if interval != (self.update_interval.seconds / 60):
             _LOGGER.debug(f"Changing next update interval to {interval} minutes")
             self.update_interval = timedelta(minutes=interval)
+            self._async_unsub_refresh()
+            if self._listeners:
+                self._schedule_refresh()
 
     async def _async_update_data(self):
         """Fetch data from API."""
