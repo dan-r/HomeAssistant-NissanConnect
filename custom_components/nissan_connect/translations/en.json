@@ -12,7 +12,7 @@
             "interval_statistics": "Update interval for daily/monthly statistics (minutes)",
             "interval_fetch": "Update interval (minutes)",
             "region": "Region (EU, US)",
-            "imperial_distance": "Use imperial distance units"
+            "imperial_distance": "Use imperial distance units (miles)"
           },
           "data_description": {
             "interval_charging": "The car will be woken up and new data requested at every polling interval.",
@@ -37,7 +37,7 @@
             "interval_charging": "Polling interval while charging (minutes)",
             "interval_statistics": "Update interval for daily/monthly statistics (minutes)",
             "interval_fetch": "Update interval (minutes)",
-            "imperial_distance": "Use imperial distance units"
+            "imperial_distance": "Use imperial distance units (miles)"
           },
           "data_description": {
             "password": "If you are not changing your credentials, leave the password field empty.",
