@@ -42,6 +42,9 @@ class NissanConfigFlow(ConfigFlow, domain=DOMAIN):
         if info is not None and info["region"] not in REGIONS:
             errors["base"] = "region_error"
         elif info is not None:
+            await self.async_set_unique_id(info["email"])
+            self._abort_if_unique_id_configured()
+
             # Validate credentials
             kamereon_session = NCISession(
                 region=info["region"]
@@ -57,7 +60,7 @@ class NissanConfigFlow(ConfigFlow, domain=DOMAIN):
 
             if len(errors) == 0:
                 return self.async_create_entry(
-                    title="NissanConnect Account",
+                    title=info["email"],
                     data=info
                 )
 
@@ -114,7 +117,7 @@ class NissanOptionsFlow(OptionsFlow):
 
         return self.async_show_form(
             step_id="init", data_schema=vol.Schema({
-                vol.Required("email", default=self._config_entry.data.get("email", "")): cv.string,
+                # vol.Required("email", default=self._config_entry.data.get("email", "")): cv.string,
                 vol.Optional("password"): cv.string,
                 vol.Required(
                     "interval", default=self._config_entry.data.get("interval", DEFAULT_INTERVAL_POLL)

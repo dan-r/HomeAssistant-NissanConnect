@@ -37,6 +37,10 @@ class KamereonEntity(Entity):
     @property
     def unique_id(self):
         """Return unique ID of the entity."""
+        # New unique ID format for multiple cars and multiple accounts
+        if self.vehicle.session.unique_id:
+            return f"{self.vehicle.session.unique_id}_{self.vehicle.vin}_{self._attr_translation_key}"
+
         return f"{self._vehicle_name}_{self._attr_translation_key}"
 
     @property
