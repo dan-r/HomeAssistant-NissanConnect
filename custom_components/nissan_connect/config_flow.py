@@ -90,7 +90,7 @@ class NissanOptionsFlow(OptionsFlow):
             if "password" in options:
                 try:
                     await self.hass.async_add_executor_job(kamereon_session.login,
-                                                           options["email"],
+                                                           self._config_entry.data.get("email"),
                                                            options["password"]
                                                            )
                 except:
