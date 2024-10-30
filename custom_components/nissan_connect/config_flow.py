@@ -21,9 +21,9 @@ USER_SCHEMA = vol.Schema({
     #     "interval_statistics", default=DEFAULT_INTERVAL_STATISTICS
     # ): int,
     vol.Required(
-        "region", default=DEFAULT_REGION): selector.SelectSelector(
+        "region", default=DEFAULT_REGION.lower()): selector.SelectSelector(
             selector.SelectSelectorConfig(
-                options=REGIONS,
+                options=[el.lower() for el in REGIONS], # Translation keys must be lowercase
                 mode=selector.SelectSelectorMode.DROPDOWN,
                 translation_key="region"
             ),
@@ -39,9 +39,9 @@ class NissanConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(self, info):
         errors = {}
-        if info is not None and info["region"] not in REGIONS:
-            errors["base"] = "region_error"
-        elif info is not None:
+        if info is not None:
+            info["region"] = info["region"].upper()
+
             await self.async_set_unique_id(info["email"])
             self._abort_if_unique_id_configured()
 

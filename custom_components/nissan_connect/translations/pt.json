@@ -139,7 +139,7 @@
   "selector": {
     "region": {
       "options": {
-        "EU": "Europa"
+        "eu": "Europa"
       }
     }
   }
