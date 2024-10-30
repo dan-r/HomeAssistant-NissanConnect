@@ -11,7 +11,7 @@
             "interval_charging": "Opdateringsfrekvens under ladning(minutter)",
             "interval_statistics": "Opdateringsfrekvens for daglige/månedlige statistikker (minutter)",
             "interval_fetch": "Opdateringsfrekvens for hentning (minutter)",
-            "region": "Region (EU, US)",
+            "region": "Region",
             "imperial_distance": "Brug Engelske afstands enheder"
           },
           "data_description": {
@@ -133,6 +133,13 @@
         },
         "monthly_trips": {
           "name": "Månedlig ture"
+        }
+      }
+    },
+    "selector": {
+      "region": {
+        "options": {
+          "EU": "Europa"
         }
       }
     }

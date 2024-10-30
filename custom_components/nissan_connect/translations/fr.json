@@ -11,7 +11,7 @@
                     "interval_charging": "Intervalle de sondage pendant la charge (minutes)",
                     "interval_statistics": "Intervalle de mise à jour des statistiques quotidiennes/mensuelles (minutes)",
                     "interval_fetch": "Intervalle de mise à jour (minutes)",
-                    "region": "Région (EU, US)",
+                    "region": "Région",
                     "imperial_distance": "Utiliser les unités de distance impériales"
                 },
                 "data_description": {
@@ -135,5 +135,12 @@
                 "name": "Trajets mensuels"
             }
         }
+    },
+    "selector": {
+      "region": {
+        "options": {
+          "EU": "Europe"
+        }
+      }
     }
 }

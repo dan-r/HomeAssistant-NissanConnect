@@ -11,7 +11,7 @@
                     "interval_charging": "Intervallo di polling durante la ricarica (minuti)",
                     "interval_statistics": "Intervallo di aggiornamento per le statistiche giornaliere/mensili (minuti)",
                     "interval_fetch": "Intervallo di aggiornamento (minuti)",
-                    "region": "Regione (EU, US)",
+                    "region": "Regione",
                     "imperial_distance": "Utilizza unità di misura imperiali per la distanza"
                 },
                 "data_description": {
@@ -135,5 +135,12 @@
                 "name": "Viaggi mensili"
             }
         }
+    },
+    "selector": {
+      "region": {
+        "options": {
+          "EU": "Europa"
+        }
+      }
     }
 }

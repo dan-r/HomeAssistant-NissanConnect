@@ -11,7 +11,7 @@
                     "interval_charging": "Polling interval tijdens laden (Minuten)",
                     "interval_statistics": "Update-interval voor dagelijkse/maandelijkse statistieken (Minuten)",
                     "interval_fetch": "Update interval (Minuten)",
-                    "region": "Regio (EU, US)",
+                    "region": "Regio",
                     "imperial_distance": "Gebruik imperiale afstandseenheden"
                 },
                 "data_description": {
@@ -135,5 +135,12 @@
                 "name": "Maandelijkse ritafstand"
             }
         }
+    },
+    "selector": {
+      "region": {
+        "options": {
+          "EU": "Europa"
+        }
+      }
     }
 }

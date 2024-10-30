@@ -11,7 +11,7 @@
             "interval_charging": "Polling interval while charging (minutes)",
             "interval_statistics": "Update interval for daily/monthly statistics (minutes)",
             "interval_fetch": "Update interval (minutes)",
-            "region": "Region (EU, US)",
+            "region": "Region",
             "imperial_distance": "Use imperial distance units (miles)"
           },
           "data_description": {
@@ -133,6 +133,13 @@
         },
         "monthly_trips": {
           "name": "Monthly Trips"
+        }
+      }
+    },
+    "selector": {
+      "region": {
+        "options": {
+          "EU": "Europe"
         }
       }
     }

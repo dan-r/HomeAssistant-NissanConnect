@@ -13,6 +13,11 @@ This integration has been tested with the following vehicles:
 * Nissan Ariya - EU
 * Nissan X-Trail (2024)
 
+## Supported Regions
+* Europe
+
+Currently only Nissan vehicles within Europe are supported.
+
 ### North America
 The API used in North America is completely separate to Europe and it appears that Nissan USA are [a lot more hostile](https://tobis.dk/blog/the-farce-of-nissanconnect-north-america/) towards third-party access. Any future US support would rely on library support (such as [dartnissanconnectna](https://gitlab.com/tobiaswkjeldsen/dartnissanconnectna)) or someone in North America maintaining that side of things. If you're interested, get in touch!
 
