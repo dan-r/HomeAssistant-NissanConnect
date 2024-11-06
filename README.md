@@ -8,10 +8,11 @@ If you find any bugs or would like to request a feature, please open an issue.
 
 ## Tested Vehicles
 This integration has been tested with the following vehicles:
-* Nissan Leaf (2022) - UK [@dan-r]
-* Nissan Qashqai (2021) - EU 
-* Nissan Ariya - EU
+* Nissan Leaf (2022) [@dan-r]
+* Nissan Qashqai (2021) 
+* Nissan Ariya
 * Nissan X-Trail (2024)
+* Nissan Juke (2021)
 
 ## Supported Regions
 * Europe
