@@ -1157,10 +1157,14 @@ class Vehicle:
         return body
 
     def fetch_battery_status(self):
+        if self.model_name == "Leaf":
+            return self.fetch_battery_status_leaf()
+        elif self.model_name == "Ariya":
+            return self.fetch_battery_status_ariya()
+
+    def fetch_battery_status_leaf(self):
         """The battery-status endpoint isn't just for EV's. ICE Nissans publish the range under this!
            There is no obvious feature to qualify this, so we just suck it and see."""
-        if not self.battery_supported and Feature.BATTERY_STATUS not in self.features:
-            return
         resp = self._get(
             '{}v1/cars/{}/battery-status'.format(self.session.settings['car_adapter_base_url'], self.vin),
             headers={'Content-Type': 'application/vnd.api+json'}
@@ -1202,6 +1206,49 @@ class Vehicle:
         if 'lastUpdateTime' in battery_data:
             self.battery_status_last_updated = datetime.datetime.fromisoformat(battery_data['lastUpdateTime'].replace('Z','+00:00'))
 
+    def fetch_battery_status_ariya(self):
+        resp = self._get(
+            '{}v3/cars/{}/battery-status?canGen={}'.format(self.session.settings['car_adapter_base_url'], self.vin, self.can_generation),
+            headers={'Content-Type': 'application/vnd.api+json'}
+        )
+        body = resp.json()
+        if 'errors' in body and Feature.BATTERY_STATUS in self.features:
+            raise ValueError(body['errors'])
+
+        if not 'data' in body or not 'attributes' in body['data']:
+            self.battery_supported = False
+
+        battery_data = body['data']['attributes']
+        self.battery_capacity = battery_data.get('batteryCapacity')  # kWh
+        self.battery_level = battery_data.get('batteryLevel')  # %
+        self.battery_temperature = battery_data.get('batteryTemperature')  # Fahrenheit?
+        # same meaning as battery level, different scale. 240 = 100%
+        self.battery_bar_level = battery_data.get('batteryBarLevel')
+        self.instantaneous_power = battery_data.get('instantaneousPower')  # kW
+        self.charging_speed = ChargingSpeed(None)
+        self.charge_time_required_to_full = {
+            ChargingSpeed.FAST: battery_data.get('chargingRemainingTime'),
+            ChargingSpeed.NORMAL: battery_data.get('chargingRemainingTime'),
+            ChargingSpeed.SLOW: battery_data.get('chargingRemainingTime'),
+        }
+        self.range_hvac_off = battery_data.get('batteryAutonomy')
+        self.range_hvac_on = battery_data.get('batteryAutonomy')
+        
+        # For ICE vehicles, we should get the range at least. If not, dont bother again
+        if self.range_hvac_on is None and Feature.BATTERY_STATUS not in self.features:
+            self.battery_supported = False
+            return
+
+        self.plugged_in = PluggedStatus(battery_data.get('plugStatus', 0))
+        if self.plugged_in == PluggedStatus(1):
+            self.charging =  ChargingStatus(battery_data.get('chargeStatus', 0))
+        
+        if 'vehiclePlugTimestamp' in battery_data:
+            self.plugged_in_time = datetime.datetime.fromisoformat(battery_data['vehiclePlugTimestamp'].replace('Z','+00:00'))
+        if 'vehicleUnplugTimestamp' in battery_data:
+            self.unplugged_time = datetime.datetime.fromisoformat(battery_data['vehicleUnplugTimestamp'].replace('Z','+00:00'))
+        if 'lastUpdateTime' in battery_data:
+            self.battery_status_last_updated = datetime.datetime.fromisoformat(battery_data['lastUpdateTime'].replace('Z','+00:00'))
 
     def set_energy_unit_cost(self, cost):
         resp = self._post(
