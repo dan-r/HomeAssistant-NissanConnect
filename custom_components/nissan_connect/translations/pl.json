@@ -11,7 +11,7 @@
             "interval_charging": "Interwał odpytywania podczas ładowania (minuty)",
             "interval_statistics": "Interwał aktualizacji dziennych/miesięcznych statystyk (minuty)",
             "interval_fetch": "Interwał aktualizacji (minuty)",
-            "region": "Region (EU, US)",
+            "region": "Region",
             "imperial_distance": "Używaj jednostek imperialnych"
           },
           "data_description": {
@@ -133,6 +133,13 @@
         },
         "monthly_trips": {
           "name": "Miesięczne Trasy"
+        }
+      }
+    },
+    "selector": {
+      "region": {
+        "options": {
+          "eu": "Europa"
         }
       }
     }

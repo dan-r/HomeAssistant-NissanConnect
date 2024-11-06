@@ -11,7 +11,7 @@
           "interval_charging": "Intervalo de consulta durante o carregamento (minutos)",
           "interval_statistics": "Intervalo de atualização para estatísticas diárias/mensais (minutos)",
           "interval_fetch": "Intervalo de atualização (minutos)",
-          "region": "Região (EU, US)",
+          "region": "Região",
           "imperial_distance": "Usar unidades de distância imperiais"
         },
         "data_description": {
@@ -133,6 +133,13 @@
       },
       "monthly_trips": {
         "name": "Viagens mensais"
+      }
+    }
+  },
+  "selector": {
+    "region": {
+      "options": {
+        "eu": "Europa"
       }
     }
   }

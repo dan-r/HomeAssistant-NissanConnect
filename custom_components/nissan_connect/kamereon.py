@@ -605,13 +605,15 @@ class KamereonSession:
 
     tenant = None
     copy_realm = None
+    unique_id = None
 
-    def __init__(self, region):
+    def __init__(self, region, unique_id=None):
         self.settings = settings_map[self.tenant][region]
         session = requests.session()
         self.session = session
         self._oauth = None
         self._user_id = None
+        self.unique_id = unique_id
         # ugly hack
         os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 

@@ -36,7 +36,8 @@ async def async_setup_entry(hass, entry):
     config = dict(entry.data)
 
     kamereon_session = NCISession(
-        region=config["region"]
+        region=config["region"],
+        unique_id=entry.unique_id
     )
 
     data = hass.data[DOMAIN] = {

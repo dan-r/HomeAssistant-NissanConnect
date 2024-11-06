@@ -11,7 +11,7 @@
             "interval_charging": "Oppdateringsfrekvens under lading for henting av data (i minutter)",
             "interval_statistics": "Oppdateringsfrekvens for daglig / månedlig statistikk (i minutter)",
             "interval_fetch": "Oppdateringsfrekvens for henting av data (i minutter)",
-            "region": "Region (EU, US)",
+            "region": "Region",
             "imperial_distance": "Bruk Britiske/Amerikanske (Imperial) måleenheter"
           },
           "data_description": {
@@ -133,6 +133,13 @@
         },
         "monthly_trips": {
           "name": "Månedlige turer"
+        }
+      }
+    },
+    "selector": {
+      "region": {
+        "options": {
+          "eu": "Europa"
         }
       }
     }
