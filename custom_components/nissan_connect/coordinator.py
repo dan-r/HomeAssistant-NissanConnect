@@ -3,7 +3,7 @@ import logging
 from datetime import timedelta
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from .const import DOMAIN, DATA_VEHICLES, DEFAULT_INTERVAL_POLL, DEFAULT_INTERVAL_CHARGING, DEFAULT_INTERVAL_STATISTICS, DEFAULT_INTERVAL_FETCH, DATA_COORDINATOR_FETCH, DATA_COORDINATOR_POLL
-from .kamereon import Feature, PluggedStatus, ChargingStatus, HVACStatus, Period
+from .kamereon import Feature, PluggedStatus, ChargingStatus, Period
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ class KamereonPollCoordinator(DataUpdateCoordinator):
                     interval = interval_charging if interval_charging < interval else interval
 
             # Update every minute if HVAC on
-            if self._vehicles[vehicle].hvac_status == HVACStatus.ON:
+            if self._vehicles[vehicle].hvac_status:
                 interval = 1
         
         if interval != (self.update_interval.seconds / 60):

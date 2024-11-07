@@ -73,11 +73,6 @@ class HVACAction(enum.Enum):
     CANCEL = 'cancel'
 
 
-class HVACStatus(enum.Enum):
-    OFF = 'off'
-    ON = 'on'
-
-
 class LockStatus(enum.Enum):
     CLOSED = 'closed'
     LOCKED = 'locked'
@@ -1135,7 +1130,7 @@ class Vehicle:
         self.internal_temperature = hvac_data.get('internalTemperature')
         self.next_target_temperature = hvac_data.get('nextTargetTemperature')
         if 'hvacStatus' in hvac_data:
-            self.hvac_status = HVACStatus(hvac_data['hvacStatus'])
+            self.hvac_status = hvac_data['hvacStatus'] == "on"
         if 'nextHvacStartDate' in hvac_data:
             self.next_hvac_start_date = datetime.datetime.fromisoformat(hvac_data['nextHvacStartDate'].replace('Z','+00:00'))
         if 'lastUpdateTime' in hvac_data:

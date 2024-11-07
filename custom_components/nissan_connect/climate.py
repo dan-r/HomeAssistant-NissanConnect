@@ -12,7 +12,7 @@ from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 SUPPORT_HVAC = [HVACMode.HEAT_COOL, HVACMode.OFF]
 
 from .base import KamereonEntity
-from .kamereon import Feature, HVACAction, HVACStatus
+from .kamereon import Feature, HVACAction
 from .const import DOMAIN, DATA_VEHICLES, DATA_COORDINATOR_FETCH, DATA_COORDINATOR_POLL
 
 _LOGGER = logging.getLogger(__name__)
@@ -46,9 +46,7 @@ class KamereonClimate(KamereonEntity, ClimateEntity):
 
     @property
     def hvac_mode(self):
-        if self.vehicle.hvac_status is None:
-            return HVACMode.OFF
-        elif self.vehicle.hvac_status is HVACStatus.ON:
+        if self.vehicle.hvac_status:
             return HVACMode.HEAT_COOL
         return HVACMode.OFF
 
@@ -67,7 +65,7 @@ class KamereonClimate(KamereonEntity, ClimateEntity):
     @property
     def hvac_action(self):
         """Shows heating or cooling depending on temperature."""
-        if self.vehicle.hvac_status is not None and self.vehicle.hvac_status is HVACStatus.ON:
+        if self.vehicle.hvac_status:
             if self._target < self.vehicle.internal_temperature:
                 return HASSHVACAction.COOLING
             else:
@@ -83,7 +81,7 @@ class KamereonClimate(KamereonEntity, ClimateEntity):
         if not temperature:
             return
         
-        if self.vehicle.hvac_status == HVACStatus.ON:
+        if self.vehicle.hvac_status:
             self._target = temperature
             self.vehicle.set_hvac_status(HVACAction.START, temperature)
         else:
@@ -96,10 +94,10 @@ class KamereonClimate(KamereonEntity, ClimateEntity):
 
         if hvac_mode == HVACMode.OFF:
             await self._hass.async_add_executor_job(self.vehicle.set_hvac_status, HVACAction.STOP)
-            self._hass.async_create_task(self._async_fetch_loop(HVACStatus.OFF))
+            self._hass.async_create_task(self._async_fetch_loop(False))
         elif hvac_mode == HVACMode.HEAT_COOL:
             await self._hass.async_add_executor_job(self.vehicle.set_hvac_status, HVACAction.START, int(self._target))
-            self._hass.async_create_task(self._async_fetch_loop(HVACStatus.ON))
+            self._hass.async_create_task(self._async_fetch_loop(True))
 
     async def async_turn_off(self) -> None:
         await self.async_set_hvac_mode(HVACMode.OFF)
