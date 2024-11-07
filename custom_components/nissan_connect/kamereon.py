@@ -44,9 +44,7 @@ settings_map = {
             'user_adapter_base_url': 'https://alliance-platform-usersadapter-prod.apps.eu2.kamereon.io/user-adapter/',
             'user_base_url': 'https://nci-bff-web-prod.apps.eu2.kamereon.io/bff-web/'
         }
-    },
-    'mitsubishi': {},
-    'renault': {},
+    }
 }
 
 
@@ -763,7 +761,7 @@ class Vehicle:
                     _LOGGER.debug(f"Unknown feature {str(u['id'])}")
                     pass
         
-        _LOGGER.debug(f"Active features: {self.features}")
+        _LOGGER.debug("Active features: %s", self.features)
 
         self.can_generation = data.get('canGeneration')
         self.color = data.get('color')
@@ -1157,10 +1155,10 @@ class Vehicle:
         return body
 
     def fetch_battery_status(self):
-        if self.model_name == "Leaf":
-            return self.fetch_battery_status_leaf()
-        elif self.model_name == "Ariya":
+        if self.model_name == "Ariya":
             return self.fetch_battery_status_ariya()
+        
+        return self.fetch_battery_status_leaf()
 
     def fetch_battery_status_leaf(self):
         """The battery-status endpoint isn't just for EV's. ICE Nissans publish the range under this!
@@ -1208,7 +1206,7 @@ class Vehicle:
 
     def fetch_battery_status_ariya(self):
         resp = self._get(
-            '{}v3/cars/{}/battery-status?canGen={}'.format(self.session.settings['car_adapter_base_url'], self.vin, self.can_generation),
+            '{}v3/cars/{}/battery-status?canGen={}'.format(self.session.settings['user_base_url'], self.vin, self.can_generation),
             headers={'Content-Type': 'application/vnd.api+json'}
         )
         body = resp.json()
