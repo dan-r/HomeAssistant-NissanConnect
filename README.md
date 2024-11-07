@@ -1,6 +1,6 @@
 # NissanConnect for Home Assistant
 
-An unofficial integration for interacting with NissanConnect vehicles in Europe. Based on the work of [mitchellrj](https://github.com/mitchellrj) and [tobiaswk](https://github.com/Tobiaswk/dartnissanconnect). I have no affiliation with Nissan besides owning one of their cars.
+An unofficial integration for interacting with NissanConnect vehicles in Europe. Based on the work of [mitchellrj](https://github.com/mitchellrj/kamereon-python) and [tobiaswk](https://github.com/Tobiaswk/dartnissanconnect). I have no affiliation with Nissan besides owning one of their cars.
 
 _Please note this integration is only for vehicles using the NissanConnect app, not NissanConnect EV or any other app._
 
