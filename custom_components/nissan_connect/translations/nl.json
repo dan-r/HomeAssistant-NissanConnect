@@ -5,18 +5,18 @@
             "user": {
                 "description": "Configureer uw NissanConnect account.",
                 "data": {
-                    "email": "Email addres",
+                    "email": "Emailadres",
                     "password": "Wachtwoord",
                     "interval": "Polling interval (Minuten)",
                     "interval_charging": "Polling interval tijdens laden (Minuten)",
                     "interval_statistics": "Update-interval voor dagelijkse/maandelijkse statistieken (Minuten)",
-                    "interval_fetch": "Update interval (Minuten)",
+                    "interval_fetch": "Update-interval (Minuten)",
                     "region": "Regio",
                     "imperial_distance": "Gebruik imperiale afstandseenheden"
                 },
                 "data_description": {
-                    "interval_charging": "Bij elk polling-interval wordt de auto gewekt en worden nieuwe gegevens opgevraagd.",
-                    "interval_statistics": "Bij update-intervallen worden de nieuwste gegevens opgehaald bij Nissan, maar wordt de auto niet gewekt."
+                    "interval_charging": "Bij elke polling-interval wordt de auto gewekt en worden de nieuwste gegevens opgevraagd.",
+                    "interval_statistics": "Bij elk update-interval worden de nieuwste gegevens opgehaald bij Nissan, zonder de auto te wekken."
                 }
             }
         },
@@ -31,18 +31,18 @@
             "init": {
                 "description": "Update uw NissanConnect-accountgegevens.",
                 "data": {
-                    "email": "Email addres",
+                    "email": "Emailadres",
                     "password": "Wachtwoord",
                     "interval": "Polling interval (Minuten)",
                     "interval_charging": "Polling interval tijdens laden (Minuten))",
                     "interval_statistics": "Update-interval voor dagelijkse/maandelijkse statistieken (Minuten)",
-                    "interval_fetch": "Update interval (Minuten)",
+                    "interval_fetch": "Update-interval (Minuten)",
                     "imperial_distance": "Gebruik imperiale afstandseenheden"
                 },
                 "data_description": {
                     "password": "Als u uw inloggegevens niet wijzigt, laat u het wachtwoordveld leeg.",
-                    "interval_charging": "Bij elk polling-interval wordt de auto gewekt en worden nieuwe gegevens opgevraagd.",
-                    "interval_statistics": "Bij update-intervallen worden de nieuwste gegevens opgehaald bij Nissan, maar wordt de auto niet gewekt."
+                    "interval_charging": "Bij elke polling-interval wordt de auto gewekt en worden de nieuwste gegevens opgevraagd.",
+                    "interval_statistics": "Bij elk update-interval worden de nieuwste gegevens opgehaald bij Nissan, zonder de auto te wekken."
                 }
             }
         },
@@ -90,7 +90,7 @@
         },
         "sensor": {
             "battery_level": {
-                "name": "Batterij nivo"
+                "name": "Batterijniveau"
             },
             "internal_temperature": {
                 "name": "Interne temperatuur"
@@ -108,10 +108,10 @@
                 "name": "Kilometerstand"
             },
             "charge_time_3kw": {
-                "name": "Oplaadtijd (3kW)"
+                "name": "Oplaadtijd (3 kW)"
             },
             "charge_time_6kw": {
-                "name": "Oplaadtijd (6kW)"
+                "name": "Oplaadtijd (6 kW)"
             },
             "last_updated": {
                 "name": "Laatst bijgewerkt"
