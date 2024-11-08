@@ -222,7 +222,7 @@ class Vehicle:
         return '<{} {}>'.format(self.__class__.__name__, self.vin)
 
     def __str__(self):
-        return self.nickname or self.vin
+        return self.vin
 
     @property
     def session(self):
