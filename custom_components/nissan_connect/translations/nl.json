@@ -117,22 +117,22 @@
                 "name": "Laatst bijgewerkt"
             },
             "daily_distance": {
-                "name": "Dagelijkse ritten"
+                "name": "Dagelijkse ritafstand"
             },
             "daily_efficiency": {
                 "name": "Dagelijkse efficiëntie"
             },
             "daily_trips": {
-                "name": "Dagelijkse ritafstand"
+                "name": "Dagelijkse ritten"
             },
             "monthly_distance": {
-                "name": "Maandelijkse ritten"
+                "name": "Maandelijkse ritafstand"
             },
             "monthly_efficiency": {
                 "name": "Maandelijkse efficiëntie"
             },
             "monthly_trips": {
-                "name": "Maandelijkse ritafstand"
+                "name": "Maandelijkse ritten"
             }
         }
     },
