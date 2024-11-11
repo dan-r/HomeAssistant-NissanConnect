@@ -3,7 +3,7 @@ import logging
 from datetime import timedelta
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from .const import DOMAIN, DATA_VEHICLES, DEFAULT_INTERVAL_POLL, DEFAULT_INTERVAL_CHARGING, DEFAULT_INTERVAL_STATISTICS, DEFAULT_INTERVAL_FETCH, DATA_COORDINATOR_FETCH, DATA_COORDINATOR_POLL
-from .kamereon import Feature, PluggedStatus, ChargingStatus, HVACStatus, Period
+from .kamereon import Feature, PluggedStatus, ChargingStatus, Period
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ class KamereonPollCoordinator(DataUpdateCoordinator):
         self._hass = hass
         self._vehicles = hass.data[DOMAIN][DATA_VEHICLES]
         self._config = config
-        self._pluggednotcharging = 0
+        self._pluggednotcharging = {key: 0 for key in self._vehicles}
 
     def set_next_interval(self):
         """Calculate the next update interval."""
@@ -62,16 +62,16 @@ class KamereonPollCoordinator(DataUpdateCoordinator):
             if Feature.BATTERY_STATUS in self._vehicles[vehicle].features and self._vehicles[vehicle].plugged_in == PluggedStatus.PLUGGED:
                 # If we are plugged in but not charging, increment a counter
                 if self._vehicles[vehicle].charging != ChargingStatus.CHARGING:
-                    self._pluggednotcharging += 1
+                    self._pluggednotcharging[vehicle] += 1
                 else: # If we are plugged in and charging, reset counter
-                    self._pluggednotcharging = 0
+                    self._pluggednotcharging[vehicle] = 0
 
                 # If we haven't hit the counter limit, use the shorter interval
-                if self._pluggednotcharging < 5:
+                if self._pluggednotcharging[vehicle] < 5:
                     interval = interval_charging if interval_charging < interval else interval
 
             # Update every minute if HVAC on
-            if self._vehicles[vehicle].hvac_status == HVACStatus.ON:
+            if self._vehicles[vehicle].hvac_status:
                 interval = 1
         
         if interval != (self.update_interval.seconds / 60):
