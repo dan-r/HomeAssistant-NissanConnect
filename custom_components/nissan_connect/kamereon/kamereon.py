@@ -341,7 +341,6 @@ class Vehicle:
     def refresh(self):
         self.refresh_location()
         self.refresh_battery_status()
-        self.fetch_all()
 
     def fetch_all(self):
         self.fetch_cockpit()

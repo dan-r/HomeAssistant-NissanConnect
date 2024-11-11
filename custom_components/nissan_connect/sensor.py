@@ -177,9 +177,7 @@ class OdometerSensor(KamereonEntity, SensorEntity):
         new_state = getattr(self.vehicle, "total_mileage")
 
         # This sometimes goes backwards? So only accept a positive odometer delta
-        if new_state is not None and new_state > (self._state or 0):
-            _LOGGER.debug(f"Updating odometer state")
-            
+        if new_state is not None and new_state > (self._state or 0):           
             self._state = new_state
             self.async_write_ha_state()
 

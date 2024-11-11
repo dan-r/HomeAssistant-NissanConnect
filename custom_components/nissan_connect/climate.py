@@ -112,8 +112,12 @@ class KamereonClimate(KamereonEntity, ClimateEntity):
         
         _LOGGER.debug("Beginning HVAC fetch loop")
         self._loop_mutex = True
+
+        loop = asyncio.get_running_loop()
+        
         for _ in range(10):
-            await self._hass.data[DOMAIN][DATA_COORDINATOR_POLL].async_refresh()
+            await loop.run_in_executor(None, self.vehicle.refresh)
+            await self._hass.data[DOMAIN][DATA_COORDINATOR_FETCH].async_refresh()
 
             # We have our update, break out
             if target_state == self.vehicle.hvac_status:

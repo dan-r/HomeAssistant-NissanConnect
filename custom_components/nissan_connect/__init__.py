@@ -52,7 +52,7 @@ async def async_setup_entry(hass, entry):
 
     _LOGGER.debug("Finding vehicles")
     for vehicle in await hass.async_add_executor_job(kamereon_session.fetch_vehicles):
-        await hass.async_add_executor_job(vehicle.refresh)
+        await hass.async_add_executor_job(vehicle.fetch_all)
         if vehicle.vin not in data[DATA_VEHICLES]:
             data[DATA_VEHICLES][vehicle.vin] = vehicle
 
