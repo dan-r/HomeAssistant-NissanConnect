@@ -8,6 +8,7 @@ import os
 import logging
 from typing import List
 import requests
+import time
 from oauthlib.common import generate_nonce
 from oauthlib.oauth2 import TokenExpiredError
 from requests_oauthlib import OAuth2Session
@@ -308,35 +309,39 @@ class Vehicle:
         self.mileage = None
         self.total_mileage = None
 
-    def _get(self, url, headers=None, params=None):
-        """Try logging in again before returning a failure."""
-        expired = False
-        try:
-            resp = self.session.oauth.get(url, headers=headers, params=params)
-        except TokenExpiredError:
-            expired = True
+    def _request(self, method, url, headers=None, params=None, data=None, max_retries=3):
+        for attempt in range(max_retries):
+            try:
+                if method == 'GET':
+                    resp = self.session.oauth.get(url, headers=headers, params=params)
+                elif method == 'POST':
+                    resp = self.session.oauth.post(url, data=data, headers=headers)
+                else:
+                    raise ValueError(f"Unsupported HTTP method: {method}")
 
-        if expired or resp.status_code == 401:
-            _LOGGER.debug("Refreshing session and retrying request as token expired")
-            self.session.login()
-            return self.session.oauth.get(url, headers=headers, params=params)
-        
-        return resp
+                # Check for token expiration
+                if resp.status_code == 401:
+                    raise TokenExpiredError()
+                
+                # Successful request
+                return resp
+
+            except TokenExpiredError:
+                _LOGGER.debug("Token expired. Refreshing session and retrying.")
+                self.session.login()
+            except Exception as e:
+                _LOGGER.warning(f"Request failed on attempt {attempt + 1} of {max_retries}: {e}")
+                if attempt == max_retries - 1:  # Exhausted retries
+                    raise
+                time.sleep(2 ** attempt)  # Exponential backoff on retry
+
+        raise RuntimeError("Max retries reached, but the request could not be completed.")
+
+    def _get(self, url, headers=None, params=None):
+        return self._request('GET', url, headers=headers, params=params)
 
     def _post(self, url, data=None, headers=None):
-        """Try logging in again before returning a failure."""
-        expired = False
-        try:
-            resp = self.session.oauth.post(url, data=data, headers=headers)
-        except TokenExpiredError:
-            expired = True
-
-        if expired or resp.status_code == 401:
-            _LOGGER.debug("Refreshing session and retrying request as token expired")
-            self.session.login()
-            return self.session.oauth.post(url, data=data, headers=headers)
-        
-        return resp
+        return self._request('POST', url, headers=headers, data=data)
 
     def refresh(self):
         self.refresh_location()
