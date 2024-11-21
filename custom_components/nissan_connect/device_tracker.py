@@ -10,8 +10,10 @@ from .const import DOMAIN, DATA_COORDINATOR_FETCH, DATA_VEHICLES
 _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass, entry, async_add_entities):
-    data = hass.data[DOMAIN][DATA_VEHICLES]
-    coordinator = hass.data[DOMAIN][DATA_COORDINATOR_FETCH]
+    account_id = entry.data['email']
+
+    data = hass.data[DOMAIN][account_id][DATA_VEHICLES]
+    coordinator = hass.data[DOMAIN][account_id][DATA_COORDINATOR_FETCH]
 
     entities = []
 

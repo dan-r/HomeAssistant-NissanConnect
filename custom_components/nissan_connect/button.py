@@ -12,10 +12,12 @@ _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(hass, config, async_add_entities):
-    data = hass.data[DOMAIN][DATA_VEHICLES]
-    coordinator = hass.data[DOMAIN][DATA_COORDINATOR_POLL]
-    coordinator_fetch = hass.data[DOMAIN][DATA_COORDINATOR_FETCH]
-    stats_coordinator = hass.data[DOMAIN][DATA_COORDINATOR_STATISTICS]
+    account_id = config.data['email']
+
+    data = hass.data[DOMAIN][account_id][DATA_VEHICLES]
+    coordinator = hass.data[DOMAIN][account_id][DATA_COORDINATOR_POLL]
+    coordinator_fetch = hass.data[DOMAIN][account_id][DATA_COORDINATOR_FETCH]
+    stats_coordinator = hass.data[DOMAIN][account_id][DATA_COORDINATOR_STATISTICS]
 
     entities = []
 

@@ -19,8 +19,10 @@ _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(hass, config, async_add_entities):
-    data = hass.data[DOMAIN][DATA_VEHICLES]
-    coordinator = hass.data[DOMAIN][DATA_COORDINATOR_FETCH]
+    account_id = config.data['email']
+
+    data = hass.data[DOMAIN][account_id][DATA_VEHICLES]
+    coordinator = hass.data[DOMAIN][account_id][DATA_COORDINATOR_FETCH]
 
     for vehicle in data:
         if Feature.CLIMATE_ON_OFF in data[vehicle].features:
@@ -117,7 +119,7 @@ class KamereonClimate(KamereonEntity, ClimateEntity):
         
         for _ in range(10):
             await loop.run_in_executor(None, self.vehicle.refresh)
-            await self._hass.data[DOMAIN][DATA_COORDINATOR_FETCH].async_refresh()
+            await self.coordinator.async_refresh()
 
             # We have our update, break out
             if target_state == self.vehicle.hvac_status:

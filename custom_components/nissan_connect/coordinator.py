@@ -19,7 +19,8 @@ class KamereonFetchCoordinator(DataUpdateCoordinator):
             update_interval=timedelta(minutes=config.get("interval_fetch", DEFAULT_INTERVAL_FETCH)),
         )
         self._hass = hass
-        self._vehicles = hass.data[DOMAIN][DATA_VEHICLES]
+        self._account_id = config['email']
+        self._vehicles = hass.data[DOMAIN][self._account_id][DATA_VEHICLES]
 
     async def _async_update_data(self):
         """Fetch data from API."""
@@ -31,7 +32,7 @@ class KamereonFetchCoordinator(DataUpdateCoordinator):
             return False
         
         # Set interval for polling (the other coordinator)
-        self._hass.data[DOMAIN][DATA_COORDINATOR_POLL].set_next_interval()
+        self._hass.data[DOMAIN][self._account_id][DATA_COORDINATOR_POLL].set_next_interval()
 
         return True
 
@@ -47,7 +48,8 @@ class KamereonPollCoordinator(DataUpdateCoordinator):
             update_interval=timedelta(minutes=15),
         )
         self._hass = hass
-        self._vehicles = hass.data[DOMAIN][DATA_VEHICLES]
+        self._account_id = config['email']
+        self._vehicles = hass.data[DOMAIN][self._account_id][DATA_VEHICLES]
         self._config = config
         
         self._pluggednotcharging = {key: 0 for key in self._vehicles}
@@ -114,7 +116,7 @@ class KamereonPollCoordinator(DataUpdateCoordinator):
             _LOGGER.warning("Error communicating with API")
             return False
         
-        self._hass.async_create_task(self._hass.data[DOMAIN][DATA_COORDINATOR_FETCH].async_refresh())
+        self._hass.async_create_task(self._hass.data[DOMAIN][self._account_id][DATA_COORDINATOR_FETCH].async_refresh())
         return True
 
 
@@ -128,7 +130,8 @@ class StatisticsCoordinator(DataUpdateCoordinator):
             update_interval=timedelta(minutes=config.get("interval_statistics", DEFAULT_INTERVAL_STATISTICS)),
         )
         self._hass = hass
-        self._vehicles = hass.data[DOMAIN][DATA_VEHICLES]
+        self._account_id = config['email']
+        self._vehicles = hass.data[DOMAIN][self._account_id][DATA_VEHICLES]
 
     async def _async_update_data(self):
         """Fetch data from API."""

@@ -330,7 +330,7 @@ class Vehicle:
                 _LOGGER.debug("Token expired. Refreshing session and retrying.")
                 self.session.login()
             except Exception as e:
-                _LOGGER.warning(f"Request failed on attempt {attempt + 1} of {max_retries}: {e}")
+                _LOGGER.debug(f"Request failed on attempt {attempt + 1} of {max_retries}: {e}")
                 if attempt == max_retries - 1:  # Exhausted retries
                     raise
                 time.sleep(2 ** attempt)  # Exponential backoff on retry
