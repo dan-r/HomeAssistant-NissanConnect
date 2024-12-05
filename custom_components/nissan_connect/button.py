@@ -1,24 +1,28 @@
 """Support for Kamereon cars."""
 import logging
+import asyncio
 
 from homeassistant.components.button import ButtonEntity
 
 from .base import KamereonEntity
 from .kamereon import ChargingStatus, PluggedStatus, Feature
-from .const import DOMAIN, DATA_VEHICLES, DATA_COORDINATOR_POLL, DATA_COORDINATOR_STATISTICS
+from .const import DOMAIN, DATA_VEHICLES, DATA_COORDINATOR_POLL, DATA_COORDINATOR_FETCH, DATA_COORDINATOR_STATISTICS
 
 _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(hass, config, async_add_entities):
-    data = hass.data[DOMAIN][DATA_VEHICLES]
-    coordinator = hass.data[DOMAIN][DATA_COORDINATOR_POLL]
-    stats_coordinator = hass.data[DOMAIN][DATA_COORDINATOR_STATISTICS]
+    account_id = config.data['email']
+
+    data = hass.data[DOMAIN][account_id][DATA_VEHICLES]
+    coordinator = hass.data[DOMAIN][account_id][DATA_COORDINATOR_POLL]
+    coordinator_fetch = hass.data[DOMAIN][account_id][DATA_COORDINATOR_FETCH]
+    stats_coordinator = hass.data[DOMAIN][account_id][DATA_COORDINATOR_STATISTICS]
 
     entities = []
 
     for vehicle in data:
-        entities.append(ForceUpdateButton(coordinator, data[vehicle], hass, stats_coordinator))
+        entities.append(ForceUpdateButton(coordinator_fetch, data[vehicle], hass, stats_coordinator))
         if Feature.HORN_AND_LIGHTS in data[vehicle].features:
             entities += [
                 HornLightsButtons(coordinator, data[vehicle], "flash_lights", "mdi:car-light-high", "lights"),
@@ -44,9 +48,11 @@ class ForceUpdateButton(KamereonEntity, ButtonEntity):
         return 'mdi:update'
 
     async def async_press(self):
-        await self.coordinator.async_refresh()
-        await self.coordinator_statistics.async_refresh()
+        loop = asyncio.get_running_loop()
         
+        await loop.run_in_executor(None, self.vehicle.refresh)
+        await self.coordinator.async_refresh()
+
 class HornLightsButtons(KamereonEntity, ButtonEntity):
     def __init__(self, coordinator, vehicle, translation_key, icon, action):
         self._attr_translation_key = translation_key

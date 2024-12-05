@@ -14,24 +14,29 @@ async def async_setup(hass, config) -> bool:
 async def async_update_listener(hass, entry):
     """Handle options flow credentials update."""
     config = entry.data
+    account_id = config['email']
+
     # Loop each vehicle and update its session with the new credentials
-    for vehicle in hass.data[DOMAIN][DATA_VEHICLES]:
-        await hass.async_add_executor_job(hass.data[DOMAIN][DATA_VEHICLES][vehicle].session.login,
+    for vehicle in hass.data[DOMAIN][account_id][DATA_VEHICLES]:
+        await hass.async_add_executor_job(hass.data[DOMAIN][account_id][DATA_VEHICLES][vehicle].session.login,
                                             config.get("email"),
                                             config.get("password")
                                             )
 
     # Update intervals for coordinators
-    hass.data[DOMAIN][DATA_COORDINATOR_STATISTICS].update_interval = timedelta(minutes=config.get("interval_statistics", DEFAULT_INTERVAL_STATISTICS))
-    hass.data[DOMAIN][DATA_COORDINATOR_FETCH].update_interval = timedelta(minutes=config.get("interval_fetch", DEFAULT_INTERVAL_FETCH))
+    hass.data[DOMAIN][account_id][DATA_COORDINATOR_STATISTICS].update_interval = timedelta(minutes=config.get("interval_statistics", DEFAULT_INTERVAL_STATISTICS))
+    hass.data[DOMAIN][account_id][DATA_COORDINATOR_FETCH].update_interval = timedelta(minutes=config.get("interval_fetch", DEFAULT_INTERVAL_FETCH))
     
     # Refresh fetch coordinator
-    await hass.data[DOMAIN][DATA_COORDINATOR_FETCH].async_refresh()
+    await hass.data[DOMAIN][account_id][DATA_COORDINATOR_FETCH].async_refresh()
 
 
 async def async_setup_entry(hass, entry):
     """This is called from the config flow."""
+    account_id = entry.data['email']
+
     hass.data.setdefault(DOMAIN, {})
+    hass.data[DOMAIN].setdefault(account_id, {})
 
     config = dict(entry.data)
 
@@ -40,7 +45,7 @@ async def async_setup_entry(hass, entry):
         unique_id=entry.unique_id
     )
 
-    data = hass.data[DOMAIN] = {
+    data = hass.data[DOMAIN][account_id] = {
         DATA_VEHICLES: {}
     }
 
@@ -52,7 +57,7 @@ async def async_setup_entry(hass, entry):
 
     _LOGGER.debug("Finding vehicles")
     for vehicle in await hass.async_add_executor_job(kamereon_session.fetch_vehicles):
-        await hass.async_add_executor_job(vehicle.refresh)
+        await hass.async_add_executor_job(vehicle.fetch_all)
         if vehicle.vin not in data[DATA_VEHICLES]:
             data[DATA_VEHICLES][vehicle.vin] = vehicle
 

@@ -8,8 +8,10 @@ from .const import DOMAIN, DATA_VEHICLES, DATA_COORDINATOR_FETCH
 
 async def async_setup_entry(hass, config, async_add_entities):
     """Set up the Kamereon sensors."""
-    data = hass.data[DOMAIN][DATA_VEHICLES]
-    coordinator = hass.data[DOMAIN][DATA_COORDINATOR_FETCH]
+    account_id = config.data['email']
+
+    data = hass.data[DOMAIN][account_id][DATA_VEHICLES]
+    coordinator = hass.data[DOMAIN][account_id][DATA_COORDINATOR_FETCH]
 
     entities = []
 
