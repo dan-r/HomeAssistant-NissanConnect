@@ -702,7 +702,7 @@ class Vehicle:
             self.battery_supported = False
 
         battery_data = body['data']['attributes']
-        _LOGGER.warning("FetchBatteryStatusAriya: %s", battery_data)
+        
         self.battery_capacity = battery_data.get('batteryCapacity')  # kWh
         self.battery_level = battery_data.get('batteryLevel')  # %
         self.battery_temperature = battery_data.get('batteryTemperature')  # Fahrenheit?
