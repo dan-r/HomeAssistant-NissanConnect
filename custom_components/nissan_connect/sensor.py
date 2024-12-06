@@ -53,7 +53,7 @@ async def async_setup_entry(hass, config, async_add_entities):
 
         entities.append(OdometerSensor(coordinator, data[vehicle], imperial_distance))
 
-    async_add_entities(entities, update_before_add=True)
+    await async_add_entities(entities, update_before_add=True)
 
 
 class BatteryLevelSensor(KamereonEntity, SensorEntity):

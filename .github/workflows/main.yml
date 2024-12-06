@@ -18,3 +18,19 @@ jobs:
         uses: "hacs/action@main"
         with:
           category: "integration"
+  pytest:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: asdf_install
+        uses: asdf-vm/actions/install@v3
+      - name: Install Python modules
+        run: |
+          pip install -r requirements.test.txt
+      - name: Run unit tests
+        run: |
+          python -m pytest tests
