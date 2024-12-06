@@ -21,9 +21,8 @@ async def async_setup_entry(hass, entry, async_add_entities):
         if Feature.MY_CAR_FINDER in data[vehicle].features:
             entities.append(KamereonDeviceTracker(coordinator, data[vehicle]))
 
-    await async_add_entities(entities, update_before_add=True)
+    async_add_entities(entities, update_before_add=True)
 
-    return True
 
 class KamereonDeviceTracker(KamereonEntity, TrackerEntity):
     _attr_translation_key = "location"

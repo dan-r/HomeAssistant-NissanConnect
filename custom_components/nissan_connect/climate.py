@@ -26,7 +26,7 @@ async def async_setup_entry(hass, config, async_add_entities):
 
     for vehicle in data:
         if Feature.CLIMATE_ON_OFF in data[vehicle].features:
-            await async_add_entities([KamereonClimate(coordinator, data[vehicle], hass)], update_before_add=True)
+            async_add_entities([KamereonClimate(coordinator, data[vehicle], hass)], update_before_add=True)
 
 
 class KamereonClimate(KamereonEntity, ClimateEntity):

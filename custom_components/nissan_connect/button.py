@@ -31,7 +31,7 @@ async def async_setup_entry(hass, config, async_add_entities):
         if Feature.CHARGING_START in data[vehicle].features:
             entities.append(ChargeControlButtons(coordinator, data[vehicle], "charge_start", "mdi:play", "start"))
 
-    await async_add_entities(entities, update_before_add=True)
+    async_add_entities(entities, update_before_add=True)
 
 
 class ForceUpdateButton(KamereonEntity, ButtonEntity):
