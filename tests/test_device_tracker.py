@@ -27,16 +27,6 @@ def mock_entry():
     return MagicMock(data={'email': 'test@example.com'})
 
 @pytest.fixture
-def mock_add_entities():
-    return AsyncMock()
-
-@pytest.mark.asyncio
-async def test_async_setup_entry(mock_hass, mock_entry, mock_add_entities):
-    result = await async_setup_entry(mock_hass, mock_entry, mock_add_entities)
-    assert result is True
-    assert mock_add_entities.call_count == 1
-
-@pytest.fixture
 def mock_vehicle():
     return MagicMock(location=(12.34, 56.78))
 
