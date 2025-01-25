@@ -1,4 +1,5 @@
 import logging
+import math
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -72,8 +73,14 @@ class BatteryLevelSensor(KamereonEntity, SensorEntity):
 
     @property
     def icon(self):
-        """Icon of the sensor."""
-        return "mdi:battery"
+        """Icon of the sensor. Round up to the nearest 10% icon."""
+        nearest = math.ceil((self.state or 0) / 10.0) * 10
+        if nearest == 0:
+            return "mdi:battery-outline"
+        elif nearest == 100:
+            return "mdi:battery"
+        else:
+            return "mdi:battery-" + str(nearest)
 
     @property
     def device_state_attributes(self):
