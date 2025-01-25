@@ -7,6 +7,7 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.core import callback
 from homeassistant.const import PERCENTAGE, UnitOfLength, UnitOfTime
+from homeassistant.components.sensor import SensorStateClass
 from .base import KamereonEntity
 from .kamereon import ChargingSpeed, Feature
 from .const import DOMAIN, DATA_VEHICLES, DATA_COORDINATOR_FETCH, DATA_COORDINATOR_STATISTICS
@@ -165,6 +166,7 @@ class OdometerSensor(KamereonEntity, SensorEntity):
     _attr_translation_key = "odometer"
     _attr_device_class = SensorDeviceClass.DISTANCE
     _attr_native_unit_of_measurement = UnitOfLength.KILOMETERS
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
 
     def __init__(self, coordinator, vehicle, imperial_distance):
         if imperial_distance:
