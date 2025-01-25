@@ -1,4 +1,5 @@
 import logging
+import math
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -7,6 +8,7 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.core import callback
 from homeassistant.const import PERCENTAGE, UnitOfLength, UnitOfTime
+from homeassistant.components.sensor import SensorStateClass
 from .base import KamereonEntity
 from .kamereon import ChargingSpeed, Feature
 from .const import DOMAIN, DATA_VEHICLES, DATA_COORDINATOR_FETCH, DATA_COORDINATOR_STATISTICS
@@ -71,8 +73,14 @@ class BatteryLevelSensor(KamereonEntity, SensorEntity):
 
     @property
     def icon(self):
-        """Icon of the sensor."""
-        return "mdi:battery"
+        """Icon of the sensor. Round up to the nearest 10% icon."""
+        nearest = math.ceil((self.state or 0) / 10.0) * 10
+        if nearest == 0:
+            return "mdi:battery-outline"
+        elif nearest == 100:
+            return "mdi:battery"
+        else:
+            return "mdi:battery-" + str(nearest)
 
     @property
     def device_state_attributes(self):
@@ -165,6 +173,7 @@ class OdometerSensor(KamereonEntity, SensorEntity):
     _attr_translation_key = "odometer"
     _attr_device_class = SensorDeviceClass.DISTANCE
     _attr_native_unit_of_measurement = UnitOfLength.KILOMETERS
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
 
     def __init__(self, coordinator, vehicle, imperial_distance):
         if imperial_distance:

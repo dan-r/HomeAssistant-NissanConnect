@@ -23,7 +23,6 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
     async_add_entities(entities, update_before_add=True)
 
-    return True
 
 class KamereonDeviceTracker(KamereonEntity, TrackerEntity):
     _attr_translation_key = "location"
