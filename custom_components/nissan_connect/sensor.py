@@ -62,6 +62,7 @@ class BatteryLevelSensor(KamereonEntity, SensorEntity):
     _attr_translation_key = "battery_level"
     _attr_device_class = SensorDeviceClass.BATTERY
     _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, coordinator, vehicle):
         KamereonEntity.__init__(self, coordinator, vehicle)
