@@ -641,9 +641,9 @@ class Vehicle:
 
     def fetch_battery_status(self):
         if self.model_name == "Ariya":
-            return self.fetch_battery_status_ariya()
+            self.fetch_battery_status_ariya()
         
-        return self.fetch_battery_status_leaf()
+        self.fetch_battery_status_leaf()
 
     def fetch_battery_status_leaf(self):
         """The battery-status endpoint isn't just for EV's. ICE Nissans publish the range under this!
@@ -703,29 +703,8 @@ class Vehicle:
 
         battery_data = body['data']['attributes']
         
-        self.battery_capacity = battery_data.get('batteryCapacity')  # kWh
-        self.battery_level = battery_data.get('batteryLevel')  # %
-        self.battery_temperature = battery_data.get('batteryTemperature')  # Fahrenheit?
-        # same meaning as battery level, different scale. 240 = 100%
-        self.battery_bar_level = battery_data.get('batteryBarLevel')
-        self.instantaneous_power = battery_data.get('instantaneousPower')  # kW
-        self.charging_speed = ChargingSpeed(None)
-        self.charge_time_required_to_full = {
-            ChargingSpeed.FAST: battery_data.get('chargingRemainingTime'),
-            ChargingSpeed.NORMAL: battery_data.get('chargingRemainingTime'),
-            ChargingSpeed.SLOW: battery_data.get('chargingRemainingTime'),
-        }
         self.range_hvac_off = battery_data.get('batteryAutonomy')
         self.range_hvac_on = battery_data.get('batteryAutonomy')
-        
-        # For ICE vehicles, we should get the range at least. If not, dont bother again
-        if self.range_hvac_on is None and Feature.BATTERY_STATUS not in self.features:
-            self.battery_supported = False
-            return
-
-        self.plugged_in = PluggedStatus(battery_data.get('plugStatus', 0))
-        if self.plugged_in == PluggedStatus(1):
-            self.charging =  ChargingStatus(battery_data.get('chargeStatus', 0))
         
         if 'vehiclePlugTimestamp' in battery_data:
             self.plugged_in_time = datetime.datetime.fromisoformat(battery_data['vehiclePlugTimestamp'].replace('Z','+00:00'))
