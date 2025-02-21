@@ -640,10 +640,9 @@ class Vehicle:
         return body
 
     def fetch_battery_status(self):
+        self.fetch_battery_status_leaf()
         if self.model_name == "Ariya":
             self.fetch_battery_status_ariya()
-        
-        self.fetch_battery_status_leaf()
 
     def fetch_battery_status_leaf(self):
         """The battery-status endpoint isn't just for EV's. ICE Nissans publish the range under this!
@@ -705,7 +704,16 @@ class Vehicle:
         
         self.range_hvac_off = battery_data.get('batteryAutonomy')
         self.range_hvac_on = battery_data.get('batteryAutonomy')
-        
+
+        self.charging_speed = ChargingSpeed(None)
+        self.charge_time_required_to_full = {
+            ChargingSpeed.FAST: battery_data.get('chargingRemainingTime'),
+            ChargingSpeed.NORMAL: battery_data.get('chargingRemainingTime'),
+            ChargingSpeed.SLOW: battery_data.get('chargingRemainingTime'),
+        }
+
+        self.plugged_in = PluggedStatus(battery_data.get('plugStatus', 0))
+                
         if 'vehiclePlugTimestamp' in battery_data:
             self.plugged_in_time = datetime.datetime.fromisoformat(battery_data['vehiclePlugTimestamp'].replace('Z','+00:00'))
         if 'vehicleUnplugTimestamp' in battery_data:
