@@ -64,6 +64,7 @@ class ChargingSpeed(enum.Enum):
     NORMAL = 2
     FAST = 3
     FASTEST = 4
+    ADAPTIVE = 5
 
 
 class ChargingStatus(enum.Enum):

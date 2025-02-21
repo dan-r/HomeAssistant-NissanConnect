@@ -272,6 +272,7 @@ class Vehicle:
             ChargingSpeed.FAST: None,
             ChargingSpeed.NORMAL: None,
             ChargingSpeed.SLOW: None,
+            ChargingSpeed.ADAPTIVE: None
         }
         self.range_hvac_off = None
         self.range_hvac_on = None
@@ -670,6 +671,7 @@ class Vehicle:
             ChargingSpeed.FAST: battery_data.get('timeRequiredToFullFast'),
             ChargingSpeed.NORMAL: battery_data.get('timeRequiredToFullNormal'),
             ChargingSpeed.SLOW: battery_data.get('timeRequiredToFullSlow'),
+            ChargingSpeed.ADAPTIVE: None
         }
         self.range_hvac_off = battery_data.get('rangeHvacOff')
         self.range_hvac_on = battery_data.get('rangeHvacOn')
@@ -702,14 +704,15 @@ class Vehicle:
 
         battery_data = body['data']['attributes']
         
-        self.range_hvac_off = battery_data.get('batteryAutonomy')
+        self.range_hvac_off = None
         self.range_hvac_on = battery_data.get('batteryAutonomy')
 
         self.charging_speed = ChargingSpeed(None)
         self.charge_time_required_to_full = {
-            ChargingSpeed.FAST: battery_data.get('chargingRemainingTime'),
-            ChargingSpeed.NORMAL: battery_data.get('chargingRemainingTime'),
-            ChargingSpeed.SLOW: battery_data.get('chargingRemainingTime'),
+            ChargingSpeed.FAST: None,
+            ChargingSpeed.NORMAL: None,
+            ChargingSpeed.SLOW: None,
+            ChargingSpeed.ADAPTIVE: battery_data.get('chargingRemainingTime')
         }
 
         self.plugged_in = PluggedStatus(battery_data.get('plugStatus', 0))

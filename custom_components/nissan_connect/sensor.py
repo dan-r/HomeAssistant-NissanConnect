@@ -32,10 +32,14 @@ async def async_setup_entry(hass, config, async_add_entities):
             entities += [RangeSensor(coordinator, data[vehicle], True, imperial_distance),
                          TimestampSensor(coordinator, data[vehicle], 'battery_status_last_updated', 'last_updated', 'mdi:clock-time-eleven-outline')]
         if Feature.BATTERY_STATUS in data[vehicle].features:
-            entities += [BatteryLevelSensor(coordinator, data[vehicle]),
-                         RangeSensor(coordinator, data[vehicle], False, imperial_distance),
-                         ChargeTimeRequiredSensor(coordinator, data[vehicle], ChargingSpeed.NORMAL),
+            entities.append(BatteryLevelSensor(coordinator, data[vehicle]))
+        if data[vehicle].charge_time_required_to_full[ChargingSpeed.NORMAL] is not None:
+            entities += [ChargeTimeRequiredSensor(coordinator, data[vehicle], ChargingSpeed.NORMAL),
                          ChargeTimeRequiredSensor(coordinator, data[vehicle], ChargingSpeed.FAST)]
+        if data[vehicle].charge_time_required_to_full[ChargingSpeed.ADAPTIVE] is not None:
+            entities.append(ChargeTimeRequiredSensor(coordinator, data[vehicle], ChargingSpeed.FAST))
+        if data[vehicle].range_hvac_off is not None:
+            entities.append(RangeSensor(coordinator, data[vehicle], False, imperial_distance))
         if data[vehicle].internal_temperature is not None:
             entities.append(InternalTemperatureSensor(coordinator, data[vehicle]))
         if data[vehicle].external_temperature is not None:
@@ -266,6 +270,7 @@ class ChargeTimeRequiredSensor(KamereonEntity, SensorEntity):
         ChargingSpeed.FAST: '6kw',
         ChargingSpeed.NORMAL: '3kw',
         ChargingSpeed.SLOW: '1kw',
+        ChargingSpeed.ADAPTIVE: 'adaptive'
     }
 
     def __init__(self, coordinator, vehicle, charging_speed):

@@ -113,6 +113,9 @@
         "charge_time_6kw": {
           "name": "Charge Time (6kW)"
         },
+        "charge_time_adaptive": {
+          "name": "Charge Time (adaptive)"
+        },
         "last_updated": {
           "name": "Last Updated"
         },
