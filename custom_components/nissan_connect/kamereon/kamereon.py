@@ -705,14 +705,14 @@ class Vehicle:
         battery_data = body['data']['attributes']
         
         self.range_hvac_off = None
-        self.range_hvac_on = battery_data.get('batteryAutonomy')
+        self.range_hvac_on = battery_data.get('batteryAutonomy') or self.range_hvac_on
 
         self.charging_speed = ChargingSpeed(None)
         self.charge_time_required_to_full = {
             ChargingSpeed.FAST: None,
             ChargingSpeed.NORMAL: None,
             ChargingSpeed.SLOW: None,
-            ChargingSpeed.ADAPTIVE: battery_data.get('chargingRemainingTime')
+            ChargingSpeed.ADAPTIVE: battery_data.get('chargingRemainingTime') or self.charge_time_required_to_full[ChargingSpeed.NORMAL]
         }
 
         self.plugged_in = PluggedStatus(battery_data.get('plugStatus', 0))

@@ -37,7 +37,7 @@ async def async_setup_entry(hass, config, async_add_entities):
             entities += [ChargeTimeRequiredSensor(coordinator, data[vehicle], ChargingSpeed.NORMAL),
                          ChargeTimeRequiredSensor(coordinator, data[vehicle], ChargingSpeed.FAST)]
         if data[vehicle].charge_time_required_to_full[ChargingSpeed.ADAPTIVE] is not None:
-            entities.append(ChargeTimeRequiredSensor(coordinator, data[vehicle], ChargingSpeed.FAST))
+            entities.append(ChargeTimeRequiredSensor(coordinator, data[vehicle], ChargingSpeed.ADAPTIVE))
         if data[vehicle].range_hvac_off is not None:
             entities.append(RangeSensor(coordinator, data[vehicle], False, imperial_distance))
         if data[vehicle].internal_temperature is not None:
