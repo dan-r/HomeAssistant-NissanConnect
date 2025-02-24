@@ -30,7 +30,7 @@ def mock_hass():
                         range_hvac_on=100,
                         range_hvac_off=120,
                         total_mileage=5000,
-                        charge_time_required_to_full={ChargingSpeed.NORMAL: 60, ChargingSpeed.FAST: 30},
+                        charge_time_required_to_full={ChargingSpeed.NORMAL: 60, ChargingSpeed.FAST: 30, ChargingSpeed.ADAPTIVE: None},
                         features=[Feature.BATTERY_STATUS, Feature.DRIVING_JOURNEY_HISTORY]
                     )
                 },
