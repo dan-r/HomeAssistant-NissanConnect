@@ -2,7 +2,7 @@
 
 An unofficial integration for interacting with NissanConnect vehicles in Europe. Based on the work of [mitchellrj](https://github.com/mitchellrj/kamereon-python) and [tobiaswk](https://github.com/Tobiaswk/dartnissanconnect). I have no affiliation with Nissan besides owning one of their cars.
 
-_Please note this integration is only for vehicles using the NissanConnect app, not NissanConnect EV or any other app._
+_Please note this integration is only for vehicles using the NissanConnect Services app, not NissanConnect EV or any other app._
 
 If you find any bugs or would like to request a feature, please open an issue.
 
