@@ -105,13 +105,13 @@ class KamereonPollCoordinator(DataUpdateCoordinator):
         try:
             for vehicle in self._vehicles:
                 time_since_updated = round((time() - self._last_updated[vehicle]) / 60)
-                if self._force_update[vehicle] or time_since_updated >= self._intervals[vehicle]:
+                if not self._intervals[vehicle] == 0 and (self._force_update[vehicle] or time_since_updated >= self._intervals[vehicle]):
                     _LOGGER.debug("Polling #%s as %d mins have elapsed (interval %d)", vehicle[-3:], time_since_updated, self._intervals[vehicle])
                     self._last_updated[vehicle] = int(time())
                     self._force_update[vehicle] = False
                     await self._hass.async_add_executor_job(self._vehicles[vehicle].refresh)
                 else:
-                    _LOGGER.debug("NOT polling #%s as %d mins have elapsed (interval %d)", vehicle[-3:], time_since_updated, self._intervals[vehicle])                   
+                    _LOGGER.debug("NOT polling #%s. %d mins have elapsed (interval %d)", vehicle[-3:], time_since_updated, self._intervals[vehicle])                   
         except BaseException:
             _LOGGER.warning("Error communicating with API")
             return False

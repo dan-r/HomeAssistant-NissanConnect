@@ -264,6 +264,7 @@ class ChargeTimeRequiredSensor(KamereonEntity, SensorEntity):
     _attr_translation_key = "charge_time"
     _attr_device_class = SensorDeviceClass.DURATION
     _attr_native_unit_of_measurement = UnitOfTime.MINUTES
+    _attr_suggested_unit_of_measurement = UnitOfTime.HOURS
 
     CHARGING_SPEED_NAME = {
         ChargingSpeed.FASTEST: '50kw',
