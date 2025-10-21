@@ -151,9 +151,9 @@ class KamereonSession:
             _LOGGER.error("Invalid credentials provided: %s", resp.text)
             raise RuntimeError("Invalid credentials")
         
-        oauth_authorize_url = '{}oauth2{}/authorize'.format(
+        oauth_authorize_url = '{}oauth2/{}/authorize'.format(
             self.settings['auth_base_url'],
-            oauth_data['realm']
+            self.settings['realm']
             )
         nonce = generate_nonce()
         resp = self.session.get(
@@ -168,9 +168,9 @@ class KamereonSession:
             allow_redirects=False)
         oauth_authorize_url = resp.headers['location']
 
-        oauth_token_url = '{}oauth2{}/access_token'.format(
+        oauth_token_url = '{}oauth2/{}/access_token'.format(
             self.settings['auth_base_url'],
-            oauth_data['realm']
+            self.settings['realm']
             )
         self._oauth = OAuth2Session(
             client_id=self.settings['client_id'],
