@@ -233,6 +233,7 @@ class Vehicle:
         self.user_id = user_id
         self.vin = data['vin'].upper()
         self.features = []
+        self._cockpit_supported = True
 
         # Try to parse every feature, but dont fail if we dont recognise one
         for u in data.get('services', []):
@@ -349,7 +350,8 @@ class Vehicle:
         self.refresh_battery_status()
 
     def fetch_all(self):
-        self.fetch_cockpit()
+        if self._cockpit_supported:
+            self.fetch_cockpit()
         self.fetch_location()
         self.fetch_battery_status()
         self.fetch_hvac_status()
@@ -847,7 +849,8 @@ class Vehicle:
         )
         body = resp.json()
         if 'errors' in body:
-            raise ValueError(body['errors'])
+            self._cockpit_supported = False
+            return
 
         cockpit_data = body['data']['attributes']
         self.eco_score = cockpit_data.get('ecoScore')
