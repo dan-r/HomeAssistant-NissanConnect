@@ -43,12 +43,12 @@ From the Home Assistant Integrations page, search for and add the Nissan Connect
 
 ## Update Time
 Terminology used for this integration:
-* Polling - the car is woken up and new status is reported
+* Polling - the car is woken up and new status is reported. This is disabled by default, but can be enabled by setting the polling interval to a non-zero value
 * Update - data is fetched from Nissan but the car is not woken up
 
-Following the model of leaf2mqtt, this integration can be set to use a different update time when plugged in. When HVAC is turned on the update time drops to once per minute.
+Following the model of leaf2mqtt, this integration can be set to use a different polling time when plugged in. When HVAC is turned on the polling time always drops to once per minute.
 
-To prevent excessive 12v battery drain when plugged in but not charging for extended periods of time, the interval reverts to the standard update interval after 4 consecutive updates show the car as plugged in but not charging.
+To prevent excessive 12v battery drain when plugged in but not charging for extended periods of time, the polling interval reverts to the standard interval after 4 consecutive updates show the car as plugged in but not charging.
 This logic was added to give the benefit of quicker response times on the charging status binary sensor, which can be especially useful when charging with load-balanced or 'smart' chargers.
 
 ## Translations
