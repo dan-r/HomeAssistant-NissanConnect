@@ -116,6 +116,12 @@
             "last_updated": {
                 "name": "Последнее обновление"
             },
+			"location_last_updated": {
+                "name": "Последнее обновление местоположения"
+            },
+            "lock_status_last_updated": {
+                "name": "Последнее обновление автомобильной двери"
+            },
             "daily_distance": {
                 "name": "Ежедневное расстояние"
             },

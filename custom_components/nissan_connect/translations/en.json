@@ -119,6 +119,12 @@
         "last_updated": {
           "name": "Last Updated"
         },
+		"location_last_updated": {
+                "name": "Last Updated position"
+            },
+		"lock_status_last_updated": {
+			"name": "Last Updated door lock"
+		},
         "daily_distance": {
           "name": "Daily Distance"
         },

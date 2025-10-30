@@ -116,6 +116,12 @@
             "last_updated": {
                 "name": "Laatst bijgewerkt"
             },
+			"location_last_updated": {
+                "name": "Laatste locatie-update"
+            },
+            "lock_status_last_updated": {
+                "name": "Laatste keepersupdate"
+            },
             "daily_distance": {
                 "name": "Dagelijkse ritafstand"
             },

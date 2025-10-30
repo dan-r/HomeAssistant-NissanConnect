@@ -116,6 +116,12 @@
         "last_updated": {
           "name": "Sidst opdateret"
         },
+		"location_last_updated": {
+                "name": "Seneste placeringsopdatering"
+		},
+		"lock_status_last_updated": {
+			"name": "Seneste målmandsopdatering"
+		},
         "daily_distance": {
           "name": "Daglig distance"
         },

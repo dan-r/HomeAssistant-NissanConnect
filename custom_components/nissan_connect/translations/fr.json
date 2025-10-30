@@ -116,6 +116,12 @@
             "last_updated": {
                 "name": "Dernière mise à jour"
             },
+			"location_last_updated": {
+                "name": "Dernière mise à jour de localisation"
+            },
+            "lock_status_last_updated": {
+                "name": "Dernière mise à jour du gardien de but"
+            },
             "daily_distance": {
                 "name": "Distance quotidienne"
             },
