@@ -58,6 +58,9 @@ async def async_setup_entry(hass, config, async_add_entities):
                 ]
 
         entities.append(OdometerSensor(coordinator, data[vehicle], imperial_distance))
+        entities.append(TimestampSensor(coordinator, data[vehicle], 'location_last_updated', 'location_last_updated', 'mdi:clock-time-eleven-outline'))
+        entities.append(TimestampSensor(coordinator, data[vehicle], 'lock_status_last_updated', 'lock_status_last_updated', 'mdi:clock-time-eleven-outline'))
+        """_LOGGER.error("Vehicle Properties: %r" % ( vars(data[vehicle])))"""
 
     async_add_entities(entities, update_before_add=True)
 

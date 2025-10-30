@@ -116,6 +116,12 @@
             "last_updated": {
                 "name": "Última actualización"
             },
+			"location_last_updated": {
+                "name": "Última actualización de ubicación"
+            },
+            "lock_status_last_updated": {
+                "name": "Última actualización del portero"
+            },
             "daily_distance": {
                 "name": "Distancia Diaria"
             },
