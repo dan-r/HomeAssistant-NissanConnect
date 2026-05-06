@@ -625,12 +625,9 @@ class Vehicle:
         if 'errors' in body:
             raise ValueError(body['errors'])
         hvac_data = body['data']['attributes']
-        if 'externalTemperature' in hvac_data:
-            self.external_temperature = hvac_data.get('externalTemperature')
-        if 'internalTemperature' in hvac_data:
-            self.internal_temperature = hvac_data.get('internalTemperature')
-        if 'nextTargetTemperature' in hvac_data:
-            self.next_target_temperature = hvac_data.get('nextTargetTemperature')
+        self.external_temperature = hvac_data.get('externalTemperature')
+        self.internal_temperature = hvac_data.get('internalTemperature')
+        self.next_target_temperature = hvac_data.get('nextTargetTemperature')
         if 'hvacStatus' in hvac_data:
             self.hvac_status = hvac_data['hvacStatus'] == "on"
         if 'nextHvacStartDate' in hvac_data:
