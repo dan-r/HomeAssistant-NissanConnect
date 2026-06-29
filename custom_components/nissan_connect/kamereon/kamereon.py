@@ -245,6 +245,25 @@ class Vehicle:
         
         _LOGGER.debug("Active features: %s", self.features)
 
+        # Y63 Patrol/Armada (2024/2025): map unknown high-range IDs to known features
+        # All endpoints confirmed working via API probe on JN8BY3NY5S9007577
+        Y63_FEATURE_MAP = {
+            '866': Feature.MY_CAR_FINDER,
+            '871': Feature.LOCK_STATUS_CHECK,
+            '875': Feature.HORN_AND_LIGHTS,
+            '876': Feature.APP_DOOR_LOCKING,
+            '880': Feature.CLIMATE_ON_OFF,
+            '882': Feature.INTERIOR_TEMP_SETTINGS,
+            '884': Feature.VEHICLE_STATUS_CHECK,
+            '885': Feature.VEHICLE_DATA,
+        }
+        for u in data.get('services', []):
+            sid = str(u['id'])
+            if sid in Y63_FEATURE_MAP and Y63_FEATURE_MAP[sid] not in self.features:
+                mapped = Y63_FEATURE_MAP[sid]
+                _LOGGER.debug(f"Y63: mapping feature {sid} -> {mapped}")
+                self.features.append(mapped)
+
         self.can_generation = data.get('canGeneration')
         self.color = data.get('color')
         self.energy = data.get('energy')
@@ -372,7 +391,7 @@ class Vehicle:
         return body
 
     def fetch_location(self):
-        if Feature.MY_CAR_FINDER not in self.features:
+        if Feature.MY_CAR_FINDER not in self.features and self.features:
             return
         
         resp = self._get(
@@ -400,7 +419,7 @@ class Vehicle:
         return body
 
     def fetch_lock_status(self):
-        if Feature.LOCK_STATUS_CHECK not in self.features:
+        if Feature.LOCK_STATUS_CHECK not in self.features and self.features:
             return
         resp = self._get(
             '{}v1/cars/{}/lock-status'.format(self.session.settings['car_adapter_base_url'], self.vin),
@@ -417,6 +436,17 @@ class Vehicle:
         self.door_status[Door.HATCH] = LockStatus(lock_data.get('hatchStatus', LockStatus.CLOSED))
         self.lock_status = LockStatus(lock_data.get('lockStatus', LockStatus.LOCKED))
         self.lock_status_last_updated = datetime.datetime.fromisoformat(lock_data['lastUpdateTime'].replace('Z','+00:00'))
+        # Y63 extra fields
+        self.engine_hood_status = lock_data.get('engineHoodStatus')
+        self.trunk_lock_status = lock_data.get('trunkLockStatus')
+        self.sunroof_status = lock_data.get('sunroofStatus')
+        self.window_status = {
+            'front_left': lock_data.get('windowStatusFrontLeft'),
+            'front_right': lock_data.get('windowStatusFrontRight'),
+            'rear_left': lock_data.get('windowStatusRearLeft'),
+            'rear_right': lock_data.get('windowStatusRearRight'),
+        }
+        self.hazard_lamp_status = lock_data.get('hazardLampStatus')
 
     def refresh_hvac_status(self):
         resp = self._post(
@@ -606,7 +636,7 @@ class Vehicle:
         return self.lock_unlock(srp, 'unlock', group)
 
     def fetch_hvac_status(self):
-        if Feature.INTERIOR_TEMP_SETTINGS not in self.features and Feature.TEMPERATURE not in self.features:
+        if Feature.INTERIOR_TEMP_SETTINGS not in self.features and Feature.TEMPERATURE not in self.features and self.features:
             return
         
         resp = self._get(
@@ -617,8 +647,10 @@ class Vehicle:
         if 'errors' in body:
             raise ValueError(body['errors'])
         hvac_data = body['data']['attributes']
-        self.external_temperature = hvac_data.get('externalTemperature')
-        self.internal_temperature = hvac_data.get('internalTemperature')
+        ext = hvac_data.get('externalTemperature')
+        self.external_temperature = ext if ext and ext != 0.0 else None
+        intr = hvac_data.get('internalTemperature')
+        self.internal_temperature = intr if intr and intr != 0.0 else None
         self.next_target_temperature = hvac_data.get('nextTargetTemperature')
         if 'hvacStatus' in hvac_data:
             self.hvac_status = hvac_data['hvacStatus'] == "on"
@@ -626,6 +658,12 @@ class Vehicle:
             self.next_hvac_start_date = datetime.datetime.fromisoformat(hvac_data['nextHvacStartDate'].replace('Z','+00:00'))
         if 'lastUpdateTime' in hvac_data:
             self.hvac_status_last_updated = datetime.datetime.fromisoformat(hvac_data['lastUpdateTime'].replace('Z','+00:00'))
+        # Y63 extra fields
+        self.remote_engine_status = hvac_data.get('remoteEngineStatus')
+        self.front_defrost = hvac_data.get('frontDefrostMode')
+        self.rear_defrost = hvac_data.get('rearDefrostMode')
+        self.seat_heat_front_left = hvac_data.get('frontLeftSeatControl')
+        self.seat_heat_front_right = hvac_data.get('frontRightSeatControl')
 
     def refresh_battery_status(self):
         resp = self._post(
@@ -860,6 +898,11 @@ class Vehicle:
         self.fuel_quantity = cockpit_data.get('fuelQuantity')  # litres
         self.mileage = cockpit_data.get('mileage')
         self.total_mileage = cockpit_data.get('totalMileage')
+        # Y63 extra fields
+        self.fuel_autonomy = cockpit_data.get('fuelAutonomy')
+        self.oil_draining_range = cockpit_data.get('engineOilDrainingRange')
+        self.due_mileage = cockpit_data.get('dueMileage')
+        self.oil_level = cockpit_data.get('oilLevel')
 
 
 class TripSummary:
