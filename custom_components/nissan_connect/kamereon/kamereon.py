@@ -14,6 +14,8 @@ from oauthlib.oauth2 import TokenExpiredError
 from requests_oauthlib import OAuth2Session
 from .kamereon_const import *
 
+_Y63_FEATURE_SERVICE_IDS = {'866', '871', '875', '876', '880', '882', '884', '885'}
+
 _LOGGER = logging.getLogger(__name__)
 
 _registry = {
@@ -245,8 +247,8 @@ class Vehicle:
         
         _LOGGER.debug("Active features: %s", self.features)
 
-        # Y63 Patrol/Armada (2024/2025): map unknown high-range IDs to known features
-        # All endpoints confirmed working via API probe on JN8BY3NY5S9007577
+        # Y63 Patrol/Armada 2024/2025 uses high-range feature IDs (835-922)
+        # not recognised by the Feature enum. Map known IDs to Feature values.
         Y63_FEATURE_MAP = {
             '866': Feature.MY_CAR_FINDER,
             '871': Feature.LOCK_STATUS_CHECK,
@@ -257,12 +259,21 @@ class Vehicle:
             '884': Feature.VEHICLE_STATUS_CHECK,
             '885': Feature.VEHICLE_DATA,
         }
+        self._is_y63 = False
         for u in data.get('services', []):
             sid = str(u['id'])
             if sid in Y63_FEATURE_MAP and Y63_FEATURE_MAP[sid] not in self.features:
                 mapped = Y63_FEATURE_MAP[sid]
-                _LOGGER.debug(f"Y63: mapping feature {sid} -> {mapped}")
                 self.features.append(mapped)
+                self._is_y63 = True
+                _LOGGER.debug(f"Y63 mapped service ID {sid} -> {mapped}")
+
+        # Y63 vehicles support trip-history even without standard Feature.DRIVING_JOURNEY_HISTORY
+        if self._is_y63 and Feature.DRIVING_JOURNEY_HISTORY not in self.features:
+            self.features.append(Feature.DRIVING_JOURNEY_HISTORY)
+            _LOGGER.debug("Y63: force-enabled DRIVING_JOURNEY_HISTORY")
+
+        _LOGGER.debug("Active features (after Y63 map): %s (is_y63=%s)", self.features, self._is_y63)
 
         self.can_generation = data.get('canGeneration')
         self.color = data.get('color')
@@ -319,6 +330,30 @@ class Vehicle:
         }
         self.lock_status = None
         self.lock_status_last_updated = None
+        self.remote_engine_status = None
+
+        # Tyre pressures (kPa, from vehicle-status BFF)
+        self.tyre_pressure = {'fl': None, 'fr': None, 'rl': None, 'rr': None}
+        self.tyre_pressure_status = {'fl': None, 'fr': None, 'rl': None, 'rr': None}
+
+        # Warning indicators (dashboard lamps)
+        self.warning_abs = None
+        self.warning_airbag = None
+        self.warning_brake_fluid = None
+        self.warning_oil_pressure = None
+        self.warning_tyre_pressure = None
+        self.warning_check_engine = None
+        self.warning_service = None
+        self.warning_battery_low = None
+        self.vehicle_health_status_last_updated = None
+
+        # Cockpit v2 extras
+        self.due_mileage = None
+        self.engine_oil_draining_range = None
+        self.oil_level = None
+
+        # Location
+        self.gps_direction = None
         self.eco_score = None
         self.fuel_autonomy = None
         self.fuel_consumption = None
@@ -366,6 +401,7 @@ class Vehicle:
     def refresh(self):
         self.refresh_location()
         self.refresh_battery_status()
+        self.fetch_hvac_status()
 
     def fetch_all(self):
         self.fetch_cockpit()
@@ -373,6 +409,7 @@ class Vehicle:
         self.fetch_battery_status()
         self.fetch_hvac_status()
         self.fetch_lock_status()
+        self.fetch_vehicle_status()
 
     def refresh_location(self):
         if Feature.MY_CAR_FINDER not in self.features:
@@ -391,7 +428,7 @@ class Vehicle:
         return body
 
     def fetch_location(self):
-        if Feature.MY_CAR_FINDER not in self.features and self.features:
+        if Feature.MY_CAR_FINDER not in self.features:
             return
         
         resp = self._get(
@@ -403,6 +440,7 @@ class Vehicle:
             raise ValueError(body['errors'])
         location_data = body['data']['attributes']
         self.location = (location_data['gpsLatitude'], location_data['gpsLongitude'])
+        self.gps_direction = location_data.get('gpsDirection')
         self.location_last_updated = datetime.datetime.fromisoformat(location_data['lastUpdateTime'].replace('Z','+00:00'))
 
     def refresh_lock_status(self):
@@ -419,7 +457,7 @@ class Vehicle:
         return body
 
     def fetch_lock_status(self):
-        if Feature.LOCK_STATUS_CHECK not in self.features and self.features:
+        if Feature.LOCK_STATUS_CHECK not in self.features:
             return
         resp = self._get(
             '{}v1/cars/{}/lock-status'.format(self.session.settings['car_adapter_base_url'], self.vin),
@@ -436,17 +474,6 @@ class Vehicle:
         self.door_status[Door.HATCH] = LockStatus(lock_data.get('hatchStatus', LockStatus.CLOSED))
         self.lock_status = LockStatus(lock_data.get('lockStatus', LockStatus.LOCKED))
         self.lock_status_last_updated = datetime.datetime.fromisoformat(lock_data['lastUpdateTime'].replace('Z','+00:00'))
-        # Y63 extra fields
-        self.engine_hood_status = lock_data.get('engineHoodStatus')
-        self.trunk_lock_status = lock_data.get('trunkLockStatus')
-        self.sunroof_status = lock_data.get('sunroofStatus')
-        self.window_status = {
-            'front_left': lock_data.get('windowStatusFrontLeft'),
-            'front_right': lock_data.get('windowStatusFrontRight'),
-            'rear_left': lock_data.get('windowStatusRearLeft'),
-            'rear_right': lock_data.get('windowStatusRearRight'),
-        }
-        self.hazard_lamp_status = lock_data.get('hazardLampStatus')
 
     def refresh_hvac_status(self):
         resp = self._post(
@@ -454,12 +481,135 @@ class Vehicle:
             data=json.dumps({
                 'data': {'type': 'RefreshHvacStatus'}
             }),
-            headers={'Content-Type': 'application/vnd.api+json'}
+            headers=self._y63_headers() if self._is_y63 else {'Content-Type': 'application/vnd.api+json'}
         )
         body = resp.json()
         if 'errors' in body:
             raise ValueError(body['errors'])
         return body
+
+    def _y63_headers(self):
+        """Standard headers required by the MyNISSAN Android app for Y63/Armada."""
+        return dict(Y63_HEADERS)
+
+    def control_engine(self, action: str, temperature: float = 25.0,
+                       hvac_function: int = 1,
+                       front_left_seat: int = 0, front_right_seat: int = 0,
+                       front_defrost: int = 0, rear_defrost: int = 0):
+        """Start or stop the engine for remote climate (Y63/Patrol/Armada ICE vehicles).
+
+        Captured from MyNISSAN Android 3.16.2 via HTTP Toolkit.
+        The srp field is accepted as an empty string — no SRP computation needed.
+        """
+        assert action in ('start', 'stop')
+        if Feature.CLIMATE_ON_OFF not in self.features:
+            return
+
+        attributes = {
+            'action': action,
+            'srp': '',
+        }
+        if action == 'start':
+            attributes.update({
+                'temperatureSetting': str(float(temperature)),
+                'temperatureUnit': 0,
+                'hvacFunctionRequest': hvac_function,
+                'frontLeftSeatControl': front_left_seat,
+                'frontRightSeatControl': front_right_seat,
+                'frontDefrostMode': front_defrost,
+                'rearDefrostMode': rear_defrost,
+            })
+
+        resp = self._post(
+            '{}v1/cars/{}/actions/engine-start'.format(
+                self.session.settings['car_adapter_base_url'], self.vin),
+            data=json.dumps({'data': {'type': 'EngineStart', 'attributes': attributes}}),
+            headers=self._y63_headers(),
+        )
+        body = resp.json()
+        if 'errors' in body:
+            raise ValueError(body['errors'])
+        return body
+
+    def fetch_vehicle_status(self):
+        """Fetch aggregated vehicle health + tyre pressure from the BFF endpoint.
+
+        URL: {user_base_url}v1/cars/{VIN}/vehicle-status?canGen={can_generation}
+        Captured from MyNISSAN Android 3.16.2 (Jun 30 2026).
+        """
+        if Feature.VEHICLE_STATUS_CHECK not in self.features:
+            return
+
+        params = {}
+        if self.can_generation:
+            params['canGen'] = self.can_generation
+
+        headers = self._y63_headers() if self._is_y63 else {'Content-Type': 'application/vnd.api+json'}
+        resp = self._get(
+            '{}v1/cars/{}/vehicle-status'.format(self.session.settings['user_base_url'], self.vin),
+            headers=headers,
+            params=params,
+        )
+        body = resp.json()
+        if 'errors' in body:
+            raise ValueError(body['errors'])
+
+        # Tyre pressures — raw unit is mbar (2250 mbar = 2.25 bar = 225 kPa)
+        tyre = body.get('tyrePressure', {}).get('attributes', {})
+        for wheel, p_key, s_key in [
+            ('fl', 'flPressure', 'flStatus'),
+            ('fr', 'frPressure', 'frStatus'),
+            ('rl', 'rlPressure', 'rlStatus'),
+            ('rr', 'rrPressure', 'rrStatus'),
+        ]:
+            raw = tyre.get(p_key)
+            self.tyre_pressure[wheel] = round(raw / 10.0, 1) if raw is not None else None
+            self.tyre_pressure_status[wheel] = tyre.get(s_key)
+
+        # Malfunction indicator lamps
+        lamps = (body.get('healthStatus') or {}).get('malfunctionIndicatorLamps', {}).get('attributes', {})
+        self.warning_abs = bool(lamps.get('absWarning', 0))
+        self.warning_airbag = bool(lamps.get('airbagWarning', 0))
+        self.warning_brake_fluid = bool(lamps.get('brakeFluidWarning', 0))
+        self.warning_oil_pressure = bool(lamps.get('oilPressureWarning', 0))
+        self.warning_tyre_pressure = bool(lamps.get('tyrePressureWarning', 0))
+        self.warning_check_engine = bool(lamps.get('globalStopWarning', 0))
+        self.warning_service = bool(lamps.get('globalServWarning', 0))
+        self.warning_battery_low = bool(lamps.get('batteryLowWarning', 0))
+        health = body.get('healthStatus') or {}
+        if 'lastUpdateTime' in health:
+            self.vehicle_health_status_last_updated = datetime.datetime.fromisoformat(
+                health['lastUpdateTime'].replace('Z', '+00:00'))
+
+    def wake_up_vehicle(self):
+        """Wake up a sleeping/disconnected vehicle before sending commands."""
+        resp = self._post(
+            '{}v1/cars/{}/actions/wake-up-vehicle'.format(
+                self.session.settings['car_adapter_base_url'], self.vin),
+            data=json.dumps({'data': {'type': 'WakeUpVehicle'}}),
+            headers=self._y63_headers() if self._is_y63 else {'Content-Type': 'application/vnd.api+json'},
+        )
+        body = resp.json()
+        if 'errors' in body:
+            raise ValueError(body['errors'])
+        return body
+
+    def poll_action_status(self, action_id: str) -> str:
+        """Poll the dedicated action-status endpoint and return the status string.
+
+        Status values observed: CREATED, PENDING, COMPLETED, CANCELLED, FAILED.
+        Uses the separate alliance-platform-action-status-polling domain.
+        """
+        resp = self._get(
+            '{}v1/cars/{}/actions/status'.format(
+                self.session.settings['action_status_base_url'], self.vin),
+            headers=self._y63_headers(),
+            params={'actionId': action_id},
+        )
+        body = resp.json()
+        if 'errors' in body:
+            raise ValueError(body['errors'])
+        return body['data']['attributes']['status']
 
     def initiate_srp(self):
         (salt, verifier) = SRP.enroll(self.user_id, self.vin)
@@ -572,9 +722,18 @@ class Vehicle:
             raise ValueError(body['errors'])
         return body
 
-    def set_hvac_status(self, action: HVACAction, target_temperature: int=21, start: datetime.datetime=None, srp: str=None):
+    def set_hvac_status(self, action: HVACAction, target_temperature: float = 21.0,
+                        start: datetime.datetime = None, srp: str = None):
+        """Start/stop HVAC. Routes to control_engine() for Y63/ICE vehicles."""
         if Feature.CLIMATE_ON_OFF not in self.features:
             return
+
+        # Y63/Patrol/Armada: climate is controlled via engine-start, not hvac-start
+        if self._is_y63:
+            if action == HVACAction.START:
+                return self.control_engine('start', temperature=float(target_temperature))
+            else:
+                return self.control_engine('stop')
 
         if target_temperature < 16 or target_temperature > 26:
             raise ValueError('Temperature must be between 16 & 26 degrees')
@@ -604,66 +763,67 @@ class Vehicle:
             raise ValueError(body['errors'])
         return body
 
-    def lock_unlock(self, srp: str, action: str, group: LockableDoorGroup=None):
+    def lock_unlock(self, action: str, srp: str = '', group: LockableDoorGroup = None):
+        """Lock or unlock doors.
+
+        Captured from MyNISSAN Android 3.16.2 via HTTP Toolkit (Jun 30 2026).
+        Y63/Armada: no srp field needed. Body uses 'action' + 'target' (not 'lock'/'doorType').
+        srp only included for non-Y63 models that require it.
+        """
         if Feature.APP_DOOR_LOCKING not in self.features:
             return
         assert action in ('lock', 'unlock')
         if group is None:
             group = LockableDoorGroup.DOORS_AND_HATCH
+        headers = self._y63_headers() if self._is_y63 else {'Content-Type': 'application/vnd.api+json'}
+
+        attributes = {
+            'action': action,
+            'target': group.value,
+        }
+        # Only include srp for non-Y63 models that require it
+        if not self._is_y63 and srp:
+            attributes['srp'] = srp
+
         resp = self._post(
-            '{}v1/cars/{}/actions/lock-unlock"'.format(self.session.settings['car_adapter_base_url'], self.vin),
-            data=json.dumps({
-                'data': {
-                    'type': 'LockUnlock',
-                    'attributes': {
-                        'lock': action,
-                        'doorType': group.value,
-                        'srp': srp
-                    }
-                }
-            }),
-            headers={'Content-Type': 'application/vnd.api+json'}
+            '{}v1/cars/{}/actions/lock-unlock'.format(self.session.settings['car_adapter_base_url'], self.vin),
+            data=json.dumps({'data': {'type': 'LockUnlock', 'attributes': attributes}}),
+            headers=headers,
         )
         body = resp.json()
         if 'errors' in body:
             raise ValueError(body['errors'])
         return body
 
-    def lock(self, srp: str, group: LockableDoorGroup=None):
-        return self.lock_unlock(srp, 'lock', group)
+    def lock(self, group: LockableDoorGroup = None, srp: str = ''):
+        return self.lock_unlock('lock', srp, group)
 
-    def unlock(self, srp: str, group: LockableDoorGroup=None):
-        return self.lock_unlock(srp, 'unlock', group)
+    def unlock(self, group: LockableDoorGroup = None, srp: str = ''):
+        return self.lock_unlock('unlock', srp, group)
 
     def fetch_hvac_status(self):
-        if Feature.INTERIOR_TEMP_SETTINGS not in self.features and Feature.TEMPERATURE not in self.features and self.features:
+        if Feature.INTERIOR_TEMP_SETTINGS not in self.features and Feature.TEMPERATURE not in self.features:
             return
         
         resp = self._get(
             '{}v1/cars/{}/hvac-status'.format(self.session.settings['car_adapter_base_url'], self.vin),
-            headers={'Content-Type': 'application/vnd.api+json'}
+            headers=self._y63_headers() if self._is_y63 else {'Content-Type': 'application/vnd.api+json'}
         )
         body = resp.json()
         if 'errors' in body:
             raise ValueError(body['errors'])
         hvac_data = body['data']['attributes']
-        ext = hvac_data.get('externalTemperature')
-        self.external_temperature = ext if ext and ext != 0.0 else None
-        intr = hvac_data.get('internalTemperature')
-        self.internal_temperature = intr if intr and intr != 0.0 else None
+        self.external_temperature = hvac_data.get('externalTemperature')
+        self.internal_temperature = hvac_data.get('internalTemperature')
         self.next_target_temperature = hvac_data.get('nextTargetTemperature')
         if 'hvacStatus' in hvac_data:
             self.hvac_status = hvac_data['hvacStatus'] == "on"
+        if 'remoteEngineStatus' in hvac_data:
+            self.remote_engine_status = hvac_data.get('remoteEngineStatus')
         if 'nextHvacStartDate' in hvac_data:
             self.next_hvac_start_date = datetime.datetime.fromisoformat(hvac_data['nextHvacStartDate'].replace('Z','+00:00'))
         if 'lastUpdateTime' in hvac_data:
             self.hvac_status_last_updated = datetime.datetime.fromisoformat(hvac_data['lastUpdateTime'].replace('Z','+00:00'))
-        # Y63 extra fields
-        self.remote_engine_status = hvac_data.get('remoteEngineStatus')
-        self.front_defrost = hvac_data.get('frontDefrostMode')
-        self.rear_defrost = hvac_data.get('rearDefrostMode')
-        self.seat_heat_front_left = hvac_data.get('frontLeftSeatControl')
-        self.seat_heat_front_right = hvac_data.get('frontRightSeatControl')
 
     def refresh_battery_status(self):
         resp = self._post(
@@ -785,12 +945,20 @@ class Vehicle:
             start = datetime.datetime.utcnow().date()
         if end is None:
             end = start
+        # Monthly queries use YYYYMM format; daily uses YYYY-MM-DD
+        if period == Period.MONTHLY:
+            start_str = start.strftime('%Y%m')
+            end_str = end.strftime('%Y%m')
+        else:
+            start_str = start.isoformat()
+            end_str = end.isoformat()
         resp = self._get(
             '{}v1/cars/{}/trip-history'.format(self.session.settings['car_adapter_base_url'], self.vin),
+            headers=self._y63_headers() if self._is_y63 else {'Content-Type': 'application/vnd.api+json'},
             params={
                 'type': period.value,
-                'start': start.isoformat(),
-                'end': end.isoformat()
+                'start': start_str,
+                'end': end_str,
             }
         )
         body = resp.json()
@@ -880,10 +1048,17 @@ class Vehicle:
         pass
 
     def fetch_cockpit(self):
+        """Fetch cockpit data (v2 endpoint for richer maintenance fields)."""
         resp = self._get(
-            "{}v1/cars/{}/cockpit".format(self.session.settings['car_adapter_base_url'], self.vin)
+            "{}v2/cars/{}/cockpit".format(self.session.settings['car_adapter_base_url'], self.vin)
         )
         body = resp.json()
+        if 'errors' in body:
+            # Fall back to v1 if v2 is not available
+            resp = self._get(
+                "{}v1/cars/{}/cockpit".format(self.session.settings['car_adapter_base_url'], self.vin)
+            )
+            body = resp.json()
         if 'errors' in body:
             raise ValueError(body['errors'])
 
@@ -898,10 +1073,9 @@ class Vehicle:
         self.fuel_quantity = cockpit_data.get('fuelQuantity')  # litres
         self.mileage = cockpit_data.get('mileage')
         self.total_mileage = cockpit_data.get('totalMileage')
-        # Y63 extra fields
-        self.fuel_autonomy = cockpit_data.get('fuelAutonomy')
-        self.oil_draining_range = cockpit_data.get('engineOilDrainingRange')
+        # v2 extras
         self.due_mileage = cockpit_data.get('dueMileage')
+        self.engine_oil_draining_range = cockpit_data.get('engineOilDrainingRange')
         self.oil_level = cockpit_data.get('oilLevel')
 
 

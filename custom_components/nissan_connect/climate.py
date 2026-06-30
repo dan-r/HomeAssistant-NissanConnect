@@ -37,9 +37,9 @@ class KamereonClimate(KamereonEntity, ClimateEntity):
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_translation_key = "climate"
     _attr_min_temp = 16
-    _attr_max_temp = 26
-    _attr_target_temperature_step = 1
-    _target = 20
+    _attr_max_temp = 30
+    _attr_target_temperature_step = 0.5
+    _target = 25
     _loop_mutex = False
 
     def __init__(self, coordinator, vehicle, hass):
@@ -98,7 +98,8 @@ class KamereonClimate(KamereonEntity, ClimateEntity):
             await self._hass.async_add_executor_job(self.vehicle.set_hvac_status, HVACAction.STOP)
             self._hass.async_create_task(self._async_fetch_loop(False))
         elif hvac_mode == HVACMode.HEAT_COOL:
-            await self._hass.async_add_executor_job(self.vehicle.set_hvac_status, HVACAction.START, int(self._target))
+            await self._hass.async_add_executor_job(
+                self.vehicle.set_hvac_status, HVACAction.START, float(self._target))
             self._hass.async_create_task(self._async_fetch_loop(True))
 
     async def async_turn_off(self) -> None:
