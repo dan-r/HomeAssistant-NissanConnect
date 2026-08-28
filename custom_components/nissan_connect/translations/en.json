@@ -7,6 +7,7 @@
           "data": {
             "email": "Email address",
             "password": "Password",
+            "country_code": "Nissan account country",
             "interval": "Polling interval (minutes)",
             "interval_charging": "Polling interval while charging (minutes)",
             "interval_statistics": "Update interval for daily/monthly statistics (minutes)",
@@ -17,6 +18,13 @@
           "data_description": {
             "interval_charging": "The car will be woken up and new data requested at every polling interval.",
             "interval_statistics": "On update intervals, the latest data will be fetched from Nissan but the car will not be woken up."
+          }
+        },
+        "reauth_confirm": {
+          "description": "Reauthenticate your Nissan account.",
+          "data": {
+            "password": "Password",
+            "country_code": "Nissan account country"
           }
         }
       },
@@ -33,6 +41,7 @@
           "data": {
             "email": "Email address",
             "password": "Password",
+            "country_code": "Nissan account country",
             "interval": "Polling interval (minutes)",
             "interval_charging": "Polling interval while charging (minutes)",
             "interval_statistics": "Update interval for daily/monthly statistics (minutes)",

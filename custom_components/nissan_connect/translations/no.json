@@ -7,6 +7,7 @@
           "data": {
             "email": "E-postadresse",
             "password": "Passord",
+            "country_code": "Land for Nissan-kontoen",
             "interval": "Oppdateringsfrekvens i HA (i minutter)",
             "interval_charging": "Oppdateringsfrekvens under lading for henting av data (i minutter)",
             "interval_statistics": "Oppdateringsfrekvens for daglig / månedlig statistikk (i minutter)",
@@ -17,6 +18,13 @@
           "data_description": {
             "interval_charging": "Bilen vil vekkes ved hver spørring, som angitt i oppdateringsfrekvensen",
             "interval_statistics": "Ved oppdatering av statistikk blir data forespurt fra Nissan, men bilen blir ikke vekket."
+          }
+        },
+        "reauth_confirm": {
+          "description": "Autentiser Nissan-kontoen på nytt.",
+          "data": {
+            "password": "Passord",
+            "country_code": "Land for Nissan-kontoen"
           }
         }
       },
@@ -33,6 +41,7 @@
           "data": {
             "email": "E-postadresse",
             "password": "Passord",
+            "country_code": "Land for Nissan-kontoen",
             "interval": "Oppdateringsfrekvens i HA (i minutter)",
             "interval_charging": "Oppdateringsfrekvens under lading for henting av data (i minutter)",
             "interval_statistics": "Oppdateringsfrekvens for daglig / månedlig statistikk (i minutter)",
