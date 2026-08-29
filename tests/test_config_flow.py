@@ -73,7 +73,7 @@ async def test_step_user_submit(hass, mock_kamereon_session):
         }
     )
 
-    assert result["type"] == data_entry_flow.RESULT_TYPE_CREATE_ENTRY
+    assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
     assert result["title"] == "test@example.com"
     assert result["data"] == {
         "email": "test@example.com",
@@ -113,7 +113,7 @@ async def test_step_user_invalid_auth(hass, mock_kamereon_session):
         }
     )
 
-    assert result["type"] == data_entry_flow.RESULT_TYPE_FORM
+    assert result["type"] == data_entry_flow.FlowResultType.FORM
     assert result["errors"] == {"base": "auth_error"}
 
 
@@ -135,7 +135,7 @@ async def test_reauth_updates_password_and_country(hass, mock_kamereon_session):
         context={"source": SOURCE_REAUTH, "entry_id": entry.entry_id},
         data=entry.data,
     )
-    assert result["type"] == data_entry_flow.RESULT_TYPE_FORM
+    assert result["type"] == data_entry_flow.FlowResultType.FORM
     assert result["step_id"] == "reauth_confirm"
 
     with mock.patch.object(
@@ -149,7 +149,7 @@ async def test_reauth_updates_password_and_country(hass, mock_kamereon_session):
         )
         await hass.async_block_till_done()
 
-    assert result["type"] == data_entry_flow.RESULT_TYPE_ABORT
+    assert result["type"] == data_entry_flow.FlowResultType.ABORT
     assert result["reason"] == "reauth_successful"
     assert entry.data["password"] == "new-password"
     assert entry.data["country_code"] == "FR"
@@ -189,7 +189,7 @@ async def test_options_rejects_country_change_with_invalid_auth(
         },
     )
 
-    assert result["type"] == data_entry_flow.RESULT_TYPE_FORM
+    assert result["type"] == data_entry_flow.FlowResultType.FORM
     assert result["errors"] == {"base": "auth_error"}
     assert entry.data == original_data
     mock_kamereon_session.return_value.login.assert_called_once_with(
