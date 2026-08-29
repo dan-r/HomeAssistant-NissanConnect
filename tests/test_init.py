@@ -1,7 +1,14 @@
 from datetime import timedelta
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from custom_components.nissan_connect import async_migrate_entry, async_update_listener
+import pytest
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
+
+from custom_components.nissan_connect import (
+    async_migrate_entry,
+    async_setup_entry,
+    async_update_listener,
+)
 from custom_components.nissan_connect.const import (
     CONFIG_VERSION,
     DATA_COORDINATOR_FETCH,
@@ -9,7 +16,53 @@ from custom_components.nissan_connect.const import (
     DATA_VEHICLES,
     DOMAIN,
 )
+from custom_components.nissan_connect.kamereon import NissanAuthError
 from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+
+async def test_setup_entry_raises_auth_failed_for_invalid_credentials(hass):
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="test@example.com",
+        data={
+            "email": "test@example.com",
+            "password": "wrong-password",
+            "country_code": "DE",
+            "region": "EU",
+        },
+    )
+    entry.add_to_hass(hass)
+    login_error = NissanAuthError("Invalid credentials")
+
+    with patch("custom_components.nissan_connect.NCISession") as mock_session:
+        mock_session.return_value.login.side_effect = login_error
+        with pytest.raises(ConfigEntryAuthFailed) as error_info:
+            await async_setup_entry(hass, entry)
+
+    assert error_info.value.__cause__ is login_error
+
+
+async def test_setup_entry_retries_transient_login_failure(hass, caplog):
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="test@example.com",
+        data={
+            "email": "test@example.com",
+            "password": "test-password",
+            "country_code": "DE",
+            "region": "EU",
+        },
+    )
+    entry.add_to_hass(hass)
+    login_error = RuntimeError("Unable to contact Nissan login")
+
+    with patch("custom_components.nissan_connect.NCISession") as mock_session:
+        mock_session.return_value.login.side_effect = login_error
+        with pytest.raises(ConfigEntryNotReady) as error_info:
+            await async_setup_entry(hass, entry)
+
+    assert error_info.value.__cause__ is login_error
+    assert "Login failed, will retry: Unable to contact Nissan login" in caplog.text
 
 
 async def test_update_listener_logs_in_shared_session_once():

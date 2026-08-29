@@ -4,8 +4,9 @@ from urllib.parse import parse_qs, urlparse
 from unittest.mock import patch
 
 import pytest
+import requests
 
-from custom_components.nissan_connect.kamereon import NCISession
+from custom_components.nissan_connect.kamereon import NCISession, NissanAuthError
 
 
 AUTH_BASE_URL = "https://login.mynissan-account.com/"
@@ -142,8 +143,49 @@ def test_login_rejects_invalid_credentials(requests_mock):
     with patch(
         "custom_components.nissan_connect.kamereon.kamereon.secrets.token_urlsafe",
         side_effect=["v" * 64, "test-state"],
-    ), pytest.raises(RuntimeError, match="Invalid credentials"):
+    ), pytest.raises(NissanAuthError, match="Invalid credentials"):
         session.login("test@example.com", "wrong-password")
+
+
+def test_login_rejects_callback_without_code(requests_mock):
+    requests_mock.get(
+        f"{AUTH_BASE_URL}oauth2/authorize",
+        status_code=302,
+        headers={
+            "Location": f"{AUTH_BASE_URL}authenticationendpoint/login.do"
+        },
+    )
+    requests_mock.get(
+        f"{AUTH_BASE_URL}authenticationendpoint/login.do",
+        text=login_form(),
+    )
+    requests_mock.post(
+        f"{AUTH_BASE_URL}commonauth",
+        status_code=302,
+        headers={"Location": f"{REDIRECT_URI}?error=access_denied&state=test-state"},
+    )
+
+    session = NCISession(region="EU", country_code="DE")
+    with patch(
+        "custom_components.nissan_connect.kamereon.kamereon.secrets.token_urlsafe",
+        side_effect=["v" * 64, "test-state"],
+    ), pytest.raises(NissanAuthError, match="Invalid credentials"):
+        session.login("test@example.com", "wrong-password")
+
+
+def test_login_transport_error_is_not_auth_error(requests_mock):
+    requests_mock.get(
+        f"{AUTH_BASE_URL}oauth2/authorize",
+        exc=requests.ConnectionError,
+    )
+    session = NCISession(region="EU", country_code="DE")
+
+    with pytest.raises(
+        RuntimeError, match="Unable to contact Nissan login"
+    ) as error_info:
+        session.login("test@example.com", "test-password")
+
+    assert not isinstance(error_info.value, NissanAuthError)
 
 
 def test_login_rejects_external_form_target(requests_mock):

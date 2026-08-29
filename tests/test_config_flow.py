@@ -7,6 +7,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from homeassistant.config_entries import SOURCE_REAUTH
 from homeassistant import data_entry_flow
 from custom_components.nissan_connect.const import DOMAIN, DEFAULT_REGION
+from custom_components.nissan_connect.kamereon import NissanAuthError
 
 @pytest.fixture
 def mock_kamereon_session():
@@ -93,7 +94,9 @@ async def test_step_user_submit(hass, mock_kamereon_session):
 
 async def test_step_user_invalid_auth(hass, mock_kamereon_session):
     """Test the user step with invalid credentials."""
-    mock_kamereon_session.return_value.login.side_effect = Exception("Invalid credentials")
+    mock_kamereon_session.return_value.login.side_effect = NissanAuthError(
+        "Invalid credentials"
+    )
 
     result = await hass.config_entries.flow.async_init(
         config_flow.DOMAIN, context={"source": "user"}
@@ -154,7 +157,7 @@ async def test_reauth_updates_password_and_country(hass, mock_kamereon_session):
 
 async def test_options_rejects_country_change_with_invalid_auth(
         hass, mock_kamereon_session):
-    mock_kamereon_session.return_value.login.side_effect = Exception(
+    mock_kamereon_session.return_value.login.side_effect = NissanAuthError(
         "Invalid credentials"
     )
     original_data = {

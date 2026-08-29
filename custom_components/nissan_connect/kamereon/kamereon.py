@@ -117,6 +117,10 @@ class Notification:
         return resp
 
 
+class NissanAuthError(RuntimeError):
+    """Raised when Nissan rejects the credentials themselves."""
+
+
 class KamereonSession:
 
     tenant = None
@@ -236,7 +240,7 @@ class KamereonSession:
             raise RuntimeError("Invalid Nissan login state")
         code = callback_data.get('code', [None])[0]
         if not code:
-            raise RuntimeError("Invalid credentials")
+            raise NissanAuthError("Invalid credentials")
         return code, verifier
 
     def _follow_login_redirects(self, response):
@@ -285,7 +289,7 @@ class KamereonSession:
                 parser = _LoginFormParser()
                 parser.feed(response.text)
                 if parser.login_form is not None:
-                    raise RuntimeError("Invalid credentials")
+                    raise NissanAuthError("Invalid credentials")
             break
 
         raise RuntimeError("Nissan login did not return an authorization code")

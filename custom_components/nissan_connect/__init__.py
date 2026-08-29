@@ -1,7 +1,7 @@
 import logging
 from datetime import timedelta
-from homeassistant.exceptions import ConfigEntryAuthFailed
-from .kamereon import NCISession
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
+from .kamereon import NCISession, NissanAuthError
 from .coordinator import KamereonFetchCoordinator, KamereonPollCoordinator, StatisticsCoordinator
 from .const import *
 
@@ -63,8 +63,11 @@ async def async_setup_entry(hass, entry):
                                           config.get("email"),
                                           config.get("password")
                                           )
-    except Exception as error:
+    except NissanAuthError as error:
         raise ConfigEntryAuthFailed("Nissan authentication failed") from error
+    except Exception as error:
+        _LOGGER.warning("Login failed, will retry: %s", error)
+        raise ConfigEntryNotReady("Could not reach the Nissan API") from error
 
     _LOGGER.debug("Finding vehicles")
     for vehicle in await hass.async_add_executor_job(kamereon_session.fetch_vehicles):
