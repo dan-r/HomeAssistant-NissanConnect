@@ -7,6 +7,7 @@
         "data": {
           "email": "Endereço de Email",
           "password": "Palavra-passe",
+          "country_code": "País da conta Nissan",
           "interval": "Intervalo de consulta (minutos)",
           "interval_charging": "Intervalo de consulta durante o carregamento (minutos)",
           "interval_statistics": "Intervalo de atualização para estatísticas diárias/mensais (minutos)",
@@ -17,6 +18,13 @@
         "data_description": {
           "interval_charging": "O carro será acordado e novos dados serão solicitados em cada intervalo de consulta.",
           "interval_statistics": "Nos intervalos de atualização, os dados mais recentes serão obtidos da Nissan, mas o carro não será acordado."
+        }
+      },
+      "reauth_confirm": {
+        "description": "Autentique novamente a sua conta Nissan.",
+        "data": {
+          "password": "Palavra-passe",
+          "country_code": "País da conta Nissan"
         }
       }
     },
@@ -33,6 +41,7 @@
         "data": {
           "email": "Endereço de Email",
           "password": "Palavra-passe",
+          "country_code": "País da conta Nissan",
           "interval": "Intervalo de consulta (minutos)",
           "interval_charging": "Intervalo de consulta durante o carregamento (minutos)",
           "interval_statistics": "Intervalo de atualização para estatísticas diárias/mensais (minutos)",

@@ -7,6 +7,7 @@
           "data": {
             "email": "E-Mail-Adresse",
             "password": "Passwort",
+            "country_code": "Land des Nissan-Kontos",
             "interval": "Polling-Intervall (Minuten)",
             "interval_charging": "Polling-Intervall während des Ladevorgangs (Minuten)",
             "interval_statistics": "Update-Intervall für Statistiken (Minuten)",
@@ -17,6 +18,13 @@
           "data_description": {
             "interval_charging": "Polling-Intervall: Es werden Daten direkt vom Fahrzeug angefordert (beeinflusst Batterieverbrauch).",
             "interval_statistics": "Update-Intervall: Es werden Daten aus der Cloud angefordert, ohne das Fahrzeug zu wecken."
+          }
+        },
+        "reauth_confirm": {
+          "description": "Nissan-Konto erneut authentifizieren.",
+          "data": {
+            "password": "Passwort",
+            "country_code": "Land des Nissan-Kontos"
           }
         }
       },
@@ -33,6 +41,7 @@
           "data": {
             "email": "E-Mail-Adresse",
             "password": "Passwort",
+            "country_code": "Land des Nissan-Kontos",
             "interval": "Polling-Intervall (Minuten)",
             "interval_charging": "Polling-Intervall während des Ladevorgangs (Minuten)",
             "interval_statistics": "Update-Intervall für Statistiken (Minuten)",

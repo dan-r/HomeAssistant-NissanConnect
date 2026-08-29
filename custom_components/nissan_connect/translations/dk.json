@@ -7,6 +7,7 @@
           "data": {
             "email": "Email adresse",
             "password": "Adgangskode",
+            "country_code": "Land for Nissan-kontoen",
             "interval": "Opdateringsfrekvens (minutter)",
             "interval_charging": "Opdateringsfrekvens under ladning(minutter)",
             "interval_statistics": "Opdateringsfrekvens for daglige/månedlige statistikker (minutter)",
@@ -17,6 +18,13 @@
           "data_description": {
             "interval_charging": "Bilen vil blive vækket, og der anmodes om nye data j.f. opdateringsintervallet.",
             "interval_statistics": "De seneste data vil blive hentet fra Nissan j.f. opdateringsintervallet, men bilen bliver ikke vækket."
+          }
+        },
+        "reauth_confirm": {
+          "description": "Godkend din Nissan-konto igen.",
+          "data": {
+            "password": "Adgangskode",
+            "country_code": "Land for Nissan-kontoen"
           }
         }
       },
@@ -33,6 +41,7 @@
           "data": {
             "email": "Email adresse",
             "password": "Adgangskode",
+            "country_code": "Land for Nissan-kontoen",
             "interval": "Opdateringsfrekvens (minutter)",
             "interval_charging": "Opdateringsfrekvens under ladning (minutter)",
             "interval_statistics": "Opdateringsfrekvens for daglige/månedlige statistikker (minutter)",

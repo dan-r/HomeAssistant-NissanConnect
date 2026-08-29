@@ -1,6 +1,7 @@
 import logging
 from datetime import timedelta
-from .kamereon import NCISession
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
+from .kamereon import NCISession, NissanAuthError
 from .coordinator import KamereonFetchCoordinator, KamereonPollCoordinator, StatisticsCoordinator
 from .const import *
 
@@ -16,12 +17,17 @@ async def async_update_listener(hass, entry):
     config = entry.data
     account_id = config['email']
 
-    # Loop each vehicle and update its session with the new credentials
-    for vehicle in hass.data[DOMAIN][account_id][DATA_VEHICLES]:
-        await hass.async_add_executor_job(hass.data[DOMAIN][account_id][DATA_VEHICLES][vehicle].session.login,
-                                            config.get("email"),
-                                            config.get("password")
-                                            )
+    sessions = {
+        vehicle.session
+        for vehicle in hass.data[DOMAIN][account_id][DATA_VEHICLES].values()
+    }
+    for session in sessions:
+        await hass.async_add_executor_job(
+            session.login,
+            config.get("email"),
+            config.get("password"),
+            config.get("country_code") or hass.config.country,
+        )
 
     # Update intervals for coordinators
     hass.data[DOMAIN][account_id][DATA_COORDINATOR_STATISTICS].update_interval = timedelta(minutes=config.get("interval_statistics", DEFAULT_INTERVAL_STATISTICS))
@@ -42,7 +48,9 @@ async def async_setup_entry(hass, entry):
 
     kamereon_session = NCISession(
         region=config["region"],
-        unique_id=entry.unique_id
+        unique_id=entry.unique_id,
+        country_code=config.get("country_code") or hass.config.country,
+        language_code=hass.config.language or "en",
     )
 
     data = hass.data[DOMAIN][account_id] = {
@@ -50,10 +58,16 @@ async def async_setup_entry(hass, entry):
     }
 
     _LOGGER.info("Logging in to service")
-    await hass.async_add_executor_job(kamereon_session.login,
-                                      config.get("email"),
-                                      config.get("password")
-                                      )
+    try:
+        await hass.async_add_executor_job(kamereon_session.login,
+                                          config.get("email"),
+                                          config.get("password")
+                                          )
+    except NissanAuthError as error:
+        raise ConfigEntryAuthFailed("Nissan authentication failed") from error
+    except Exception as error:
+        _LOGGER.warning("Login failed, will retry: %s", error)
+        raise ConfigEntryNotReady("Could not reach the Nissan API") from error
 
     _LOGGER.debug("Finding vehicles")
     for vehicle in await hass.async_add_executor_job(kamereon_session.fetch_vehicles):
@@ -103,10 +117,17 @@ async def async_migrate_entry(hass, config_entry) -> bool:
     # Version number has gone up
     if config_entry.version < CONFIG_VERSION:
         _LOGGER.debug("Migrating from version %s", config_entry.version)
-        new_data = config_entry.data
+        new_data = dict(config_entry.data)
+        if (config_entry.version < 2
+            and "country_code" not in new_data
+            and hass.config.country):
+            new_data["country_code"] = hass.config.country
 
-        config_entry.version = CONFIG_VERSION
-        hass.config_entries.async_update_entry(config_entry, data=new_data)
+        hass.config_entries.async_update_entry(
+            config_entry,
+            data=new_data,
+            version=CONFIG_VERSION,
+        )
 
         _LOGGER.debug("Migration to version %s successful",
                       config_entry.version)

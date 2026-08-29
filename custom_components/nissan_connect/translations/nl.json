@@ -7,6 +7,7 @@
                 "data": {
                     "email": "Emailadres",
                     "password": "Wachtwoord",
+                    "country_code": "Land van het Nissan-account",
                     "interval": "Polling interval (Minuten)",
                     "interval_charging": "Polling interval tijdens laden (Minuten)",
                     "interval_statistics": "Update-interval voor dagelijkse/maandelijkse statistieken (Minuten)",
@@ -17,6 +18,13 @@
                 "data_description": {
                     "interval_charging": "Bij elke polling-interval wordt de auto gewekt en worden de nieuwste gegevens opgevraagd.",
                     "interval_statistics": "Bij elk update-interval worden de nieuwste gegevens opgehaald bij Nissan, zonder de auto te wekken."
+                }
+            },
+            "reauth_confirm": {
+                "description": "Verifieer uw Nissan-account opnieuw.",
+                "data": {
+                    "password": "Wachtwoord",
+                    "country_code": "Land van het Nissan-account"
                 }
             }
         },
@@ -33,6 +41,7 @@
                 "data": {
                     "email": "Emailadres",
                     "password": "Wachtwoord",
+                    "country_code": "Land van het Nissan-account",
                     "interval": "Polling interval (Minuten)",
                     "interval_charging": "Polling interval tijdens laden (Minuten))",
                     "interval_statistics": "Update-interval voor dagelijkse/maandelijkse statistieken (Minuten)",
