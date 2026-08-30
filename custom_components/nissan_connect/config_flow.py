@@ -1,14 +1,13 @@
 import voluptuous as vol
 from homeassistant.config_entries import (ConfigFlow, OptionsFlow)
 from .const import DOMAIN, CONFIG_VERSION, DEFAULT_INTERVAL_POLL, DEFAULT_INTERVAL_CHARGING, DEFAULT_INTERVAL_STATISTICS, DEFAULT_INTERVAL_FETCH, DEFAULT_REGION, REGIONS
-from .kamereon import NCISession
+from .kamereon import NCISession, NissanAuthError
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers import selector
 
 USER_SCHEMA = vol.Schema({
     vol.Required("email"): cv.string,
     vol.Required("password"): cv.string,
-    vol.Required("country_code"): selector.CountrySelector(),
     # vol.Required(
     #     "interval", default=DEFAULT_INTERVAL_POLL
     # ): int,
@@ -51,9 +50,7 @@ class NissanConfigFlow(ConfigFlow, domain=DOMAIN):
 
             # Validate credentials
             kamereon_session = NCISession(
-                region=info["region"],
-                country_code=info["country_code"],
-                language_code=self.hass.config.language or "en",
+                region=info["region"]
             )
 
             try:
@@ -82,14 +79,12 @@ class NissanConfigFlow(ConfigFlow, domain=DOMAIN):
         return await self.async_step_reauth_confirm()
 
     async def async_step_reauth_confirm(self, info=None):
-        """Validate updated OneID credentials and account country."""
+        """Validate updated OneID credentials."""
         errors = {}
         if info is not None:
             data = dict(self._reauth_entry.data)
             kamereon_session = NCISession(
-                region=data["region"],
-                country_code=info["country_code"],
-                language_code=self.hass.config.language or "en",
+                region=data["region"]
             )
             try:
                 await self.hass.async_add_executor_job(
@@ -97,8 +92,10 @@ class NissanConfigFlow(ConfigFlow, domain=DOMAIN):
                     data["email"],
                     info["password"],
                 )
-            except Exception:
+            except NissanAuthError:
                 errors["base"] = "auth_error"
+            except Exception:
+                errors["base"] = "cannot_connect"
             else:
                 data.update(info)
                 return self.async_update_reload_and_abort(
@@ -106,20 +103,10 @@ class NissanConfigFlow(ConfigFlow, domain=DOMAIN):
                     data=data,
                 )
 
-        country_code = (
-            self._reauth_entry.data.get("country_code")
-            or self.hass.config.country
-        )
-        country_field = vol.Required("country_code")
-        if country_code:
-            country_field = vol.Required(
-                "country_code", default=country_code
-            )
         return self.async_show_form(
             step_id="reauth_confirm",
             data_schema=vol.Schema({
                 vol.Required("password"): cv.string,
-                country_field: selector.CountrySelector(),
             }),
             errors=errors,
         )
@@ -139,28 +126,15 @@ class NissanOptionsFlow(OptionsFlow):
         # If form filled
         if options is not None:
             data = dict(self._config_entry.data)
-            previous_country_code = (
-                data.get("country_code") or self.hass.config.country
+            # Validate credentials
+            kamereon_session = NCISession(
+                region=data["region"]
             )
-            country_code = options.get(
-                "country_code",
-                previous_country_code,
-            )
-            credentials_changed = (
-                "password" in options
-                or country_code != previous_country_code
-            )
-            if credentials_changed:
-                kamereon_session = NCISession(
-                    region=data["region"],
-                    country_code=country_code,
-                    language_code=self.hass.config.language or "en",
-                )
-                password = options.get("password", data.get("password"))
+            if "password" in options:
                 try:
                     await self.hass.async_add_executor_job(kamereon_session.login,
                                                            self._config_entry.data.get("email"),
-                                                           password
+                                                           options["password"]
                                                            )
                 except:
                     errors["base"] = "auth_error"
@@ -188,10 +162,6 @@ class NissanOptionsFlow(OptionsFlow):
             step_id="init", data_schema=vol.Schema({
                 # vol.Required("email", default=self._config_entry.data.get("email", "")): cv.string,
                 vol.Optional("password"): cv.string,
-                vol.Required(
-                    "country_code",
-                    default=self._config_entry.data.get("country_code") or self.hass.config.country
-                ): selector.CountrySelector(),
                 vol.Required(
                     "interval", default=self._config_entry.data.get("interval", DEFAULT_INTERVAL_POLL)
                 ): int,

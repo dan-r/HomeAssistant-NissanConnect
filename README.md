@@ -40,7 +40,6 @@ This is the recommended installation method.
 
 ## Setup
 From the Home Assistant Integrations page, search for and add the Nissan Connect integration.
-Select the country where your Nissan account is registered when prompted; the MyNISSAN login uses it to route authentication.
 
 ## Update Time
 Terminology used for this integration:

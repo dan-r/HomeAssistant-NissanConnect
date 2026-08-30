@@ -7,7 +7,6 @@
                 "data": {
                     "email": "Indirizzo email",
                     "password": "Password",
-                    "country_code": "Paese dell'account Nissan",
                     "interval": "Intervallo di polling (minuti)",
                     "interval_charging": "Intervallo di polling durante la ricarica (minuti)",
                     "interval_statistics": "Intervallo di aggiornamento per le statistiche giornaliere/mensili (minuti)",
@@ -23,16 +22,18 @@
             "reauth_confirm": {
                 "description": "Autentica nuovamente il tuo account Nissan.",
                 "data": {
-                    "password": "Password",
-                    "country_code": "Paese dell'account Nissan"
+                    "password": "Password"
                 }
             }
         },
         "error": {
             "auth_error": "Credenziali fornite non valide.",
+            "cannot_connect": "Impossibile connettersi a Nissan.",
             "region_error": "Regione fornita non valida. Fornisci una regione valida."
         },
-        "abort": {}
+        "abort": {
+        "reauth_successful": "Riautenticazione riuscita"
+      }
     },
     "options": {
         "step": {
@@ -41,7 +42,6 @@
                 "data": {
                     "email": "Indirizzo email",
                     "password": "Password",
-                    "country_code": "Paese dell'account Nissan",
                     "interval": "Intervallo di polling (minuti)",
                     "interval_charging": "Intervallo di polling durante la ricarica (minuti)",
                     "interval_statistics": "Intervallo di aggiornamento per le statistiche giornaliere/mensili (minuti)",

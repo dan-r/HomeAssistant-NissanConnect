@@ -7,7 +7,6 @@
           "data": {
             "email": "E-postadresse",
             "password": "Passord",
-            "country_code": "Land for Nissan-kontoen",
             "interval": "Oppdateringsfrekvens i HA (i minutter)",
             "interval_charging": "Oppdateringsfrekvens under lading for henting av data (i minutter)",
             "interval_statistics": "Oppdateringsfrekvens for daglig / månedlig statistikk (i minutter)",
@@ -23,16 +22,18 @@
         "reauth_confirm": {
           "description": "Autentiser Nissan-kontoen på nytt.",
           "data": {
-            "password": "Passord",
-            "country_code": "Land for Nissan-kontoen"
+            "password": "Passord"
           }
         }
       },
       "error": {
         "auth_error": "Ugyldig innloggingsinformasjon",
+        "cannot_connect": "Kunne ikke koble til Nissan.",
         "region_error": "Ugyldig region angitt"
       },
-      "abort": {}
+      "abort": {
+        "reauth_successful": "Reautentisering var vellykket"
+      }
     },
     "options": {
       "step": {
@@ -41,7 +42,6 @@
           "data": {
             "email": "E-postadresse",
             "password": "Passord",
-            "country_code": "Land for Nissan-kontoen",
             "interval": "Oppdateringsfrekvens i HA (i minutter)",
             "interval_charging": "Oppdateringsfrekvens under lading for henting av data (i minutter)",
             "interval_statistics": "Oppdateringsfrekvens for daglig / månedlig statistikk (i minutter)",

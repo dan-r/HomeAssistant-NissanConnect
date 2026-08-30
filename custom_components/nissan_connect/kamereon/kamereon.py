@@ -127,14 +127,12 @@ class KamereonSession:
     copy_realm = None
     unique_id = None
 
-    def __init__(self, region, unique_id=None, country_code=None, language_code='en'):
+    def __init__(self, region, unique_id=None):
         self.settings = SETTINGS_MAP[self.tenant][region]
         self.session = requests.session()
         self._oauth = None
         self._user_id = None
         self._kamereon_refresh_token = None
-        self._country_code = country_code.upper() if country_code else None
-        self._language_code = language_code.replace('_', '-').split('-')[0].lower()
         self.unique_id = unique_id
 
     @staticmethod
@@ -172,7 +170,6 @@ class KamereonSession:
     def _authorization_code(self, username, password):
         verifier, challenge = self._generate_pkce_pair()
         state = secrets.token_urlsafe(32)
-        locale = f"{self._language_code}_{self._country_code}"
         try:
             response = self.session.get(
                 urljoin(self.settings['auth_base_url'], 'oauth2/authorize'),
@@ -184,7 +181,7 @@ class KamereonSession:
                     'scope': self.settings['scope'],
                     'code_challenge': challenge,
                     'code_challenge_method': 'S256',
-                    'locale': locale,
+                    'locale': self.settings['auth_locale'],
                     'brand': self.settings['auth_brand'],
                     'client': self.settings['auth_client'],
                 },
@@ -361,18 +358,14 @@ class KamereonSession:
     def _refresh_authentication(self):
         try:
             self._refresh_kamereon_token()
-        except Exception:
+        except Exception as error:
+            _LOGGER.debug("Kamereon token refresh failed, logging in again: %s", error)
             self.login()
 
-    def login(self, username=None, password=None, country_code=None):
+    def login(self, username=None, password=None):
         if username is not None and password is not None:
             self._username = username
             self._password = password
-        if country_code is not None:
-            self._country_code = country_code.upper()
-        if (not self._country_code or len(self._country_code) != 2
-                or not self._country_code.isalpha()):
-            raise RuntimeError("A two-letter Nissan account country code is required")
 
         try:
             username = self._username
@@ -535,6 +528,8 @@ class Vehicle:
             try:
                 return self.session.request(
                     method, url, headers=headers, params=params, data=data)
+            except NissanAuthError:
+                raise
             except Exception as e:
                 _LOGGER.debug(f"Request failed on attempt {attempt + 1} of {max_retries}: {e}")
                 if attempt == max_retries - 1:  # Exhausted retries

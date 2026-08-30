@@ -27,7 +27,6 @@ async def test_setup_entry_raises_auth_failed_for_invalid_credentials(hass):
         data={
             "email": "test@example.com",
             "password": "wrong-password",
-            "country_code": "DE",
             "region": "EU",
         },
     )
@@ -49,7 +48,6 @@ async def test_setup_entry_retries_transient_login_failure(hass, caplog):
         data={
             "email": "test@example.com",
             "password": "test-password",
-            "country_code": "DE",
             "region": "EU",
         },
     )
@@ -71,7 +69,6 @@ async def test_update_listener_logs_in_shared_session_once():
     fetch_coordinator.async_refresh = AsyncMock()
     statistics_coordinator = MagicMock()
     hass = MagicMock()
-    hass.config.country = "DE"
     hass.async_add_executor_job = AsyncMock()
     hass.data = {
         DOMAIN: {
@@ -98,27 +95,37 @@ async def test_update_listener_logs_in_shared_session_once():
         session.login,
         "test@example.com",
         "test-password",
-        "DE",
     )
     assert fetch_coordinator.update_interval == timedelta(minutes=10)
     assert statistics_coordinator.update_interval == timedelta(minutes=60)
     fetch_coordinator.async_refresh.assert_awaited_once_with()
 
 
-async def test_migrate_entry_adds_home_assistant_country(hass):
-    hass.config.country = "DE"
+async def test_migrate_entry_is_a_noop_at_the_current_version(hass):
+    data = {
+        "email": "test@example.com",
+        "password": "test-password",
+        "region": "EU",
+    }
     entry = MockConfigEntry(
         domain=DOMAIN,
-        version=1,
-        data={
-            "email": "test@example.com",
-            "password": "test-password",
-            "region": "EU",
-        },
+        version=CONFIG_VERSION,
+        data=data,
     )
     entry.add_to_hass(hass)
 
     assert await async_migrate_entry(hass, entry) is True
 
     assert entry.version == CONFIG_VERSION
-    assert entry.data["country_code"] == "DE"
+    assert entry.data == data
+
+
+async def test_migrate_entry_refuses_backwards_migration(hass):
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=CONFIG_VERSION + 1,
+        data={"email": "test@example.com", "region": "EU"},
+    )
+    entry.add_to_hass(hass)
+
+    assert await async_migrate_entry(hass, entry) is False

@@ -67,7 +67,6 @@ async def test_step_user_submit(hass, mock_kamereon_session):
         {
             "email": "test@example.com",
             "password": "password123",
-            "country_code": "DE",
             "region": DEFAULT_REGION.lower(),
             "imperial_distance": False
         }
@@ -78,15 +77,10 @@ async def test_step_user_submit(hass, mock_kamereon_session):
     assert result["data"] == {
         "email": "test@example.com",
         "password": "password123",
-        "country_code": "DE",
         "region": DEFAULT_REGION,
         "imperial_distance": False
     }
-    mock_kamereon_session.assert_called_once_with(
-        region=DEFAULT_REGION,
-        country_code="DE",
-        language_code=hass.config.language or "en",
-    )
+    mock_kamereon_session.assert_called_once_with(region=DEFAULT_REGION)
     mock_kamereon_session.return_value.login.assert_called_once_with(
         "test@example.com",
         "password123",
@@ -107,7 +101,6 @@ async def test_step_user_invalid_auth(hass, mock_kamereon_session):
         {
             "email": "test@example.com",
             "password": "wrongpassword",
-            "country_code": "DE",
             "region": DEFAULT_REGION.lower(),
             "imperial_distance": False
         }
@@ -117,14 +110,13 @@ async def test_step_user_invalid_auth(hass, mock_kamereon_session):
     assert result["errors"] == {"base": "auth_error"}
 
 
-async def test_reauth_updates_password_and_country(hass, mock_kamereon_session):
+async def test_reauth_updates_password(hass, mock_kamereon_session):
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id="test@example.com",
         data={
             "email": "test@example.com",
             "password": "old-password",
-            "country_code": "DE",
             "region": DEFAULT_REGION,
             "imperial_distance": False,
         },
@@ -145,54 +137,45 @@ async def test_reauth_updates_password_and_country(hass, mock_kamereon_session):
     ):
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"],
-            {"password": "new-password", "country_code": "FR"},
+            {"password": "new-password"},
         )
         await hass.async_block_till_done()
 
     assert result["type"] == data_entry_flow.FlowResultType.ABORT
     assert result["reason"] == "reauth_successful"
     assert entry.data["password"] == "new-password"
-    assert entry.data["country_code"] == "FR"
-
-
-async def test_options_rejects_country_change_with_invalid_auth(
-        hass, mock_kamereon_session):
-    mock_kamereon_session.return_value.login.side_effect = NissanAuthError(
-        "Invalid credentials"
+    mock_kamereon_session.return_value.login.assert_called_once_with(
+        "test@example.com",
+        "new-password",
     )
-    original_data = {
-        "email": "test@example.com",
-        "password": "stored-password",
-        "country_code": "DE",
-        "region": DEFAULT_REGION,
-        "interval": 0,
-        "interval_charging": 15,
-        "interval_fetch": 10,
-        "interval_statistics": 60,
-    }
+
+
+async def test_reauth_reports_connection_error_separately(
+        hass, mock_kamereon_session):
+    """A network blip must not tell the user their password is wrong."""
+    mock_kamereon_session.return_value.login.side_effect = RuntimeError(
+        "Unable to contact Nissan login"
+    )
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id="test@example.com",
-        data=original_data,
+        data={
+            "email": "test@example.com",
+            "password": "old-password",
+            "region": DEFAULT_REGION,
+        },
     )
     entry.add_to_hass(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
-
-    result = await hass.config_entries.options.async_configure(
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": SOURCE_REAUTH, "entry_id": entry.entry_id},
+        data=entry.data,
+    )
+    result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
-        {
-            "country_code": "FR",
-            "interval": 0,
-            "interval_charging": 15,
-            "interval_fetch": 10,
-            "interval_statistics": 60,
-        },
+        {"password": "new-password"},
     )
 
     assert result["type"] == data_entry_flow.FlowResultType.FORM
-    assert result["errors"] == {"base": "auth_error"}
-    assert entry.data == original_data
-    mock_kamereon_session.return_value.login.assert_called_once_with(
-        "test@example.com",
-        "stored-password",
-    )
+    assert result["errors"] == {"base": "cannot_connect"}
+    assert entry.data["password"] == "old-password"

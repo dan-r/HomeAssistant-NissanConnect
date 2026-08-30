@@ -7,7 +7,6 @@
                 "data": {
                     "email": "Emailadres",
                     "password": "Wachtwoord",
-                    "country_code": "Land van het Nissan-account",
                     "interval": "Polling interval (Minuten)",
                     "interval_charging": "Polling interval tijdens laden (Minuten)",
                     "interval_statistics": "Update-interval voor dagelijkse/maandelijkse statistieken (Minuten)",
@@ -23,16 +22,18 @@
             "reauth_confirm": {
                 "description": "Verifieer uw Nissan-account opnieuw.",
                 "data": {
-                    "password": "Wachtwoord",
-                    "country_code": "Land van het Nissan-account"
+                    "password": "Wachtwoord"
                 }
             }
         },
         "error": {
             "auth_error": "Ongeldige inloggegevens opgegeven.",
+            "cannot_connect": "Kan geen verbinding maken met Nissan.",
             "region_error": "Ongeldige regio opgegeven. Geef een geldige regio op."
         },
-        "abort": {}
+        "abort": {
+        "reauth_successful": "Herauthenticatie geslaagd"
+      }
     },
     "options": {
         "step": {
@@ -41,7 +42,6 @@
                 "data": {
                     "email": "Emailadres",
                     "password": "Wachtwoord",
-                    "country_code": "Land van het Nissan-account",
                     "interval": "Polling interval (Minuten)",
                     "interval_charging": "Polling interval tijdens laden (Minuten))",
                     "interval_statistics": "Update-interval voor dagelijkse/maandelijkse statistieken (Minuten)",

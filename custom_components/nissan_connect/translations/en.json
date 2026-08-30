@@ -7,7 +7,6 @@
           "data": {
             "email": "Email address",
             "password": "Password",
-            "country_code": "Nissan account country",
             "interval": "Polling interval (minutes)",
             "interval_charging": "Polling interval while charging (minutes)",
             "interval_statistics": "Update interval for daily/monthly statistics (minutes)",
@@ -23,16 +22,18 @@
         "reauth_confirm": {
           "description": "Reauthenticate your Nissan account.",
           "data": {
-            "password": "Password",
-            "country_code": "Nissan account country"
+            "password": "Password"
           }
         }
       },
       "error": {
         "auth_error": "Invalid credentials provided.",
+        "cannot_connect": "Failed to connect to Nissan.",
         "region_error": "Invalid region provided. Please provide a valid region."
       },
-      "abort": {}
+      "abort": {
+        "reauth_successful": "Re-authentication was successful"
+      }
     },
     "options": {
       "step": {
@@ -41,7 +42,6 @@
           "data": {
             "email": "Email address",
             "password": "Password",
-            "country_code": "Nissan account country",
             "interval": "Polling interval (minutes)",
             "interval_charging": "Polling interval while charging (minutes)",
             "interval_statistics": "Update interval for daily/monthly statistics (minutes)",

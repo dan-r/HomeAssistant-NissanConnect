@@ -26,7 +26,6 @@ async def async_update_listener(hass, entry):
             session.login,
             config.get("email"),
             config.get("password"),
-            config.get("country_code") or hass.config.country,
         )
 
     # Update intervals for coordinators
@@ -48,9 +47,7 @@ async def async_setup_entry(hass, entry):
 
     kamereon_session = NCISession(
         region=config["region"],
-        unique_id=entry.unique_id,
-        country_code=config.get("country_code") or hass.config.country,
-        language_code=hass.config.language or "en",
+        unique_id=entry.unique_id
     )
 
     data = hass.data[DOMAIN][account_id] = {
@@ -70,10 +67,16 @@ async def async_setup_entry(hass, entry):
         raise ConfigEntryNotReady("Could not reach the Nissan API") from error
 
     _LOGGER.debug("Finding vehicles")
-    for vehicle in await hass.async_add_executor_job(kamereon_session.fetch_vehicles):
-        await hass.async_add_executor_job(vehicle.fetch_all)
-        if vehicle.vin not in data[DATA_VEHICLES]:
-            data[DATA_VEHICLES][vehicle.vin] = vehicle
+    try:
+        for vehicle in await hass.async_add_executor_job(kamereon_session.fetch_vehicles):
+            await hass.async_add_executor_job(vehicle.fetch_all)
+            if vehicle.vin not in data[DATA_VEHICLES]:
+                data[DATA_VEHICLES][vehicle.vin] = vehicle
+    except NissanAuthError as error:
+        raise ConfigEntryAuthFailed("Nissan authentication failed") from error
+    except Exception as error:
+        _LOGGER.warning("Could not fetch vehicles, will retry: %s", error)
+        raise ConfigEntryNotReady("Could not reach the Nissan API") from error
 
     coordinator = data[DATA_COORDINATOR_FETCH] = KamereonFetchCoordinator(hass, config)
     poll_coordinator = data[DATA_COORDINATOR_POLL] = KamereonPollCoordinator(hass, config)
@@ -118,10 +121,6 @@ async def async_migrate_entry(hass, config_entry) -> bool:
     if config_entry.version < CONFIG_VERSION:
         _LOGGER.debug("Migrating from version %s", config_entry.version)
         new_data = dict(config_entry.data)
-        if (config_entry.version < 2
-            and "country_code" not in new_data
-            and hass.config.country):
-            new_data["country_code"] = hass.config.country
 
         hass.config_entries.async_update_entry(
             config_entry,

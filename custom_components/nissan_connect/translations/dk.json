@@ -7,7 +7,6 @@
           "data": {
             "email": "Email adresse",
             "password": "Adgangskode",
-            "country_code": "Land for Nissan-kontoen",
             "interval": "Opdateringsfrekvens (minutter)",
             "interval_charging": "Opdateringsfrekvens under ladning(minutter)",
             "interval_statistics": "Opdateringsfrekvens for daglige/månedlige statistikker (minutter)",
@@ -23,16 +22,18 @@
         "reauth_confirm": {
           "description": "Godkend din Nissan-konto igen.",
           "data": {
-            "password": "Adgangskode",
-            "country_code": "Land for Nissan-kontoen"
+            "password": "Adgangskode"
           }
         }
       },
       "error": {
         "auth_error": "Ugyldige legitimationsoplysninger er angivet.",
+        "cannot_connect": "Kunne ikke oprette forbindelse til Nissan.",
         "region_error": "Ugyldig region angivet. Angiv venligst en gyldig region."
       },
-      "abort": {}
+      "abort": {
+        "reauth_successful": "Genautentificering lykkedes"
+      }
     },
     "options": {
       "step": {
@@ -41,7 +42,6 @@
           "data": {
             "email": "Email adresse",
             "password": "Adgangskode",
-            "country_code": "Land for Nissan-kontoen",
             "interval": "Opdateringsfrekvens (minutter)",
             "interval_charging": "Opdateringsfrekvens under ladning (minutter)",
             "interval_statistics": "Opdateringsfrekvens for daglige/månedlige statistikker (minutter)",
