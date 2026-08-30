@@ -750,7 +750,7 @@ class Vehicle:
         if soc is not None:
             try:
                 self.battery_level = float(soc)
-                if 0 <= self.battery_level <= 1:
+                if 0 <= self.battery_level < 1:
                     self.battery_level *= 100
             except (TypeError, ValueError):
                 self.battery_level = None
