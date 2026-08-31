@@ -4,6 +4,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 
+from homeassistant.helpers import device_registry as dr, entity_registry as er
+
 from custom_components.nissan_connect import (
     async_migrate_entry,
     async_setup_entry,
@@ -101,7 +103,7 @@ async def test_update_listener_logs_in_shared_session_once():
     fetch_coordinator.async_refresh.assert_awaited_once_with()
 
 
-async def test_migrate_entry_is_a_noop_at_the_current_version(hass):
+async def test_migrate_entry_leaves_current_version_alone(hass):
     data = {
         "email": "test@example.com",
         "password": "test-password",
@@ -129,3 +131,59 @@ async def test_migrate_entry_refuses_backwards_migration(hass):
     entry.add_to_hass(hass)
 
     assert await async_migrate_entry(hass, entry) is False
+
+
+async def test_setup_rewrites_legacy_device_identifiers(hass):
+    """(domain, tenant, vin) becomes (domain, vin), in place.
+
+    Updating rather than recreating the device is what keeps its entities,
+    their entity IDs and the user's rename.
+    """
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="a@b.c",
+        data={"email": "a@b.c", "password": "p", "region": "EU"},
+    )
+    entry.add_to_hass(hass)
+    device_registry = dr.async_get(hass)
+    entity_registry = er.async_get(hass)
+    device = device_registry.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, "nissan", "TEST-VIN")},
+        name="Car",
+    )
+    device_registry.async_update_device(device.id, name_by_user="My Leaf")
+    entity = entity_registry.async_get_or_create(
+        "sensor", DOMAIN, "a@b.c_TEST-VIN_battery_level",
+        config_entry=entry, device_id=device.id,
+        suggested_object_id="my_leaf_battery_level",
+    )
+
+    coordinator = MagicMock()
+    coordinator.async_config_entry_first_refresh = AsyncMock()
+    with (
+        patch("custom_components.nissan_connect.NCISession") as mock_session,
+        patch(
+            "homeassistant.config_entries.ConfigEntries.async_forward_entry_setups"
+        ),
+        patch("custom_components.nissan_connect.KamereonFetchCoordinator",
+              return_value=coordinator),
+        patch("custom_components.nissan_connect.KamereonPollCoordinator",
+              return_value=coordinator),
+        patch("custom_components.nissan_connect.StatisticsCoordinator",
+              return_value=coordinator),
+    ):
+        mock_session.return_value.fetch_vehicles.return_value = [
+            MagicMock(vin="TEST-VIN")
+        ]
+        assert await async_setup_entry(hass, entry) is True
+
+    migrated_device = device_registry.async_get(device.id)
+    assert migrated_device.id == device.id, "updated, not replaced"
+    assert migrated_device.identifiers == {(DOMAIN, "TEST-VIN")}
+    assert migrated_device.name_by_user == "My Leaf"
+
+    migrated_entity = entity_registry.async_get(entity.entity_id)
+    assert migrated_entity is not None
+    assert migrated_entity.device_id == device.id
+    assert migrated_entity.entity_id == "sensor.my_leaf_battery_level"
