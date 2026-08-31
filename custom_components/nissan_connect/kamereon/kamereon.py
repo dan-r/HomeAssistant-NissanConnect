@@ -1039,13 +1039,18 @@ class Vehicle:
         # LockUnlock shares the same generic "VehicleControls" request shape
         # as ChargingStart/HornLights (action/target/srp attributes) -
         # confirmed from the app's IRemoteServer.lockUnlockVehicle() and
-        # VehicleControls model, not a bespoke lock/doorType shape. That
-        # model is serialized by a custom Retrofit Converter
-        # (qb.a in the app) whose RequestBody hardcodes its own contentType
-        # ("application/json; charset=utf-8"); OkHttp's BridgeInterceptor
-        # unconditionally overwrites the Content-Type header from the body's
-        # contentType(), so that's the real value on the wire regardless of
-        # the vnd.api+json declared on the retrofit interface method.
+        # VehicleControls model, not a bespoke lock/doorType shape.
+        #
+        # Content-Type: the decompiled custom Retrofit Converter (qb.a in the
+        # app) builds a RequestBody whose contentType() claims
+        # "application/json; charset=utf-8", which I inferred would win on
+        # the wire via OkHttp's BridgeInterceptor overriding the interface's
+        # declared "vnd.api+json" - that inference was wrong. The server
+        # rejects "application/json; charset=utf-8" outright ("Invalid
+        # Content-Type header value"), and separately already accepted
+        # vnd.api+json (got as far as parsing attributes and rejecting the
+        # old field names, before this fix). vnd.api+json it is - confirmed
+        # by the server's own behaviour, not decompiled code.
         url = '{}v1/cars/{}/actions/lock-unlock'.format(self.session.settings['car_adapter_base_url'], self.vin)
         _LOGGER.debug("POST %s (LockUnlock action=%s)", url, action)
         resp = self._post(
@@ -1060,7 +1065,7 @@ class Vehicle:
                     }
                 }
             }),
-            headers={'Content-Type': 'application/json; charset=utf-8'}
+            headers={'Content-Type': 'application/vnd.api+json'}
         )
         _LOGGER.debug("lock-unlock response: status=%s body=%s", resp.status_code, resp.text)
         body = resp.json()
