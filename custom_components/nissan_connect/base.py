@@ -46,7 +46,7 @@ class KamereonEntity(Entity):
     @property
     def device_info(self):
         return DeviceInfo(
-            identifiers={(DOMAIN, self.vehicle.session.tenant, self.vehicle.vin)},
+            identifiers={(DOMAIN, self.vehicle.vin)},
             name=self.vehicle.nickname or self.vehicle.model_name,
             manufacturer=self.vehicle.session.tenant.capitalize(),
             model=f"{self.vehicle.model_year} {self.vehicle.model_name}",

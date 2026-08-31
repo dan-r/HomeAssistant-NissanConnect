@@ -1,6 +1,7 @@
 import logging
 from datetime import timedelta
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
+from homeassistant.helpers import device_registry as dr
 from .kamereon import NCISession, NissanAuthError
 from .coordinator import KamereonFetchCoordinator, KamereonPollCoordinator, StatisticsCoordinator
 from .const import *
@@ -44,6 +45,18 @@ async def async_setup_entry(hass, entry):
     hass.data[DOMAIN].setdefault(account_id, {})
 
     config = dict(entry.data)
+
+    # Devices were once registered with a (domain, tenant, vin) identifier.
+    # This rewrites them to (domain, vin) in place without affecting the device.
+    device_registry = dr.async_get(hass)
+    for device in dr.async_entries_for_config_entry(device_registry, entry.entry_id):
+        legacy = {i for i in device.identifiers if i[0] == DOMAIN and len(i) == 3}
+        if legacy:
+            device_registry.async_update_device(
+                device.id,
+                new_identifiers={(DOMAIN, i[2]) for i in legacy}
+                | (device.identifiers - legacy),
+            )
 
     kamereon_session = NCISession(
         region=config["region"],
