@@ -1,5 +1,20 @@
 import enum
 
+# SRP-6a group parameters used by the MyNISSAN / MyRenault apps for remote
+# lock/unlock and other SRP-gated commands: the standard RFC 5054 2048-bit
+# group, extracted from libnative-lib.so (com.srp.renault.srploaderapp).
+SRP_N = (
+    'AC6BDB41324A9A9BF166DE5E1389582FAF72B6651987EE07FC3192943DB5605'
+    '0A37329CBB4A099ED8193E0757767A13DD52312AB4B03310DCD7F48A9DA04FD5'
+    '0E8083969EDB767B0CF6095179A163AB3661A05FBD5FAAAE82918A9962F0B93B'
+    '855F97993EC975EEAA80D740ADBF4FF747359D041D5C33EA71D281E446B14773'
+    'BCA97B43A23FB801676BD207A436C6481F1D2B9078717461A5B9D32E688F8774'
+    '8544523B524B0D57D5EA77A2775D2ECFA032CFBDBF52FB3786160279004E57AE'
+    '6AF874E7303CE53299CCC041C7BC308D82A5698F3A8D0C38271AE35F8E9DBFBB'
+    '694B5C803D89F7AE435DE236D525F54759B65E372FCD68EF20FA7111F9E4AFF73'
+)
+SRP_G = 2
+
 SETTINGS_MAP = {
     'nissan': {
         'EU': {
@@ -15,7 +30,11 @@ SETTINGS_MAP = {
             'car_adapter_base_url': 'https://alliance-platform-caradapter-prod.apps.eu2.kamereon.io/car-adapter/',
             'notifications_base_url': 'https://alliance-platform-notifications-prod.apps.eu2.kamereon.io/notifications/',
             'user_adapter_base_url': 'https://alliance-platform-usersadapter-prod.apps.eu2.kamereon.io/user-adapter/',
-            'user_base_url': 'https://nci-bff-web-prod.apps.eu2.kamereon.io/bff-web/'
+            'user_base_url': 'https://nci-bff-web-prod.apps.eu2.kamereon.io/bff-web/',
+            # Used to poll GET v1/cars/{vin}/actions/status (e.g. for the SRP
+            # challenge sent in response to srp-sets) - a dedicated service,
+            # separate from car_adapter_base_url.
+            'action_status_polling_base_url': 'https://alliance-platform-action-status-polling-prod.apps.eu2.kamereon.io/'
         }
     }
 }

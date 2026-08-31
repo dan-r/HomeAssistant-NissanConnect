@@ -6,6 +6,7 @@ import collections
 import datetime
 import hashlib
 from html.parser import HTMLParser
+import hmac
 import json
 import logging
 import secrets
@@ -647,8 +648,10 @@ class Vehicle:
             raise ValueError(body['errors'])
         return body
 
-    def initiate_srp(self):
-        (salt, verifier) = SRP.enroll(self.user_id, self.vin)
+    def initiate_srp(self, pincode: str):
+        """Register a new SRP PIN for this account/vehicle. Must be called
+        (once) before lock()/unlock() will work, and whenever the PIN changes."""
+        (salt, verifier) = SRP.enroll(self.user_id, pincode)
         resp = self._post(
             '{}v1/cars/{}/actions/srp-initiates'.format(self.session.settings['car_adapter_base_url'], self.vin),
             data=json.dumps({
@@ -668,8 +671,11 @@ class Vehicle:
             raise ValueError(body['errors'])
         return body
 
-    def validate_srp(self):
-        a = SRP.generate_a()
+    def validate_srp(self, srp_session: 'SRP'):
+        """Send the client's SRP public ephemeral value (A) to the vehicle to
+        start an SRP challenge, returning the action id used to poll for the
+        vehicle's response (B, salt) via _poll_srp_challenge()."""
+        a = srp_session.generate_a()
         resp = self._post(
             '{}v1/cars/{}/actions/srp-sets'.format(self.session.settings['car_adapter_base_url'], self.vin),
             data=json.dumps({
@@ -686,7 +692,133 @@ class Vehicle:
         body = resp.json()
         if 'errors' in body:
             raise ValueError(body['errors'])
-        return body
+        action_id = body.get('data', {}).get('id')
+        if not action_id:
+            raise ValueError('srp-sets response did not include an action id: {}'.format(body))
+        return action_id
+
+    def _poll_action_status(self, action_id: str, timeout: float=25, interval: float=1.5):
+        """Poll GET .../actions/status?actionId=... until the vehicle responds,
+        returning the raw 'attributes' dict of the ActionStatus response."""
+        deadline = time.monotonic() + timeout
+        while True:
+            resp = self._get(
+                '{}v1/cars/{}/actions/status'.format(self.session.settings['action_status_polling_base_url'], self.vin),
+                params={'actionId': action_id},
+            )
+            body = resp.json()
+            if 'errors' in body:
+                raise ValueError(body['errors'])
+            attributes = body.get('data', {}).get('attributes', {})
+            yield attributes
+            if time.monotonic() >= deadline:
+                raise TimeoutError('Timed out waiting for action {} to complete'.format(action_id))
+            time.sleep(interval)
+
+    def _poll_srp_challenge(self, action_id: str, timeout: float=25, interval: float=1.5):
+        """Poll for the vehicle's SRP challenge (salt, B) in response to a
+        prior validate_srp() call. Returns (salt, b) hex strings."""
+        for attributes in self._poll_action_status(action_id, timeout=timeout, interval=interval):
+            values = {
+                item['name']: item['value']
+                for item in (attributes.get('data') or [])
+                if isinstance(item, dict) and 'name' in item
+            }
+            salt = values.get('srpLoginS')
+            b = values.get('srpLoginB')
+            if salt and b:
+                return (salt, b)
+            status = attributes.get('status')
+            if status in ('CANCELLED', 'REJECTED') and not values:
+                raise ValueError('SRP challenge rejected: errorCode={}'.format(attributes.get('errorCode')))
+            if status == 'TIMEOUT':
+                raise TimeoutError('SRP challenge timed out')
+        raise TimeoutError('Timed out waiting for SRP challenge (B) from vehicle')
+
+    def srp_proof(self, pincode: str, order: str):
+        """Perform the full per-command SRP-6a authentication handshake
+        (generate A, send it, wait for the vehicle's challenge, compute the
+        proof) and return the resulting proof hex string, ready to be
+        attached as the 'srp' attribute of the command being authorized.
+
+        `order` must match the exact command, e.g. '<VIN>/RLU/Unlock' -
+        see SRP.generate_proof for the full list of suffixes.
+        """
+        srp_session = SRP()
+        action_id = self.validate_srp(srp_session)
+        salt, b = self._poll_srp_challenge(action_id)
+        return srp_session.generate_proof(salt, b, self.user_id, pincode, order)
+
+    def _post_and_check(self, url, data=None, headers=None):
+        resp = self._post(url, data=data, headers=headers)
+        if resp.status_code >= 400:
+            try:
+                body = resp.json()
+            except ValueError:
+                body = resp.text
+            raise ValueError('Request to {} failed ({}): {}'.format(url, resp.status_code, body))
+        return resp
+
+    def generate_device_otp(self, device_id: str):
+        """Trigger the one-time PIN code email required to register a new
+        'device' with this vehicle. This is a prerequisite, separate from
+        SRP PIN enrollment, for any SRP-gated remote command (lock/unlock,
+        remote engine start, ...) to be accepted: the backend rejects such
+        commands from a userId/vehicle it has no registered device for.
+
+        `device_id` should be a stable identifier chosen once and reused for
+        this integration (the app uses Android's Settings.Secure.ANDROID_ID;
+        any persisted unique string works). Call this once, then pass the
+        code that arrives by email to register_device().
+        """
+        self._post_and_check(
+            '{}v1/users/{}/vehicles/{}/generate-device-otp'.format(
+                self.session.settings['user_base_url'], self.user_id, self.vin),
+            data=json.dumps({
+                'data': {
+                    'type': 'GenerateDeviceOtp',
+                    'attributes': {'deviceId': device_id}
+                }
+            }),
+            headers={'Content-Type': 'application/json'}
+        )
+
+    def register_device(self, device_id: str, otp: str, model_name: str='Home Assistant'):
+        """Complete device registration using the one-time PIN emailed by a
+        prior generate_device_otp() call for the same `device_id`. Some
+        vehicles only allow a single registered device at a time (any
+        previous device is unregistered), others allow up to 10.
+        """
+        self._post_and_check(
+            '{}v1/users/{}/vehicles/{}/register-device'.format(
+                self.session.settings['user_base_url'], self.user_id, self.vin),
+            data=json.dumps({
+                'data': {
+                    'type': 'RegisterDevice',
+                    'attributes': {'deviceId': device_id, 'otp': otp, 'modelName': model_name}
+                }
+            }),
+            headers={'Content-Type': 'application/json'}
+        )
+
+    def get_device_registration_status(self, device_id: str) -> bool:
+        """Return whether `device_id` is currently a registered device for
+        this vehicle/account."""
+        resp = self._get(
+            '{}v1/users/{}/vehicles/{}/devices/{}/registration-status'.format(
+                self.session.settings['user_base_url'], self.user_id, self.vin, device_id)
+        )
+        return resp.status_code < 400
+
+    def list_registered_devices(self):
+        """List the devices currently registered for this vehicle."""
+        resp = self._get(
+            '{}v1/vehicles/{}/registered-devices'.format(self.session.settings['user_base_url'], self.vin)
+        )
+        body = resp.json()
+        if 'errors' in body:
+            raise ValueError(body['errors'])
+        return body.get('data', {}).get('attributes', {})
 
     """
     Other vehicle controls to implement / investigate:
@@ -790,14 +922,16 @@ class Vehicle:
             raise ValueError(body['errors'])
         return body
 
-    def lock_unlock(self, srp: str, action: str, group: LockableDoorGroup=None):
+    def lock_unlock(self, pincode: str, action: str, group: LockableDoorGroup=None):
         if Feature.APP_DOOR_LOCKING not in self.features:
             return
         assert action in ('lock', 'unlock')
         if group is None:
             group = LockableDoorGroup.DOORS_AND_HATCH
+        order = '{}/RLU/{}'.format(self.vin, 'Lock' if action == 'lock' else 'Unlock')
+        srp = self.srp_proof(pincode, order)
         resp = self._post(
-            '{}v1/cars/{}/actions/lock-unlock"'.format(self.session.settings['car_adapter_base_url'], self.vin),
+            '{}v1/cars/{}/actions/lock-unlock'.format(self.session.settings['car_adapter_base_url'], self.vin),
             data=json.dumps({
                 'data': {
                     'type': 'LockUnlock',
@@ -815,11 +949,11 @@ class Vehicle:
             raise ValueError(body['errors'])
         return body
 
-    def lock(self, srp: str, group: LockableDoorGroup=None):
-        return self.lock_unlock(srp, 'lock', group)
+    def lock(self, pincode: str, group: LockableDoorGroup=None):
+        return self.lock_unlock(pincode, 'lock', group)
 
-    def unlock(self, srp: str, group: LockableDoorGroup=None):
-        return self.lock_unlock(srp, 'unlock', group)
+    def unlock(self, pincode: str, group: LockableDoorGroup=None):
+        return self.lock_unlock(pincode, 'unlock', group)
 
     def fetch_hvac_status(self):
         if Feature.INTERIOR_TEMP_SETTINGS not in self.features and Feature.TEMPERATURE not in self.features:
@@ -1145,41 +1279,114 @@ class NotificationRule:
 
 
 class SRP:
+    """SRP-6a (RFC 5054 2048-bit group, SHA-256) as used by the MyNISSAN /
+    MyRenault apps to authorize remote vehicle commands (lock/unlock, HVAC,
+    charging, horn/lights, ...).
+
+    Reverse engineered from libnative-lib.so (com.srp.renault.srploaderapp.
+    SrpModuleAPI / JNI functions SRPenrollJNI, SRPgenAJNI, SRPgenProofJNI) in
+    the MyNISSAN Android app. It's a fairly standard SRP-6a client, with two
+    Renault/Nissan-specific details:
+      * x = SHA256(salt | SHA256(user_id | ':' | pincode)), K = SHA256(S)
+        (plain hash of S, not the legacy RFC2945 interleaved hash)
+      * the final proof is HMAC-SHA256(key=K, message=A|B|user_id|salt|order)
+        i.e. the session key is bound to the exact command being authorized
+        via the `order` string, rather than sent as a bare SRP M1.
+
+    All values (salt, verifier, A, B, proof) are exchanged as upper/lower
+    case-insensitive hex strings, matching the vehicle API.
+    """
+
+    N = int(SRP_N, 16)
+    g = SRP_G
+    N_BYTES = 256  # 2048-bit modulus
+
+    def __init__(self):
+        self.a = None
+        self.A = None
+
+    @staticmethod
+    def _sha256(*parts):
+        h = hashlib.sha256()
+        for part in parts:
+            h.update(part)
+        return h.digest()
 
     @classmethod
-    def enroll(cls, user_id, vin):
-        salt, verifier = '0'*20, 'ABCDEFGH'*64
-        # salt = 20 hex chars, verifier = 512 hex chars
-        return (salt, verifier)
+    def _compute_x(cls, salt: bytes, user_id: str, secret: str) -> int:
+        inner = cls._sha256(user_id.encode('utf-8'), b':', secret.encode('utf-8'))
+        outer = cls._sha256(salt, inner)
+        return int.from_bytes(outer, 'big')
 
     @classmethod
-    def generate_a(cls):
-        # 512 hex chars
-        return ''
+    def enroll(cls, user_id, pincode):
+        """Generate a fresh (salt, verifier) pair to register a new SRP PIN
+        for this account/vehicle via the srp-initiates action."""
+        salt = os.urandom(10)
+        x = cls._compute_x(salt, user_id, pincode)
+        verifier = pow(cls.g, x, cls.N)
+        salt_hex = salt.hex()
+        verifier_hex = verifier.to_bytes(cls.N_BYTES, 'big').hex()
+        return (salt_hex, verifier_hex)
 
-    @classmethod
-    def generate_proof(cls, salt, b, user_id, confirm_code, order):
-        """Required for remote lock / unlock."""
-        # order = '<VIN>/<PERMISSIONS>'
-        # where PERMISSIONS is one of:
-        # * "BCI/Block"
-        # * "BCI/Unblock"
-        # * "RC/Delayed"
-        # * "RC/Start"
-        # * "RC/Stop"
-        # * "RES/DoubleStart"
-        # * "RES/Start"
-        # * "RES/Stop"
-        # * "RHL/Start/HornOnly"
-        # * "RHL/Start/HornLight"
-        # * "RHL/Start/LightOnly"
-        # * "RHL/Stop"
-        # * "RLU/Lock"
-        # * "RLU/Unlock"
-        # * "RPC_ICE/Start"
-        # * "RPC_ICE/Stop"
-        # * "RPU_CCS/Disable"
-        # * "RPU_CCS/Enable"
-        # * "RPU_SVTB/Disable"
-        # * "RPU_SVTB/Enable"
-        pass
+    def generate_a(self):
+        """Generate the client's SRP ephemeral keypair (a, A) and return A as
+        a hex string, to be sent to the vehicle via the srp-sets action.
+        The private value `a` is kept on this instance for generate_proof()."""
+        self.a = int.from_bytes(os.urandom(32), 'big')
+        self.A = pow(self.g, self.a, self.N)
+        return self.A.to_bytes(self.N_BYTES, 'big').hex()
+
+    def generate_proof(self, salt, b, user_id, confirm_code, order):
+        """Required for remote lock / unlock (and other SRP-gated commands).
+
+        generate_a() must have been called first (on this same instance) to
+        establish (a, A) for the session; `salt` and `b` (=B) are the values
+        returned by the vehicle in response to the srp-sets action.
+
+        order = '<VIN>/<PERMISSIONS>'
+        where PERMISSIONS is one of:
+        * "BCI/Block"
+        * "BCI/Unblock"
+        * "RC/Delayed"
+        * "RC/Start"
+        * "RC/Stop"
+        * "RES/DoubleStart"
+        * "RES/Start"
+        * "RES/Stop"
+        * "RHL/Start/HornOnly"
+        * "RHL/Start/HornLight"
+        * "RHL/Start/LightOnly"
+        * "RHL/Stop"
+        * "RLU/Lock"
+        * "RLU/Unlock"
+        * "RPC_ICE/Start"
+        * "RPC_ICE/Stop"
+        * "RPU_CCS/Disable"
+        * "RPU_CCS/Enable"
+        * "RPU_SVTB/Disable"
+        * "RPU_SVTB/Enable"
+        """
+        if self.a is None or self.A is None:
+            raise RuntimeError('generate_a() must be called before generate_proof()')
+
+        salt_bytes = bytes.fromhex(salt)
+        B = int(b, 16)
+        if B % self.N == 0:
+            raise ValueError('Invalid server public value B')
+
+        k = int.from_bytes(
+            self._sha256(self.N.to_bytes(self.N_BYTES, 'big'), bytes([self.g])), 'big')
+
+        A_bytes = self.A.to_bytes(self.N_BYTES, 'big')
+        B_bytes = B.to_bytes(self.N_BYTES, 'big')
+        u = int.from_bytes(self._sha256(A_bytes, B_bytes), 'big')
+
+        x = self._compute_x(salt_bytes, user_id, confirm_code)
+        gx = pow(self.g, x, self.N)
+        S = pow((B - k * gx) % self.N, self.a + u * x, self.N)
+        K = self._sha256(S.to_bytes(self.N_BYTES, 'big'))
+
+        message = A_bytes + B_bytes + user_id.encode('utf-8') + salt_bytes + order.encode('utf-8')
+        proof = hmac.new(K, message, hashlib.sha256).digest()
+        return proof.hex()

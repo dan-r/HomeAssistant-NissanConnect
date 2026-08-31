@@ -1,9 +1,17 @@
+import secrets
+
 import voluptuous as vol
 from homeassistant.config_entries import (ConfigFlow, OptionsFlow)
 from .const import DOMAIN, CONFIG_VERSION, DEFAULT_INTERVAL_POLL, DEFAULT_INTERVAL_CHARGING, DEFAULT_INTERVAL_STATISTICS, DEFAULT_INTERVAL_FETCH, DEFAULT_REGION, REGIONS
-from .kamereon import NCISession, NissanAuthError
+from .kamereon import NCISession, NissanAuthError, Feature
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers import selector
+
+REMOTE_LOCK_OTP_SCHEMA = vol.Schema({
+    vol.Required("otp"): cv.string,
+    vol.Required("pincode"): cv.string,
+    vol.Required("pincode_confirm"): cv.string,
+})
 
 USER_SCHEMA = vol.Schema({
     vol.Required("email"): cv.string,
@@ -120,6 +128,11 @@ class NissanOptionsFlow(OptionsFlow):
 
     def __init__(self, entry) -> None:
         self._config_entry = entry
+        # Transient state carried between async_step_init and
+        # async_step_remote_lock_otp while setting up remote lock/unlock.
+        self._pending_data = None
+        self._pending_vehicle = None
+        self._pending_device_id = None
 
     async def async_step_init(self, options):
         errors = {}
@@ -146,8 +159,18 @@ class NissanOptionsFlow(OptionsFlow):
                     options.pop('email', None)
                     options.pop('password', None)
 
+                setup_remote_lock = options.pop("setup_remote_lock", False)
+
                 # Update data
                 data.update(options)
+
+                # Kick off remote lock/unlock setup (device registration +
+                # SRP PIN enrollment) only when newly enabled - once done,
+                # data.get("remote_lock_enabled") stays True and re-opening
+                # options won't re-trigger it.
+                if setup_remote_lock and not data.get("remote_lock_enabled"):
+                    return await self._async_start_remote_lock_setup(data)
+
                 self.hass.config_entries.async_update_entry(
                     self._config_entry, data=data
                 )
@@ -159,23 +182,101 @@ class NissanOptionsFlow(OptionsFlow):
                 )
 
         return self.async_show_form(
-            step_id="init", data_schema=vol.Schema({
-                # vol.Required("email", default=self._config_entry.data.get("email", "")): cv.string,
-                vol.Optional("password"): cv.string,
-                vol.Required(
-                    "interval", default=self._config_entry.data.get("interval", DEFAULT_INTERVAL_POLL)
-                ): int,
-                vol.Required(
-                    "interval_charging", default=self._config_entry.data.get("interval_charging", DEFAULT_INTERVAL_CHARGING)
-                ): int,
-                vol.Required(
-                    "interval_fetch", default=self._config_entry.data.get("interval_fetch", DEFAULT_INTERVAL_FETCH)
-                ): int,
-                vol.Required(
-                    "interval_statistics", default=self._config_entry.data.get("interval_statistics", DEFAULT_INTERVAL_STATISTICS)
-                ): int,
-                # Excluded from config flow under #61
-                # vol.Required(
-                #     "imperial_distance", default=self._config_entry.data.get("imperial_distance", False)): bool
-            }), errors=errors
+            step_id="init", data_schema=self._init_schema(), errors=errors
+        )
+
+    def _init_schema(self):
+        return vol.Schema({
+            # vol.Required("email", default=self._config_entry.data.get("email", "")): cv.string,
+            vol.Optional("password"): cv.string,
+            vol.Required(
+                "interval", default=self._config_entry.data.get("interval", DEFAULT_INTERVAL_POLL)
+            ): int,
+            vol.Required(
+                "interval_charging", default=self._config_entry.data.get("interval_charging", DEFAULT_INTERVAL_CHARGING)
+            ): int,
+            vol.Required(
+                "interval_fetch", default=self._config_entry.data.get("interval_fetch", DEFAULT_INTERVAL_FETCH)
+            ): int,
+            vol.Required(
+                "interval_statistics", default=self._config_entry.data.get("interval_statistics", DEFAULT_INTERVAL_STATISTICS)
+            ): int,
+            # Excluded from config flow under #61
+            # vol.Required(
+            #     "imperial_distance", default=self._config_entry.data.get("imperial_distance", False)): bool
+            vol.Required(
+                "setup_remote_lock", default=bool(self._config_entry.data.get("remote_lock_enabled", False))
+            ): bool,
+        })
+
+    async def _async_start_remote_lock_setup(self, data):
+        """Log in, find the first vehicle that supports remote door locking,
+        generate/reuse a device id, and request the email OTP needed to
+        register this integration as a trusted device for that vehicle."""
+        errors = {}
+
+        kamereon_session = NCISession(region=data["region"])
+        try:
+            await self.hass.async_add_executor_job(
+                kamereon_session.login, data.get("email"), data.get("password")
+            )
+            vehicles = await self.hass.async_add_executor_job(kamereon_session.fetch_vehicles)
+        except Exception:
+            errors["base"] = "auth_error"
+            vehicles = []
+
+        vehicle = next((v for v in vehicles if Feature.APP_DOOR_LOCKING in v.features), None)
+        if not errors and vehicle is None:
+            errors["base"] = "no_lockable_vehicle"
+
+        if errors:
+            self.hass.config_entries.async_update_entry(self._config_entry, data=data)
+            return self.async_show_form(
+                step_id="init", data_schema=self._init_schema(), errors=errors
+            )
+
+        device_id = data.get("device_id") or secrets.token_hex(8)
+        await self.hass.async_add_executor_job(vehicle.generate_device_otp, device_id)
+
+        self._pending_data = data
+        self._pending_vehicle = vehicle
+        self._pending_device_id = device_id
+
+        return self.async_show_form(
+            step_id="remote_lock_otp", data_schema=REMOTE_LOCK_OTP_SCHEMA
+        )
+
+    async def async_step_remote_lock_otp(self, options):
+        errors = {}
+
+        if options is not None:
+            if options["pincode"] != options["pincode_confirm"]:
+                errors["pincode_confirm"] = "pincode_mismatch"
+            elif len(options["pincode"]) < 4:
+                errors["pincode"] = "pincode_too_short"
+
+            if not errors:
+                vehicle = self._pending_vehicle
+                try:
+                    await self.hass.async_add_executor_job(
+                        vehicle.register_device, self._pending_device_id, options["otp"]
+                    )
+                    await self.hass.async_add_executor_job(
+                        vehicle.initiate_srp, options["pincode"]
+                    )
+                except Exception:
+                    errors["base"] = "srp_setup_error"
+
+            if not errors:
+                data = self._pending_data
+                data["device_id"] = self._pending_device_id
+                data["srp_pincode"] = options["pincode"]
+                data["remote_lock_enabled"] = True
+                self.hass.config_entries.async_update_entry(
+                    self._config_entry, data=data
+                )
+                return self.async_create_entry(title="", data={})
+
+        return self.async_show_form(
+            step_id="remote_lock_otp", data_schema=REMOTE_LOCK_OTP_SCHEMA, errors=errors
         )
