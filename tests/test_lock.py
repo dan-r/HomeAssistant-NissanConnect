@@ -33,7 +33,9 @@ def mock_async_add_entities():
 
 @pytest.mark.asyncio
 async def test_async_setup_entry_creates_lock_when_configured(mock_hass, mock_async_add_entities):
-    mock_config = MagicMock(data={'email': 'test_account', 'srp_pincode': '1234'})
+    mock_config = MagicMock(data={
+        'email': 'test_account', 'srp_pincode': '1234', 'remote_lock_enabled': True
+    })
 
     await async_setup_entry(mock_hass, mock_config, mock_async_add_entities)
 
@@ -46,7 +48,9 @@ async def test_async_setup_entry_creates_lock_when_configured(mock_hass, mock_as
 @pytest.mark.asyncio
 async def test_async_setup_entry_skips_without_feature(mock_hass, mock_async_add_entities):
     mock_hass.data[DOMAIN]['test_account'][DATA_VEHICLES]['vehicle_1'] = MagicMock(features=[])
-    mock_config = MagicMock(data={'email': 'test_account', 'srp_pincode': '1234'})
+    mock_config = MagicMock(data={
+        'email': 'test_account', 'srp_pincode': '1234', 'remote_lock_enabled': True
+    })
 
     await async_setup_entry(mock_hass, mock_config, mock_async_add_entities)
 
@@ -58,7 +62,21 @@ async def test_async_setup_entry_skips_without_feature(mock_hass, mock_async_add
 async def test_async_setup_entry_skips_without_pincode(mock_hass, mock_async_add_entities):
     # Feature is supported, but remote lock/unlock hasn't been set up (no PIN
     # configured via the options flow) - the entity must not be created.
-    mock_config = MagicMock(data={'email': 'test_account'})
+    mock_config = MagicMock(data={'email': 'test_account', 'remote_lock_enabled': True})
+
+    await async_setup_entry(mock_hass, mock_config, mock_async_add_entities)
+
+    entities = mock_async_add_entities.call_args[0][0]
+    assert len(entities) == 0
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_skips_when_disabled_again(mock_hass, mock_async_add_entities):
+    # device_id/srp_pincode are deliberately kept around after the user
+    # unticks "Enable remote lock/unlock" - the entity must still disappear.
+    mock_config = MagicMock(data={
+        'email': 'test_account', 'srp_pincode': '1234', 'remote_lock_enabled': False
+    })
 
     await async_setup_entry(mock_hass, mock_config, mock_async_add_entities)
 

@@ -179,6 +179,17 @@ class NissanOptionsFlow(OptionsFlow):
                     )
                     return await self._async_start_remote_lock_setup(data)
 
+                # Unticking the box disables the lock entity again. device_id
+                # and srp_pincode are left in place (both are idempotent -
+                # device_id stays registered, srp_pincode stays the account's
+                # SRP PIN) so re-enabling later won't require the OTP flow
+                # again unless the user wants to change the PIN.
+                if not setup_remote_lock and data.get("remote_lock_enabled"):
+                    _LOGGER.info(
+                        "Remote lock/unlock disabled for account=%s", data.get("email")
+                    )
+                    data["remote_lock_enabled"] = False
+
                 self.hass.config_entries.async_update_entry(
                     self._config_entry, data=data
                 )

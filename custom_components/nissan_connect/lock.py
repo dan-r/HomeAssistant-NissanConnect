@@ -18,15 +18,18 @@ async def async_setup_entry(hass, config, async_add_entities):
     coordinator = hass.data[DOMAIN][account_id][DATA_COORDINATOR_FETCH]
 
     pincode = config.data.get('srp_pincode')
+    remote_lock_enabled = config.data.get('remote_lock_enabled', False)
 
     entities = []
     for vehicle in data:
         if Feature.APP_DOOR_LOCKING not in data[vehicle].features:
             continue
-        if not pincode:
+        if not pincode or not remote_lock_enabled:
             # The vehicle supports remote lock/unlock, but this account
             # hasn't completed device registration / SRP PIN setup for it
-            # yet (see the "Enable remote lock/unlock" integration option).
+            # yet, or it's been disabled again (see the "Enable remote
+            # lock/unlock" integration option) - device_id/srp_pincode are
+            # kept around even when disabled, so check the flag too.
             _LOGGER.debug(
                 "Not adding lock entity for %s: remote lock/unlock is not set up yet", vehicle
             )
