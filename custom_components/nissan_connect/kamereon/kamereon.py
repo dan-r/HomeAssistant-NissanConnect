@@ -774,10 +774,16 @@ class Vehicle:
             if salt and b:
                 _LOGGER.debug("SRP challenge received: salt=%s B=%s", salt, b)
                 return (salt, b)
-            if status in ('CANCELLED', 'REJECTED') and not values:
-                _LOGGER.error("SRP challenge rejected for action_id=%s: errorCode=%s",
-                              action_id, attributes.get('errorCode'))
-                raise ValueError('SRP challenge rejected: errorCode={}'.format(attributes.get('errorCode')))
+            if status in ('CANCELLED', 'REJECTED'):
+                # A definitive failure response, whether or not it carries a
+                # 'data' payload (e.g. status=KO/errorCode=N with empty
+                # srpLoginB/srpLoginS is still a rejection, not "not ready
+                # yet") - don't keep polling until the overall timeout.
+                error_code = values.get('errorCode', attributes.get('errorCode'))
+                _LOGGER.error("SRP challenge rejected for action_id=%s: status=%s errorCode=%s values=%s",
+                              action_id, values.get('status', status), error_code, values)
+                raise ValueError('SRP challenge rejected: status={} errorCode={}'.format(
+                    values.get('status', status), error_code))
             if status == 'TIMEOUT':
                 _LOGGER.error("SRP challenge timed out server-side for action_id=%s", action_id)
                 raise TimeoutError('SRP challenge timed out')

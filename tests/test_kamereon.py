@@ -469,6 +469,42 @@ def test_poll_action_status_raises_on_other_errors(requests_mock):
         ))
 
 
+def test_poll_srp_challenge_raises_immediately_on_rejection(requests_mock):
+    """A CANCELLED/REJECTED status with a KO/errorCode payload (empty
+    srpLoginB/srpLoginS) is a definitive rejection from the vehicle and must
+    raise immediately - not be polled until the overall timeout elapses just
+    because the response happens to carry a 'data' array."""
+    vehicle = _fetch_test_vehicle(requests_mock)
+    status_url = (
+        "https://alliance-platform-action-status-polling-prod.apps.eu2.kamereon.io/"
+        "v1/cars/TEST-VIN/actions/status"
+    )
+    requests_mock.get(
+        status_url,
+        status_code=200,
+        json={
+            "data": {
+                "attributes": {
+                    "status": "CANCELLED",
+                    "ruleKey": "srp.salt.request",
+                    "data": [
+                        {"name": "status", "type": "STRING", "value": "KO"},
+                        {"name": "errorCode", "type": "INTEGER", "value": "12"},
+                        {"name": "srpLoginB", "type": "STRING", "value": ""},
+                        {"name": "srpLoginS", "type": "STRING", "value": ""},
+                    ],
+                }
+            }
+        },
+    )
+
+    with pytest.raises(ValueError, match="errorCode=12"):
+        vehicle._poll_srp_challenge("some-action-id", timeout=5, interval=0.01)
+
+    status_requests = [r for r in requests_mock.request_history if r.url.startswith(status_url)]
+    assert len(status_requests) == 1
+
+
 def test_vehicle_request_does_not_retry_auth_failures(requests_mock):
     """A bad password must surface at once, not drive repeated logins."""
     user_url = (
