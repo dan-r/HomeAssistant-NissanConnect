@@ -179,11 +179,11 @@ class NissanOptionsFlow(OptionsFlow):
                     )
                     return await self._async_start_remote_lock_setup(data)
 
-                # Unticking the box disables the lock entity again. device_id
-                # and srp_pincode are left in place (both are idempotent -
-                # device_id stays registered, srp_pincode stays the account's
-                # SRP PIN) so re-enabling later won't require the OTP flow
-                # again unless the user wants to change the PIN.
+                # Unticking the box disables the lock entity again. Note this
+                # still doesn't skip the OTP+PIN form on re-enable - it just
+                # avoids a hard failure from re-registering an already-known
+                # device_id (register_device() tolerates that conflict). See
+                # _async_start_remote_lock_setup for device_id re-minting.
                 if not setup_remote_lock and data.get("remote_lock_enabled"):
                     _LOGGER.info(
                         "Remote lock/unlock disabled for account=%s", data.get("email")
@@ -261,9 +261,14 @@ class NissanOptionsFlow(OptionsFlow):
                 step_id="init", data_schema=self._init_schema(), errors=errors
             )
 
-        device_id = data.get("device_id") or secrets.token_hex(8)
-        _LOGGER.info("Using device_id=%s for vin=%s (%s)",
-                     device_id, vehicle.vin, "reused" if data.get("device_id") else "newly generated")
+        # TEMPORARY: always mint a fresh device_id on every enable, instead
+        # of reusing `data.get("device_id")` across disable/re-enable, to
+        # rule out stale/inconsistent server-side device state while
+        # chasing the SRP errorCode 12 issue. Revert to
+        # `device_id = data.get("device_id") or secrets.token_hex(8)` (and
+        # drop this comment) once that's no longer needed.
+        device_id = secrets.token_hex(8)
+        _LOGGER.info("Using device_id=%s for vin=%s (newly generated)", device_id, vehicle.vin)
         await self.hass.async_add_executor_job(vehicle.generate_device_otp, device_id)
         _LOGGER.info("Device OTP email requested for vin=%s; awaiting code from user", vehicle.vin)
 
