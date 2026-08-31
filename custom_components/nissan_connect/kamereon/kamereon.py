@@ -730,31 +730,7 @@ class Vehicle:
 
         # Newer Nissan/Renault-derived vehicles may expose state of charge
         # using different field names. Use the first populated value.
-        soc = None
-        for field in (
-            'batteryLevel',
-            'batterySoc',
-            'batterySOC',
-            'batterySoC',
-            'soc',
-            'SOC',
-            'chargeLevel',
-            'stateOfCharge',
-            'batteryPercentage',
-            'batteryPercent',
-        ):
-            if battery_data.get(field) is not None:
-                soc = battery_data[field]
-                break
-
-        if soc is not None:
-            try:
-                self.battery_level = float(soc)
-                if 0 <= self.battery_level < 1:
-                    self.battery_level *= 100
-            except (TypeError, ValueError):
-                self.battery_level = None
-
+        self.battery_level = battery_data.get('batteryLevel')
         self.battery_capacity = battery_data.get('batteryCapacity')
         self.battery_temperature = battery_data.get('batteryTemperature')
         self.instantaneous_power = battery_data.get('instantaneousPower')
@@ -784,14 +760,18 @@ class Vehicle:
                 "Unknown plugStatus from v3 battery API: %s",
                 battery_data.get('plugStatus')
             )
+        charging_status = battery_data.get('chargingStatus')
 
-        if 'chargeStatus' in battery_data:
+        if charging_status is None:
+            charging_status = battery_data.get('chargeStatus')
+
+        if charging_status is not None:
             try:
-                self.charging = ChargingStatus(battery_data.get('chargeStatus', 0))
+                self.charging = ChargingStatus(charging_status)
             except (TypeError, ValueError):
                 _LOGGER.debug(
-                    "Unknown chargeStatus from v3 battery API: %s",
-                    battery_data.get('chargeStatus')
+                    "Unknown charging status from v3 battery API: %s",
+                    charging_status
                 )
 
         if 'vehiclePlugTimestamp' in battery_data:
