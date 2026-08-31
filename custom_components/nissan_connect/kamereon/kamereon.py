@@ -651,9 +651,15 @@ class Vehicle:
     def initiate_srp(self, pincode: str):
         """Register a new SRP PIN for this account/vehicle. Must be called
         (once) before lock()/unlock() will work, and whenever the PIN changes."""
+        _LOGGER.debug("SRP enroll: generating salt/verifier for vin=%s user_id=%s pincode_len=%d",
+                      self.vin, self.user_id, len(pincode))
         (salt, verifier) = SRP.enroll(self.user_id, pincode)
+        _LOGGER.debug("SRP enroll: salt=%s verifier_len=%d", salt, len(verifier))
+
+        url = '{}v1/cars/{}/actions/srp-initiates'.format(self.session.settings['car_adapter_base_url'], self.vin)
+        _LOGGER.debug("POST %s (SrpInitiates)", url)
         resp = self._post(
-            '{}v1/cars/{}/actions/srp-initiates'.format(self.session.settings['car_adapter_base_url'], self.vin),
+            url,
             data=json.dumps({
                 "data": {
                     "type": "SrpInitiates",
@@ -666,9 +672,12 @@ class Vehicle:
             }),
             headers={'Content-Type': 'application/vnd.api+json'}
         )
+        _LOGGER.debug("srp-initiates response: status=%s body=%s", resp.status_code, resp.text)
         body = resp.json()
         if 'errors' in body:
+            _LOGGER.error("srp-initiates failed for vin=%s: %s", self.vin, body['errors'])
             raise ValueError(body['errors'])
+        _LOGGER.info("SRP PIN enrolled for vin=%s", self.vin)
         return body
 
     def validate_srp(self, srp_session: 'SRP'):
@@ -676,8 +685,12 @@ class Vehicle:
         start an SRP challenge, returning the action id used to poll for the
         vehicle's response (B, salt) via _poll_srp_challenge()."""
         a = srp_session.generate_a()
+        _LOGGER.debug("SRP validate: generated A=%s for vin=%s", a, self.vin)
+
+        url = '{}v1/cars/{}/actions/srp-sets'.format(self.session.settings['car_adapter_base_url'], self.vin)
+        _LOGGER.debug("POST %s (SrpSets)", url)
         resp = self._post(
-            '{}v1/cars/{}/actions/srp-sets'.format(self.session.settings['car_adapter_base_url'], self.vin),
+            url,
             data=json.dumps({
                 "data": {
                     "type": "SrpSets",
@@ -689,29 +702,39 @@ class Vehicle:
             }),
             headers={'Content-Type': 'application/vnd.api+json'}
         )
+        _LOGGER.debug("srp-sets response: status=%s body=%s", resp.status_code, resp.text)
         body = resp.json()
         if 'errors' in body:
+            _LOGGER.error("srp-sets failed for vin=%s: %s", self.vin, body['errors'])
             raise ValueError(body['errors'])
         action_id = body.get('data', {}).get('id')
         if not action_id:
+            _LOGGER.error("srp-sets response missing action id for vin=%s: %s", self.vin, body)
             raise ValueError('srp-sets response did not include an action id: {}'.format(body))
+        _LOGGER.debug("srp-sets accepted, action_id=%s", action_id)
         return action_id
 
     def _poll_action_status(self, action_id: str, timeout: float=25, interval: float=1.5):
         """Poll GET .../actions/status?actionId=... until the vehicle responds,
         returning the raw 'attributes' dict of the ActionStatus response."""
         deadline = time.monotonic() + timeout
+        attempt = 0
         while True:
+            attempt += 1
             resp = self._get(
                 '{}v1/cars/{}/actions/status'.format(self.session.settings['action_status_polling_base_url'], self.vin),
                 params={'actionId': action_id},
             )
+            _LOGGER.debug("actions/status poll #%d for action_id=%s: status=%s body=%s",
+                          attempt, action_id, resp.status_code, resp.text)
             body = resp.json()
             if 'errors' in body:
+                _LOGGER.error("actions/status failed for action_id=%s: %s", action_id, body['errors'])
                 raise ValueError(body['errors'])
             attributes = body.get('data', {}).get('attributes', {})
             yield attributes
             if time.monotonic() >= deadline:
+                _LOGGER.error("Timed out after %d polls waiting for action %s to complete", attempt, action_id)
                 raise TimeoutError('Timed out waiting for action {} to complete'.format(action_id))
             time.sleep(interval)
 
@@ -724,14 +747,20 @@ class Vehicle:
                 for item in (attributes.get('data') or [])
                 if isinstance(item, dict) and 'name' in item
             }
+            status = attributes.get('status')
+            _LOGGER.debug("SRP challenge poll: action_id=%s status=%s keys=%s",
+                          action_id, status, list(values.keys()))
             salt = values.get('srpLoginS')
             b = values.get('srpLoginB')
             if salt and b:
+                _LOGGER.debug("SRP challenge received: salt=%s B=%s", salt, b)
                 return (salt, b)
-            status = attributes.get('status')
             if status in ('CANCELLED', 'REJECTED') and not values:
+                _LOGGER.error("SRP challenge rejected for action_id=%s: errorCode=%s",
+                              action_id, attributes.get('errorCode'))
                 raise ValueError('SRP challenge rejected: errorCode={}'.format(attributes.get('errorCode')))
             if status == 'TIMEOUT':
+                _LOGGER.error("SRP challenge timed out server-side for action_id=%s", action_id)
                 raise TimeoutError('SRP challenge timed out')
         raise TimeoutError('Timed out waiting for SRP challenge (B) from vehicle')
 
@@ -744,18 +773,24 @@ class Vehicle:
         `order` must match the exact command, e.g. '<VIN>/RLU/Unlock' -
         see SRP.generate_proof for the full list of suffixes.
         """
+        _LOGGER.info("Starting SRP proof handshake for vin=%s order=%s", self.vin, order)
         srp_session = SRP()
         action_id = self.validate_srp(srp_session)
         salt, b = self._poll_srp_challenge(action_id)
-        return srp_session.generate_proof(salt, b, self.user_id, pincode, order)
+        proof = srp_session.generate_proof(salt, b, self.user_id, pincode, order)
+        _LOGGER.debug("SRP proof computed for order=%s: %s", order, proof)
+        return proof
 
     def _post_and_check(self, url, data=None, headers=None):
+        _LOGGER.debug("POST %s data=%s", url, data)
         resp = self._post(url, data=data, headers=headers)
+        _LOGGER.debug("Response from %s: status=%s body=%s", url, resp.status_code, resp.text)
         if resp.status_code >= 400:
             try:
                 body = resp.json()
             except ValueError:
                 body = resp.text
+            _LOGGER.error("Request to %s failed (%s): %s", url, resp.status_code, body)
             raise ValueError('Request to {} failed ({}): {}'.format(url, resp.status_code, body))
         return resp
 
@@ -771,6 +806,8 @@ class Vehicle:
         any persisted unique string works). Call this once, then pass the
         code that arrives by email to register_device().
         """
+        _LOGGER.info("Requesting device registration OTP email for vin=%s user_id=%s device_id=%s",
+                     self.vin, self.user_id, device_id)
         self._post_and_check(
             '{}v1/users/{}/vehicles/{}/generate-device-otp'.format(
                 self.session.settings['user_base_url'], self.user_id, self.vin),
@@ -782,6 +819,7 @@ class Vehicle:
             }),
             headers={'Content-Type': 'application/json'}
         )
+        _LOGGER.info("Device registration OTP requested successfully for device_id=%s", device_id)
 
     def register_device(self, device_id: str, otp: str, model_name: str='Home Assistant'):
         """Complete device registration using the one-time PIN emailed by a
@@ -789,6 +827,8 @@ class Vehicle:
         vehicles only allow a single registered device at a time (any
         previous device is unregistered), others allow up to 10.
         """
+        _LOGGER.info("Registering device_id=%s (otp_len=%d, model_name=%r) for vin=%s user_id=%s",
+                     device_id, len(otp), model_name, self.vin, self.user_id)
         self._post_and_check(
             '{}v1/users/{}/vehicles/{}/register-device'.format(
                 self.session.settings['user_base_url'], self.user_id, self.vin),
@@ -800,23 +840,29 @@ class Vehicle:
             }),
             headers={'Content-Type': 'application/json'}
         )
+        _LOGGER.info("Device %s registered successfully for vin=%s", device_id, self.vin)
 
     def get_device_registration_status(self, device_id: str) -> bool:
         """Return whether `device_id` is currently a registered device for
         this vehicle/account."""
-        resp = self._get(
-            '{}v1/users/{}/vehicles/{}/devices/{}/registration-status'.format(
-                self.session.settings['user_base_url'], self.user_id, self.vin, device_id)
-        )
+        url = '{}v1/users/{}/vehicles/{}/devices/{}/registration-status'.format(
+            self.session.settings['user_base_url'], self.user_id, self.vin, device_id)
+        _LOGGER.debug("GET %s", url)
+        resp = self._get(url)
+        _LOGGER.debug("registration-status response for device_id=%s: status=%s body=%s",
+                      device_id, resp.status_code, resp.text)
         return resp.status_code < 400
 
     def list_registered_devices(self):
         """List the devices currently registered for this vehicle."""
-        resp = self._get(
-            '{}v1/vehicles/{}/registered-devices'.format(self.session.settings['user_base_url'], self.vin)
-        )
+        url = '{}v1/vehicles/{}/registered-devices'.format(self.session.settings['user_base_url'], self.vin)
+        _LOGGER.debug("GET %s", url)
+        resp = self._get(url)
+        _LOGGER.debug("registered-devices response for vin=%s: status=%s body=%s",
+                      self.vin, resp.status_code, resp.text)
         body = resp.json()
         if 'errors' in body:
+            _LOGGER.error("registered-devices failed for vin=%s: %s", self.vin, body['errors'])
             raise ValueError(body['errors'])
         return body.get('data', {}).get('attributes', {})
 
@@ -924,14 +970,19 @@ class Vehicle:
 
     def lock_unlock(self, pincode: str, action: str, group: LockableDoorGroup=None):
         if Feature.APP_DOOR_LOCKING not in self.features:
+            _LOGGER.debug("lock_unlock(%s) skipped: vin=%s does not have APP_DOOR_LOCKING", action, self.vin)
             return
         assert action in ('lock', 'unlock')
         if group is None:
             group = LockableDoorGroup.DOORS_AND_HATCH
         order = '{}/RLU/{}'.format(self.vin, 'Lock' if action == 'lock' else 'Unlock')
+        _LOGGER.info("Requesting %s for vin=%s (doorType=%s)", action, self.vin, group.value)
         srp = self.srp_proof(pincode, order)
+
+        url = '{}v1/cars/{}/actions/lock-unlock'.format(self.session.settings['car_adapter_base_url'], self.vin)
+        _LOGGER.debug("POST %s (LockUnlock action=%s)", url, action)
         resp = self._post(
-            '{}v1/cars/{}/actions/lock-unlock'.format(self.session.settings['car_adapter_base_url'], self.vin),
+            url,
             data=json.dumps({
                 'data': {
                     'type': 'LockUnlock',
@@ -944,9 +995,12 @@ class Vehicle:
             }),
             headers={'Content-Type': 'application/vnd.api+json'}
         )
+        _LOGGER.debug("lock-unlock response: status=%s body=%s", resp.status_code, resp.text)
         body = resp.json()
         if 'errors' in body:
+            _LOGGER.error("lock-unlock (%s) failed for vin=%s: %s", action, self.vin, body['errors'])
             raise ValueError(body['errors'])
+        _LOGGER.info("%s request accepted for vin=%s", action, self.vin)
         return body
 
     def lock(self, pincode: str, group: LockableDoorGroup=None):
@@ -1369,6 +1423,9 @@ class SRP:
         """
         if self.a is None or self.A is None:
             raise RuntimeError('generate_a() must be called before generate_proof()')
+
+        _LOGGER.debug("SRP generate_proof: user_id=%s order=%s salt=%s B=%s pincode_len=%d",
+                      user_id, order, salt, b, len(confirm_code))
 
         salt_bytes = bytes.fromhex(salt)
         B = int(b, 16)

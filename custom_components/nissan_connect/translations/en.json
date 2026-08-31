@@ -57,10 +57,10 @@
           }
         },
         "remote_lock_otp": {
-          "description": "Enter the one-time code emailed to you, and choose a PIN to use for remote lock/unlock (this does not need to match any PIN set in the MyNISSAN app).",
+          "description": "Enter the 6-digit one-time code emailed to you, and the 4-digit PIN to use for remote lock/unlock. This PIN is account-wide, the same one used by the MyNISSAN app - if you've already set one there, enter that same PIN here (entering a different one here will overwrite it, and you'll need to update the app to match).",
           "data": {
-            "otp": "One-time code from email",
-            "pincode": "New remote lock/unlock PIN",
+            "otp": "6-digit one-time code from email",
+            "pincode": "Remote lock/unlock PIN (4 digits)",
             "pincode_confirm": "Confirm PIN"
           }
         }
@@ -68,9 +68,11 @@
       "error": {
         "auth_error": "Invalid credentials provided.",
         "no_lockable_vehicle": "No vehicle on this account supports remote door locking.",
+        "otp_invalid": "The one-time code must be the 6-digit number from the email.",
         "pincode_mismatch": "PIN codes do not match.",
-        "pincode_too_short": "PIN code must be at least 4 characters.",
-        "srp_setup_error": "Could not complete device/PIN registration. Check the code and try again."
+        "pincode_invalid": "PIN code must be exactly 4 digits.",
+        "device_registration_error": "Could not register this device - check the one-time code and try again (see the Home Assistant log for details).",
+        "srp_enrollment_error": "Device registered, but setting the remote lock/unlock PIN failed (see the Home Assistant log for details)."
       },
       "abort": {}
     },

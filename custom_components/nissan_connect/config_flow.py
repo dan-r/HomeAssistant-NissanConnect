@@ -1,3 +1,4 @@
+import logging
 import secrets
 
 import voluptuous as vol
@@ -7,6 +8,10 @@ from .kamereon import NCISession, NissanAuthError, Feature
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers import selector
 
+_LOGGER = logging.getLogger(__name__)
+
+# The app's own device-registration OTP field is a 6-digit numeric code
+# (android:maxLength="6" / inputType="number" on that screen).
 REMOTE_LOCK_OTP_SCHEMA = vol.Schema({
     vol.Required("otp"): cv.string,
     vol.Required("pincode"): cv.string,
@@ -169,6 +174,9 @@ class NissanOptionsFlow(OptionsFlow):
                 # data.get("remote_lock_enabled") stays True and re-opening
                 # options won't re-trigger it.
                 if setup_remote_lock and not data.get("remote_lock_enabled"):
+                    _LOGGER.info(
+                        "Remote lock/unlock setup requested for account=%s", data.get("email")
+                    )
                     return await self._async_start_remote_lock_setup(data)
 
                 self.hass.config_entries.async_update_entry(
@@ -217,16 +225,23 @@ class NissanOptionsFlow(OptionsFlow):
 
         kamereon_session = NCISession(region=data["region"])
         try:
+            _LOGGER.debug("Logging in to look up lockable vehicles for account=%s", data.get("email"))
             await self.hass.async_add_executor_job(
                 kamereon_session.login, data.get("email"), data.get("password")
             )
             vehicles = await self.hass.async_add_executor_job(kamereon_session.fetch_vehicles)
+            _LOGGER.debug("Found %d vehicle(s): %s", len(vehicles), [v.vin for v in vehicles])
         except Exception:
+            _LOGGER.exception("Login/vehicle lookup failed while starting remote lock/unlock setup")
             errors["base"] = "auth_error"
             vehicles = []
 
         vehicle = next((v for v in vehicles if Feature.APP_DOOR_LOCKING in v.features), None)
         if not errors and vehicle is None:
+            _LOGGER.warning(
+                "No vehicle on account=%s supports APP_DOOR_LOCKING (checked %d vehicle(s))",
+                data.get("email"), len(vehicles)
+            )
             errors["base"] = "no_lockable_vehicle"
 
         if errors:
@@ -236,7 +251,10 @@ class NissanOptionsFlow(OptionsFlow):
             )
 
         device_id = data.get("device_id") or secrets.token_hex(8)
+        _LOGGER.info("Using device_id=%s for vin=%s (%s)",
+                     device_id, vehicle.vin, "reused" if data.get("device_id") else "newly generated")
         await self.hass.async_add_executor_job(vehicle.generate_device_otp, device_id)
+        _LOGGER.info("Device OTP email requested for vin=%s; awaiting code from user", vehicle.vin)
 
         self._pending_data = data
         self._pending_vehicle = vehicle
@@ -250,31 +268,64 @@ class NissanOptionsFlow(OptionsFlow):
         errors = {}
 
         if options is not None:
-            if options["pincode"] != options["pincode_confirm"]:
+            vehicle = self._pending_vehicle
+            otp = options["otp"].strip()
+            pincode = options["pincode"].strip()
+            _LOGGER.debug(
+                "Submitted remote lock/unlock setup form for vin=%s: otp_len=%d pincode_len=%d",
+                vehicle.vin, len(otp), len(pincode)
+            )
+
+            # otp: 6-digit numeric code emailed by generate-device-otp.
+            # pincode: 4-digit numeric SRP PIN (matches the MyNISSAN app's own
+            # PIN entry screens - android:maxLength="4" inputType="number").
+            if not (otp.isdigit() and len(otp) == 6):
+                _LOGGER.warning("Rejecting OTP: expected 6 digits, got len=%d", len(otp))
+                errors["otp"] = "otp_invalid"
+
+            if pincode != options["pincode_confirm"].strip():
                 errors["pincode_confirm"] = "pincode_mismatch"
-            elif len(options["pincode"]) < 4:
-                errors["pincode"] = "pincode_too_short"
+            elif not (pincode.isdigit() and len(pincode) == 4):
+                _LOGGER.warning("Rejecting PIN: expected 4 digits, got len=%d", len(pincode))
+                errors["pincode"] = "pincode_invalid"
 
             if not errors:
-                vehicle = self._pending_vehicle
+                _LOGGER.info("Submitting device registration for vin=%s device_id=%s",
+                             vehicle.vin, self._pending_device_id)
                 try:
                     await self.hass.async_add_executor_job(
-                        vehicle.register_device, self._pending_device_id, options["otp"]
-                    )
-                    await self.hass.async_add_executor_job(
-                        vehicle.initiate_srp, options["pincode"]
+                        vehicle.register_device, self._pending_device_id, otp
                     )
                 except Exception:
-                    errors["base"] = "srp_setup_error"
+                    _LOGGER.exception(
+                        "Device registration failed for vin=%s (device_id=%s)",
+                        vehicle.vin, self._pending_device_id
+                    )
+                    errors["base"] = "device_registration_error"
+                else:
+                    _LOGGER.info("Device registration succeeded for vin=%s", vehicle.vin)
+
+            if not errors:
+                _LOGGER.info("Enrolling SRP PIN for vin=%s (separate from device registration above)", vehicle.vin)
+                try:
+                    await self.hass.async_add_executor_job(
+                        vehicle.initiate_srp, pincode
+                    )
+                except Exception:
+                    _LOGGER.exception("SRP PIN enrollment failed for vin=%s", vehicle.vin)
+                    errors["base"] = "srp_enrollment_error"
+                else:
+                    _LOGGER.info("SRP PIN enrollment succeeded for vin=%s", vehicle.vin)
 
             if not errors:
                 data = self._pending_data
                 data["device_id"] = self._pending_device_id
-                data["srp_pincode"] = options["pincode"]
+                data["srp_pincode"] = pincode
                 data["remote_lock_enabled"] = True
                 self.hass.config_entries.async_update_entry(
                     self._config_entry, data=data
                 )
+                _LOGGER.info("Remote lock/unlock setup complete for vin=%s", vehicle.vin)
                 return self.async_create_entry(title="", data={})
 
         return self.async_show_form(
