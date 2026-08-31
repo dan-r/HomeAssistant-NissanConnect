@@ -28,9 +28,10 @@ async def async_setup_entry(hass, config, async_add_entities):
     imperial_distance = config.data.get("imperial_distance", False)
 
     for vehicle in data:
+        entities.append(TimestampSensor(coordinator, data[vehicle], 'last_updated', 'last_updated', 'mdi:clock-time-eleven-outline'))
+
         if Feature.BATTERY_STATUS in data[vehicle].features or data[vehicle].range_hvac_on is not None:
-            entities += [RangeSensor(coordinator, data[vehicle], True, imperial_distance),
-                         TimestampSensor(coordinator, data[vehicle], 'battery_status_last_updated', 'last_updated', 'mdi:clock-time-eleven-outline')]
+            entities.append(RangeSensor(coordinator, data[vehicle], True, imperial_distance))
         if Feature.BATTERY_STATUS in data[vehicle].features:
             entities.append(BatteryLevelSensor(coordinator, data[vehicle]))
         if data[vehicle].charge_time_required_to_full[ChargingSpeed.NORMAL] is not None:

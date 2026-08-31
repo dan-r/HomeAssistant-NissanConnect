@@ -474,7 +474,6 @@ class Vehicle:
         self.picture_url = data.get('pictureURL')
         self.privacy_mode = data.get('privacyMode')
         self.registration_number = data.get('registrationNumber')
-        self.battery_supported = True
         self.battery_capacity = None
         self.battery_level = None
         self.battery_temperature = None
@@ -547,6 +546,23 @@ class Vehicle:
     def refresh(self):
         self.refresh_location()
         self.refresh_battery_status()
+
+    @property
+    def last_updated(self):
+        timestamps = [
+            self.battery_status_last_updated,
+            self.location_last_updated,
+            self.hvac_status_last_updated,
+            self.lock_status_last_updated,
+        ]
+        return max(
+            (
+                t if t.tzinfo is not None
+                else t.replace(tzinfo=datetime.timezone.utc)
+                for t in timestamps if t is not None
+            ),
+            default=None,
+        )
 
     def fetch_all(self):
         self.fetch_cockpit()
@@ -857,7 +873,7 @@ class Vehicle:
             raise ValueError(body['errors'])
 
         if not 'data' in body or not 'attributes' in body['data']:
-            self.battery_supported = False
+            return
 
         battery_data = body['data']['attributes']
         self.battery_capacity = battery_data.get('batteryCapacity')  # kWh
@@ -875,10 +891,12 @@ class Vehicle:
         }
         self.range_hvac_off = battery_data.get('rangeHvacOff')
         self.range_hvac_on = battery_data.get('rangeHvacOn')
-        
-        # For ICE vehicles, we should get the range at least. If not, dont bother again
+
+        if 'lastUpdateTime' in battery_data:
+            self.battery_status_last_updated = datetime.datetime.fromisoformat(battery_data['lastUpdateTime'].replace('Z','+00:00'))
+
+        # Everything below is EV-only
         if self.range_hvac_on is None and Feature.BATTERY_STATUS not in self.features:
-            self.battery_supported = False
             return
 
         self.charging = ChargingStatus(battery_data.get('chargeStatus', 0))
@@ -887,8 +905,6 @@ class Vehicle:
             self.plugged_in_time = datetime.datetime.fromisoformat(battery_data['vehiclePlugTimestamp'].replace('Z','+00:00'))
         if 'vehicleUnplugTimestamp' in battery_data:
             self.unplugged_time = datetime.datetime.fromisoformat(battery_data['vehicleUnplugTimestamp'].replace('Z','+00:00'))
-        if 'lastUpdateTime' in battery_data:
-            self.battery_status_last_updated = datetime.datetime.fromisoformat(battery_data['lastUpdateTime'].replace('Z','+00:00'))
 
     def fetch_battery_status_ariya(self):
         resp = self._get(
@@ -900,7 +916,7 @@ class Vehicle:
             raise ValueError(body['errors'])
 
         if not 'data' in body or not 'attributes' in body['data']:
-            self.battery_supported = False
+            return
 
         battery_data = body['data']['attributes']
         
