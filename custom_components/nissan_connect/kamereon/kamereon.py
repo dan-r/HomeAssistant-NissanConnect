@@ -351,7 +351,7 @@ class Vehicle:
     def fetch_all(self):
         # The new Micra uses the newer v3 battery API and does not support
         # the legacy cockpit / Leaf battery endpoints used by older models.
-        if (self.model_name or "").casefold() == "micra":
+        if self.model_name == "MICRA":
             self.fetch_battery_status()
             return
 
