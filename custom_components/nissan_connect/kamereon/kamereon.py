@@ -619,6 +619,41 @@ class Vehicle:
         self.location = (location_data['gpsLatitude'], location_data['gpsLongitude'])
         self.location_last_updated = datetime.datetime.fromisoformat(location_data['lastUpdateTime'].replace('Z','+00:00'))
 
+    def wake_up_vehicle(self):
+        """Ask the vehicle's telematics module to wake up
+        (v1/cars/{vin}/actions/wake-up-vehicle, body {"data":{"type":
+        "WakeUpVehicle"}}) - a real endpoint used by the app (IRemoteServer.
+        postWakeUpVehicle), confirmed unchanged between 3.17.1 and 4.0.0.
+
+        EXPERIMENTAL, called from lock_unlock() below: I traced the actual
+        button-tap-to-lock/unlock code path twice (the click handler and the
+        post-PIN-entry continuation) and could not find a call to this
+        specific endpoint in either - so this is not a confirmed match to
+        what the real app does for this exact action, only a plausible one
+        (there may be a call site elsewhere, e.g. triggered by navigating to
+        a vehicle status screen earlier in a real user's session, that we
+        aren't replicating). Trying it because a real-app A/B test succeeded
+        under conditions where our client didn't, and this is a cheap,
+        harmless thing to try. Best-effort: failure here must not block the
+        lock/unlock attempt that follows it.
+        """
+        url = '{}v1/cars/{}/actions/wake-up-vehicle'.format(self.session.settings['car_adapter_base_url'], self.vin)
+        _LOGGER.debug("POST %s (WakeUpVehicle)", url)
+        try:
+            resp = self._post(
+                url,
+                data=json.dumps({
+                    'data': {'type': 'WakeUpVehicle'}
+                }),
+                headers={'Content-Type': 'application/vnd.api+json'}
+            )
+            _LOGGER.debug("wake-up-vehicle response: status=%s body=%s", resp.status_code, resp.text)
+            body = resp.json()
+            if 'errors' in body:
+                _LOGGER.warning("wake-up-vehicle failed for vin=%s: %s", self.vin, body['errors'])
+        except Exception:
+            _LOGGER.exception("wake-up-vehicle request errored for vin=%s (ignoring, best-effort)", self.vin)
+
     def refresh_lock_status(self):
         resp = self._post(
             '{}v1/cars/{}/actions/refresh-lock-status'.format(self.session.settings['car_adapter_base_url'], self.vin),
@@ -1067,6 +1102,11 @@ class Vehicle:
             group = LockableDoorGroup.DOORS_AND_HATCH
         order = '{}/RLU/{}'.format(self.vin, 'Lock' if action == 'lock' else 'Unlock')
         _LOGGER.info("Requesting %s for vin=%s (target=%s)", action, self.vin, group.value)
+
+        # See wake_up_vehicle()'s docstring: experimental, not a confirmed
+        # match to the app's exact code path for this action.
+        self.wake_up_vehicle()
+
         srp = self.srp_proof(pincode, order)
 
         # LockUnlock shares the same generic "VehicleControls" request shape

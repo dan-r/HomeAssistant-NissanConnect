@@ -525,10 +525,64 @@ def _lock_unlock_urls(vin="TEST-VIN"):
     return lock_unlock_url, status_url
 
 
+def _wake_up_url(vin="TEST-VIN"):
+    return (
+        "https://alliance-platform-caradapter-prod.apps.eu2.kamereon.io/"
+        f"car-adapter/v1/cars/{vin}/actions/wake-up-vehicle"
+    )
+
+
+def test_wake_up_vehicle_posts_expected_body(requests_mock):
+    vehicle = _fetch_test_vehicle(requests_mock)
+    wake_up_url = _wake_up_url()
+    requests_mock.post(wake_up_url, status_code=200, json={"data": {"type": "WakeUpVehicle"}})
+
+    vehicle.wake_up_vehicle()
+
+    request = requests_mock.last_request
+    assert request.url == wake_up_url
+    assert request.json() == {"data": {"type": "WakeUpVehicle"}}
+    assert request.headers["Content-Type"] == "application/vnd.api+json"
+
+
+def test_wake_up_vehicle_does_not_raise_on_error(requests_mock):
+    """Best-effort - a failure here shouldn't block the lock/unlock attempt
+    that follows it."""
+    vehicle = _fetch_test_vehicle(requests_mock)
+    requests_mock.post(
+        _wake_up_url(), status_code=500,
+        json={"errors": [{"code": "500", "title": "Internal error"}]},
+    )
+
+    vehicle.wake_up_vehicle()  # must not raise
+
+
+def test_wake_up_vehicle_does_not_raise_on_transport_error(requests_mock):
+    vehicle = _fetch_test_vehicle(requests_mock)
+    requests_mock.post(_wake_up_url(), exc=requests.ConnectionError)
+
+    vehicle.wake_up_vehicle()  # must not raise
+
+
+def test_lock_unlock_wakes_up_vehicle_first(requests_mock):
+    vehicle = _fetch_test_vehicle(requests_mock)
+    vehicle.features.append(Feature.APP_DOOR_LOCKING)
+    wake_up_url = _wake_up_url()
+    requests_mock.post(wake_up_url, status_code=200, json={"data": {"type": "WakeUpVehicle"}})
+
+    with patch.object(vehicle, "srp_proof", side_effect=RuntimeError("stop here")):
+        with pytest.raises(RuntimeError, match="stop here"):
+            vehicle.lock_unlock("1234", "unlock")
+
+    wake_up_requests = [r for r in requests_mock.request_history if r.url == wake_up_url]
+    assert len(wake_up_requests) == 1
+
+
 def test_lock_unlock_sends_correct_body_and_confirms_completion(requests_mock):
     vehicle = _fetch_test_vehicle(requests_mock)
     vehicle.features.append(Feature.APP_DOOR_LOCKING)
     lock_unlock_url, status_url = _lock_unlock_urls()
+    requests_mock.post(_wake_up_url(), status_code=200, json={"data": {"type": "WakeUpVehicle"}})
     requests_mock.post(
         lock_unlock_url, status_code=200, json={"data": {"type": "LockUnlock", "id": "action-123"}}
     )
@@ -564,6 +618,7 @@ def test_lock_unlock_raises_if_action_does_not_complete(requests_mock):
     vehicle = _fetch_test_vehicle(requests_mock)
     vehicle.features.append(Feature.APP_DOOR_LOCKING)
     lock_unlock_url, status_url = _lock_unlock_urls()
+    requests_mock.post(_wake_up_url(), status_code=200, json={"data": {"type": "WakeUpVehicle"}})
     requests_mock.post(
         lock_unlock_url, status_code=200, json={"data": {"type": "LockUnlock", "id": "action-123"}}
     )
@@ -583,6 +638,7 @@ def test_lock_unlock_succeeds_without_action_id(requests_mock):
     vehicle = _fetch_test_vehicle(requests_mock)
     vehicle.features.append(Feature.APP_DOOR_LOCKING)
     lock_unlock_url, _ = _lock_unlock_urls()
+    requests_mock.post(_wake_up_url(), status_code=200, json={"data": {"type": "WakeUpVehicle"}})
     requests_mock.post(lock_unlock_url, status_code=200, json={"data": {"type": "LockUnlock"}})
 
     with patch.object(vehicle, "srp_proof", return_value="test-srp-proof"):
