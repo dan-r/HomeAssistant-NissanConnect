@@ -1039,7 +1039,13 @@ class Vehicle:
         # LockUnlock shares the same generic "VehicleControls" request shape
         # as ChargingStart/HornLights (action/target/srp attributes) -
         # confirmed from the app's IRemoteServer.lockUnlockVehicle() and
-        # VehicleControls model, not a bespoke lock/doorType shape.
+        # VehicleControls model, not a bespoke lock/doorType shape. That
+        # model is serialized by a custom Retrofit Converter
+        # (qb.a in the app) whose RequestBody hardcodes its own contentType
+        # ("application/json; charset=utf-8"); OkHttp's BridgeInterceptor
+        # unconditionally overwrites the Content-Type header from the body's
+        # contentType(), so that's the real value on the wire regardless of
+        # the vnd.api+json declared on the retrofit interface method.
         url = '{}v1/cars/{}/actions/lock-unlock'.format(self.session.settings['car_adapter_base_url'], self.vin)
         _LOGGER.debug("POST %s (LockUnlock action=%s)", url, action)
         resp = self._post(
@@ -1054,7 +1060,7 @@ class Vehicle:
                     }
                 }
             }),
-            headers={'Content-Type': 'application/vnd.api+json'}
+            headers={'Content-Type': 'application/json; charset=utf-8'}
         )
         _LOGGER.debug("lock-unlock response: status=%s body=%s", resp.status_code, resp.text)
         body = resp.json()
