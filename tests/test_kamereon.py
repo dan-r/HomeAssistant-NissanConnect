@@ -482,8 +482,6 @@ def test_initiate_srp_sends_correct_body_and_headers(requests_mock):
 
     request = next(r for r in requests_mock.request_history if r.url == srp_initiates_url)
     assert request.headers["Content-Type"] == "application/vnd.api+json"
-    assert request.headers["App-Version"] == "3.17.1(1852)"
-    assert "NissanConnect Services/3.17.1" in request.headers["User-Agent"]
     body = request.json()
     attrs = body["data"]["attributes"]
     assert body["data"]["type"] == "SrpInitiates"
@@ -509,8 +507,6 @@ def test_validate_srp_sends_correct_body_and_headers(requests_mock):
     assert action_id == "action-abc"
     request = next(r for r in requests_mock.request_history if r.url == srp_sets_url)
     assert request.headers["Content-Type"] == "application/vnd.api+json"
-    assert request.headers["App-Version"] == "3.17.1(1852)"
-    assert "NissanConnect Services/3.17.1" in request.headers["User-Agent"]
     body = request.json()
     assert body["data"]["type"] == "SrpSets"
     assert body["data"]["attributes"]["i"] == "test-user"
@@ -547,14 +543,8 @@ def test_lock_unlock_sends_correct_body_and_confirms_completion(requests_mock):
     mock_srp_proof.assert_called_once_with("1234", "TEST-VIN/RLU/Unlock")
     request = next(r for r in requests_mock.request_history if r.url == lock_unlock_url)
     assert request.headers["Content-Type"] == "application/vnd.api+json"
-    # Headers the app's global KamereonInterceptor injects on every request
-    # made through this Retrofit client (ISRPServer/IPollingServer/
-    # IRemoteServer.x()) - see KAMEREON_INTERCEPTOR_HEADERS.
-    assert request.headers["App-Version"] == "3.17.1(1852)"
-    assert "NissanConnect Services/3.17.1" in request.headers["User-Agent"]
     status_request = next(r for r in requests_mock.request_history if r.url.startswith(status_url))
     assert status_request.headers["Content-Type"] == "application/vnd.api+json"
-    assert status_request.headers["App-Version"] == "3.17.1(1852)"
     assert request.json() == {
         "data": {
             "type": "LockUnlock",

@@ -21,21 +21,20 @@ from .kamereon_const import *
 
 _LOGGER = logging.getLogger(__name__)
 
-# Headers unconditionally injected by the app's "KamereonInterceptor"
-# (p318sb.e in the decompiled app) on every request made through the
-# Retrofit client shared by ISRPServer, IPollingServer, and the
-# IRemoteServer variant used for LockUnlock - i.e. exactly the SRP
-# enrollment/challenge + lock-unlock + action-status-polling chain.
-# That interceptor also force-sets Content-Type to 'application/vnd.api+json'
-# unconditionally (confirmed both by decompiling it and by the server
-# rejecting any other value we tried), which is set per-call already.
-KAMEREON_INTERCEPTOR_HEADERS = {
-    'App-Version': '3.17.1(1852)',
-    'User-Agent': (
-        'NissanConnect Services/3.17.1 (eu.nissan.nissanconnect.services; '
-        'build:1852; Android SDK 34) OkHttp/4.12.0'
-    ),
-}
+# The app's global "KamereonInterceptor" (p318sb.e in the decompiled app),
+# attached to the Retrofit client shared by ISRPServer, IPollingServer, and
+# the IRemoteServer variant used for LockUnlock (this whole SRP + lock-unlock
+# + action-status-polling chain), unconditionally sets three headers on every
+# request: Content-Type: application/vnd.api+json (set per-call below -
+# confirmed necessary, the server rejects other values), plus App-Version and
+# a full app User-Agent string. Deliberately NOT sending those latter two:
+# adding them coincided with the vehicle's SRP response getting stuck at
+# CREATED and never resolving (previously either succeeded or failed fast,
+# every time) - reverted on suspicion that claiming to *be* a specific real
+# app version, without also having what comes with actually being that app
+# (push-notification delivery, device attestation, etc.), makes the backend
+# expect/wait on something we can't provide, rather than falling back to
+# whatever more lenient handling it gives an unidentified client.
 
 _registry = {
     USERS: {},
@@ -687,7 +686,7 @@ class Vehicle:
                     }
                 }
             }),
-            headers={'Content-Type': 'application/vnd.api+json', **KAMEREON_INTERCEPTOR_HEADERS}
+            headers={'Content-Type': 'application/vnd.api+json'}
         )
         _LOGGER.debug("srp-initiates response: status=%s body=%s", resp.status_code, resp.text)
         body = resp.json()
@@ -717,7 +716,7 @@ class Vehicle:
                     }
                 }
             }),
-            headers={'Content-Type': 'application/vnd.api+json', **KAMEREON_INTERCEPTOR_HEADERS}
+            headers={'Content-Type': 'application/vnd.api+json'}
         )
         _LOGGER.debug("srp-sets response: status=%s body=%s", resp.status_code, resp.text)
         body = resp.json()
@@ -753,7 +752,7 @@ class Vehicle:
             resp = self._get(
                 '{}v1/cars/{}/actions/status'.format(self.session.settings['action_status_polling_base_url'], self.vin),
                 params={'actionId': action_id},
-                headers={'Content-Type': 'application/vnd.api+json', **KAMEREON_INTERCEPTOR_HEADERS}
+                headers={'Content-Type': 'application/vnd.api+json'}
             )
             _LOGGER.debug("actions/status poll #%d for action_id=%s: status=%s body=%s",
                           attempt, action_id, resp.status_code, resp.text)
@@ -1081,12 +1080,12 @@ class Vehicle:
         # this whole SRP + lock-unlock + status-polling chain). It
         # unconditionally overwrites Content-Type to "application/vnd.api+json"
         # on every request on that client, regardless of what the interface
-        # annotation or a custom RequestBody's own contentType() claims -
-        # which is also where App-Version/User-Agent (KAMEREON_INTERCEPTOR_
-        # HEADERS) come from. This matches the server's own observed
-        # behaviour (rejects "application/json; charset=utf-8" outright,
-        # accepts vnd.api+json), so it's now a verified mechanism, not just
-        # an empirical patch.
+        # annotation or a custom RequestBody's own contentType() claims. This
+        # matches the server's own observed behaviour (rejects "application/
+        # json; charset=utf-8" outright, accepts vnd.api+json), so it's now a
+        # verified mechanism, not just an empirical patch. (That interceptor
+        # also sets App-Version/User-Agent - see the module-level comment
+        # near the top of this file for why we deliberately don't send those.)
         url = '{}v1/cars/{}/actions/lock-unlock'.format(self.session.settings['car_adapter_base_url'], self.vin)
         _LOGGER.debug("POST %s (LockUnlock action=%s)", url, action)
         resp = self._post(
@@ -1101,7 +1100,7 @@ class Vehicle:
                     }
                 }
             }),
-            headers={'Content-Type': 'application/vnd.api+json', **KAMEREON_INTERCEPTOR_HEADERS}
+            headers={'Content-Type': 'application/vnd.api+json'}
         )
         _LOGGER.debug("lock-unlock response: status=%s body=%s", resp.status_code, resp.text)
         body = resp.json()
