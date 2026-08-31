@@ -338,6 +338,137 @@ def test_login_requires_credentials():
         session.login()
 
 
+def _fetch_test_vehicle(requests_mock):
+    user_url = (
+        "https://alliance-platform-usersadapter-prod.apps.eu2.kamereon.io/"
+        "user-adapter/v1/users/current"
+    )
+    vehicles_url = f"{BFF_BASE_URL}v5/users/test-user/cars"
+    requests_mock.get(user_url, json={"userId": "test-user"})
+    requests_mock.get(vehicles_url, json={"data": [{"vin": "test-vin"}]})
+    session = NCISession(region="EU")
+    session._install_kamereon_token({
+        "access_token": "kamereon-access-token",
+        "refresh_token": "kamereon-refresh-token",
+        "token_type": "Bearer",
+        "expires_in": 1800,
+    })
+    return session.fetch_vehicles()[0]
+
+
+def test_register_device_treats_already_registered_as_success(requests_mock):
+    """A previous attempt may already have registered this device_id (e.g. it
+    got this far before failing on a later step like SRP enrollment) - retrying
+    must not fail just because the device is already there."""
+    vehicle = _fetch_test_vehicle(requests_mock)
+    register_url = f"{BFF_BASE_URL}v1/users/test-user/vehicles/TEST-VIN/register-device"
+    requests_mock.post(
+        register_url,
+        status_code=409,
+        json={
+            "errors": [{
+                "status": "Conflict",
+                "code": "409010",
+                "title": "Device already exists",
+                "detail": "Device  - some-device-id already exists for requested user vehicle",
+            }]
+        },
+    )
+
+    # Must not raise.
+    vehicle.register_device("some-device-id", "123456")
+
+
+def test_register_device_raises_on_other_conflicts(requests_mock):
+    """A 409 with a different error code is a real failure, not idempotent
+    re-registration, and must still surface."""
+    vehicle = _fetch_test_vehicle(requests_mock)
+    register_url = f"{BFF_BASE_URL}v1/users/test-user/vehicles/TEST-VIN/register-device"
+    requests_mock.post(
+        register_url,
+        status_code=409,
+        json={"errors": [{"status": "Conflict", "code": "409999", "title": "Some other conflict"}]},
+    )
+
+    with pytest.raises(ValueError, match="409999"):
+        vehicle.register_device("some-device-id", "123456")
+
+
+def test_register_device_raises_on_invalid_otp(requests_mock):
+    vehicle = _fetch_test_vehicle(requests_mock)
+    register_url = f"{BFF_BASE_URL}v1/users/test-user/vehicles/TEST-VIN/register-device"
+    requests_mock.post(
+        register_url,
+        status_code=400,
+        json={"errors": [{"status": "Bad Request", "code": "400001", "title": "Invalid OTP"}]},
+    )
+
+    with pytest.raises(ValueError, match="Invalid OTP"):
+        vehicle.register_device("some-device-id", "000000")
+
+
+def test_register_device_succeeds(requests_mock):
+    vehicle = _fetch_test_vehicle(requests_mock)
+    register_url = f"{BFF_BASE_URL}v1/users/test-user/vehicles/TEST-VIN/register-device"
+    requests_mock.post(register_url, status_code=200, json={})
+
+    vehicle.register_device("some-device-id", "123456")
+
+    request = requests_mock.last_request
+    assert request.json() == {
+        "data": {
+            "type": "RegisterDevice",
+            "attributes": {
+                "deviceId": "some-device-id",
+                "otp": "123456",
+                "modelName": "Home Assistant",
+            },
+        }
+    }
+
+
+def test_poll_action_status_tolerates_early_404(requests_mock):
+    """actions/status lives on a separate microservice from the one that
+    creates the action, so a 404 shortly after creation means "not indexed
+    yet", not "will never exist" - it must be retried, not raised."""
+    vehicle = _fetch_test_vehicle(requests_mock)
+    status_url = (
+        "https://alliance-platform-action-status-polling-prod.apps.eu2.kamereon.io/"
+        "v1/cars/TEST-VIN/actions/status"
+    )
+    requests_mock.get(
+        status_url,
+        [
+            {"status_code": 404, "json": {"errors": [{"code": "404", "title": "Not found exception"}]}},
+            {"status_code": 200, "json": {"data": {"attributes": {"status": "COMPLETED"}}}},
+        ],
+    )
+
+    attributes = next(vehicle._poll_action_status(
+        "some-action-id", timeout=5, interval=0.01, initial_delay=0
+    ))
+
+    assert attributes == {"status": "COMPLETED"}
+
+
+def test_poll_action_status_raises_on_other_errors(requests_mock):
+    vehicle = _fetch_test_vehicle(requests_mock)
+    status_url = (
+        "https://alliance-platform-action-status-polling-prod.apps.eu2.kamereon.io/"
+        "v1/cars/TEST-VIN/actions/status"
+    )
+    requests_mock.get(
+        status_url,
+        status_code=500,
+        json={"errors": [{"code": "500", "title": "Internal error"}]},
+    )
+
+    with pytest.raises(ValueError, match="Internal error"):
+        next(vehicle._poll_action_status(
+            "some-action-id", timeout=5, interval=0.01, initial_delay=0
+        ))
+
+
 def test_vehicle_request_does_not_retry_auth_failures(requests_mock):
     """A bad password must surface at once, not drive repeated logins."""
     user_url = (

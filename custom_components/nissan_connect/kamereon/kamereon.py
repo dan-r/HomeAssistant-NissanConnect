@@ -714,11 +714,23 @@ class Vehicle:
         _LOGGER.debug("srp-sets accepted, action_id=%s", action_id)
         return action_id
 
-    def _poll_action_status(self, action_id: str, timeout: float=25, interval: float=1.5):
+    def _poll_action_status(self, action_id: str, timeout: float=25, interval: float=1.5,
+                             initial_delay: float=1.0):
         """Poll GET .../actions/status?actionId=... until the vehicle responds,
-        returning the raw 'attributes' dict of the ActionStatus response."""
+        returning the raw 'attributes' dict of the ActionStatus response.
+
+        This hits a separate microservice (action_status_polling_base_url)
+        from the one that creates the action (e.g. car_adapter_base_url via
+        srp-sets), so there's a real propagation delay before an action_id
+        is queryable there: a 404 "No action(s) found for this vehicle"
+        shortly after creation is treated as "not indexed yet" and retried,
+        rather than a hard failure.
+        """
         deadline = time.monotonic() + timeout
         attempt = 0
+        _LOGGER.debug("Waiting %.1fs before first actions/status poll for action_id=%s (service propagation delay)",
+                      initial_delay, action_id)
+        time.sleep(initial_delay)
         while True:
             attempt += 1
             resp = self._get(
@@ -729,10 +741,16 @@ class Vehicle:
                           attempt, action_id, resp.status_code, resp.text)
             body = resp.json()
             if 'errors' in body:
-                _LOGGER.error("actions/status failed for action_id=%s: %s", action_id, body['errors'])
-                raise ValueError(body['errors'])
-            attributes = body.get('data', {}).get('attributes', {})
-            yield attributes
+                error_codes = [e.get('code') for e in body.get('errors', [])]
+                if resp.status_code == 404 and '404' in error_codes:
+                    _LOGGER.debug("Action %s not indexed yet on attempt #%d, will keep polling",
+                                  action_id, attempt)
+                else:
+                    _LOGGER.error("actions/status failed for action_id=%s: %s", action_id, body['errors'])
+                    raise ValueError(body['errors'])
+            else:
+                attributes = body.get('data', {}).get('attributes', {})
+                yield attributes
             if time.monotonic() >= deadline:
                 _LOGGER.error("Timed out after %d polls waiting for action %s to complete", attempt, action_id)
                 raise TimeoutError('Timed out waiting for action {} to complete'.format(action_id))
@@ -826,12 +844,19 @@ class Vehicle:
         prior generate_device_otp() call for the same `device_id`. Some
         vehicles only allow a single registered device at a time (any
         previous device is unregistered), others allow up to 10.
+
+        Idempotent: if `device_id` is already registered for this vehicle
+        (HTTP 409 / error code 409010 "Device already exists" - e.g. because
+        a previous attempt got this far but failed on a later step, such as
+        SRP PIN enrollment), that's treated as success rather than an error,
+        since the desired end state already holds.
         """
         _LOGGER.info("Registering device_id=%s (otp_len=%d, model_name=%r) for vin=%s user_id=%s",
                      device_id, len(otp), model_name, self.vin, self.user_id)
-        self._post_and_check(
-            '{}v1/users/{}/vehicles/{}/register-device'.format(
-                self.session.settings['user_base_url'], self.user_id, self.vin),
+        url = '{}v1/users/{}/vehicles/{}/register-device'.format(
+            self.session.settings['user_base_url'], self.user_id, self.vin)
+        resp = self._post(
+            url,
             data=json.dumps({
                 'data': {
                     'type': 'RegisterDevice',
@@ -840,6 +865,31 @@ class Vehicle:
             }),
             headers={'Content-Type': 'application/json'}
         )
+        _LOGGER.debug("register-device response: status=%s body=%s", resp.status_code, resp.text)
+
+        if resp.status_code == 409:
+            try:
+                body = resp.json()
+            except ValueError:
+                body = {}
+            error_codes = [e.get('code') for e in body.get('errors', [])]
+            if '409010' in error_codes:
+                _LOGGER.info(
+                    "device_id=%s was already registered for vin=%s - treating as success",
+                    device_id, self.vin
+                )
+                return
+            _LOGGER.error("register-device conflict for vin=%s (unrecognised): %s", self.vin, body)
+            raise ValueError('Request to {} failed ({}): {}'.format(url, resp.status_code, body))
+
+        if resp.status_code >= 400:
+            try:
+                body = resp.json()
+            except ValueError:
+                body = resp.text
+            _LOGGER.error("register-device failed for vin=%s (%s): %s", self.vin, resp.status_code, body)
+            raise ValueError('Request to {} failed ({}): {}'.format(url, resp.status_code, body))
+
         _LOGGER.info("Device %s registered successfully for vin=%s", device_id, self.vin)
 
     def get_device_registration_status(self, device_id: str) -> bool:
