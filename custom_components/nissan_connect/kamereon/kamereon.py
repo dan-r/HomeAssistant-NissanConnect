@@ -9,6 +9,7 @@ from html.parser import HTMLParser
 import hmac
 import json
 import logging
+import os
 import secrets
 from typing import List
 from urllib.parse import parse_qs, urljoin, urlparse
@@ -1026,9 +1027,13 @@ class Vehicle:
         if group is None:
             group = LockableDoorGroup.DOORS_AND_HATCH
         order = '{}/RLU/{}'.format(self.vin, 'Lock' if action == 'lock' else 'Unlock')
-        _LOGGER.info("Requesting %s for vin=%s (doorType=%s)", action, self.vin, group.value)
+        _LOGGER.info("Requesting %s for vin=%s (target=%s)", action, self.vin, group.value)
         srp = self.srp_proof(pincode, order)
 
+        # LockUnlock shares the same generic "VehicleControls" request shape
+        # as ChargingStart/HornLights (action/target/srp attributes) -
+        # confirmed from the app's IRemoteServer.lockUnlockVehicle() and
+        # VehicleControls model, not a bespoke lock/doorType shape.
         url = '{}v1/cars/{}/actions/lock-unlock'.format(self.session.settings['car_adapter_base_url'], self.vin)
         _LOGGER.debug("POST %s (LockUnlock action=%s)", url, action)
         resp = self._post(
@@ -1037,8 +1042,8 @@ class Vehicle:
                 'data': {
                     'type': 'LockUnlock',
                     'attributes': {
-                        'lock': action,
-                        'doorType': group.value,
+                        'action': action,
+                        'target': group.value,
                         'srp': srp
                     }
                 }
