@@ -6,7 +6,8 @@ from unittest.mock import patch
 import pytest
 import requests
 
-from custom_components.nissan_connect.kamereon import NCISession, NissanAuthError
+from custom_components.nissan_connect.kamereon import NCISession, NissanAuthError, SRP
+from custom_components.nissan_connect.kamereon.kamereon_const import Feature
 
 
 AUTH_BASE_URL = "https://login.mynissan-account.com/"
@@ -467,6 +468,135 @@ def test_poll_action_status_raises_on_other_errors(requests_mock):
         next(vehicle._poll_action_status(
             "some-action-id", timeout=5, interval=0.01, initial_delay=0
         ))
+
+
+def test_initiate_srp_sends_correct_body_and_headers(requests_mock):
+    vehicle = _fetch_test_vehicle(requests_mock)
+    srp_initiates_url = (
+        "https://alliance-platform-caradapter-prod.apps.eu2.kamereon.io/"
+        "car-adapter/v1/cars/TEST-VIN/actions/srp-initiates"
+    )
+    requests_mock.post(srp_initiates_url, status_code=200, json={"data": {"type": "SrpInitiates"}})
+
+    vehicle.initiate_srp("1234")
+
+    request = next(r for r in requests_mock.request_history if r.url == srp_initiates_url)
+    assert request.headers["Content-Type"] == "application/vnd.api+json"
+    assert request.headers["App-Version"] == "3.17.1(1852)"
+    assert "NissanConnect Services/3.17.1" in request.headers["User-Agent"]
+    body = request.json()
+    attrs = body["data"]["attributes"]
+    assert body["data"]["type"] == "SrpInitiates"
+    assert attrs["i"] == "test-user"
+    assert len(attrs["s"]) == 20  # 10 random bytes, hex-encoded
+    assert len(attrs["v"]) == 512  # 256-byte verifier, hex-encoded
+
+
+def test_validate_srp_sends_correct_body_and_headers(requests_mock):
+    vehicle = _fetch_test_vehicle(requests_mock)
+    srp_sets_url = (
+        "https://alliance-platform-caradapter-prod.apps.eu2.kamereon.io/"
+        "car-adapter/v1/cars/TEST-VIN/actions/srp-sets"
+    )
+    requests_mock.post(
+        srp_sets_url, status_code=200,
+        json={"data": {"type": "SrpSets", "id": "action-abc"}},
+    )
+    srp_session = SRP()
+
+    action_id = vehicle.validate_srp(srp_session)
+
+    assert action_id == "action-abc"
+    request = next(r for r in requests_mock.request_history if r.url == srp_sets_url)
+    assert request.headers["Content-Type"] == "application/vnd.api+json"
+    assert request.headers["App-Version"] == "3.17.1(1852)"
+    assert "NissanConnect Services/3.17.1" in request.headers["User-Agent"]
+    body = request.json()
+    assert body["data"]["type"] == "SrpSets"
+    assert body["data"]["attributes"]["i"] == "test-user"
+    assert len(body["data"]["attributes"]["a"]) == 512  # 256-byte A, hex-encoded
+
+
+def _lock_unlock_urls(vin="TEST-VIN"):
+    lock_unlock_url = (
+        "https://alliance-platform-caradapter-prod.apps.eu2.kamereon.io/"
+        f"car-adapter/v1/cars/{vin}/actions/lock-unlock"
+    )
+    status_url = (
+        "https://alliance-platform-action-status-polling-prod.apps.eu2.kamereon.io/"
+        f"v1/cars/{vin}/actions/status"
+    )
+    return lock_unlock_url, status_url
+
+
+def test_lock_unlock_sends_correct_body_and_confirms_completion(requests_mock):
+    vehicle = _fetch_test_vehicle(requests_mock)
+    vehicle.features.append(Feature.APP_DOOR_LOCKING)
+    lock_unlock_url, status_url = _lock_unlock_urls()
+    requests_mock.post(
+        lock_unlock_url, status_code=200, json={"data": {"type": "LockUnlock", "id": "action-123"}}
+    )
+    requests_mock.get(
+        status_url, status_code=200,
+        json={"data": {"attributes": {"status": "COMPLETED"}}},
+    )
+
+    with patch.object(vehicle, "srp_proof", return_value="test-srp-proof") as mock_srp_proof:
+        vehicle.lock_unlock("1234", "unlock")
+
+    mock_srp_proof.assert_called_once_with("1234", "TEST-VIN/RLU/Unlock")
+    request = next(r for r in requests_mock.request_history if r.url == lock_unlock_url)
+    assert request.headers["Content-Type"] == "application/vnd.api+json"
+    # Headers the app's global KamereonInterceptor injects on every request
+    # made through this Retrofit client (ISRPServer/IPollingServer/
+    # IRemoteServer.x()) - see KAMEREON_INTERCEPTOR_HEADERS.
+    assert request.headers["App-Version"] == "3.17.1(1852)"
+    assert "NissanConnect Services/3.17.1" in request.headers["User-Agent"]
+    status_request = next(r for r in requests_mock.request_history if r.url.startswith(status_url))
+    assert status_request.headers["Content-Type"] == "application/vnd.api+json"
+    assert status_request.headers["App-Version"] == "3.17.1(1852)"
+    assert request.json() == {
+        "data": {
+            "type": "LockUnlock",
+            "attributes": {
+                "action": "unlock",
+                "target": "doors_hatch",
+                "srp": "test-srp-proof",
+            },
+        }
+    }
+
+
+def test_lock_unlock_raises_if_action_does_not_complete(requests_mock):
+    """The initial POST only means 'accepted for processing' - a vehicle
+    that rejects/cancels the actual command afterwards must surface as a
+    failure, not a silent no-op success."""
+    vehicle = _fetch_test_vehicle(requests_mock)
+    vehicle.features.append(Feature.APP_DOOR_LOCKING)
+    lock_unlock_url, status_url = _lock_unlock_urls()
+    requests_mock.post(
+        lock_unlock_url, status_code=200, json={"data": {"type": "LockUnlock", "id": "action-123"}}
+    )
+    requests_mock.get(
+        status_url, status_code=200,
+        json={"data": {"attributes": {"status": "CANCELLED", "errorCode": "12"}}},
+    )
+
+    with patch.object(vehicle, "srp_proof", return_value="test-srp-proof"):
+        with pytest.raises(ValueError, match="status=CANCELLED"):
+            vehicle.lock_unlock("1234", "unlock")
+
+
+def test_lock_unlock_succeeds_without_action_id(requests_mock):
+    """Defensive fallback: if the response has no action id to confirm
+    against, treat acceptance as done rather than failing outright."""
+    vehicle = _fetch_test_vehicle(requests_mock)
+    vehicle.features.append(Feature.APP_DOOR_LOCKING)
+    lock_unlock_url, _ = _lock_unlock_urls()
+    requests_mock.post(lock_unlock_url, status_code=200, json={"data": {"type": "LockUnlock"}})
+
+    with patch.object(vehicle, "srp_proof", return_value="test-srp-proof"):
+        vehicle.lock_unlock("1234", "lock")  # must not raise
 
 
 def test_poll_srp_challenge_raises_immediately_on_rejection(requests_mock):

@@ -21,6 +21,22 @@ from .kamereon_const import *
 
 _LOGGER = logging.getLogger(__name__)
 
+# Headers unconditionally injected by the app's "KamereonInterceptor"
+# (p318sb.e in the decompiled app) on every request made through the
+# Retrofit client shared by ISRPServer, IPollingServer, and the
+# IRemoteServer variant used for LockUnlock - i.e. exactly the SRP
+# enrollment/challenge + lock-unlock + action-status-polling chain.
+# That interceptor also force-sets Content-Type to 'application/vnd.api+json'
+# unconditionally (confirmed both by decompiling it and by the server
+# rejecting any other value we tried), which is set per-call already.
+KAMEREON_INTERCEPTOR_HEADERS = {
+    'App-Version': '3.17.1(1852)',
+    'User-Agent': (
+        'NissanConnect Services/3.17.1 (eu.nissan.nissanconnect.services; '
+        'build:1852; Android SDK 34) OkHttp/4.12.0'
+    ),
+}
+
 _registry = {
     USERS: {},
     VEHICLES: {},
@@ -671,7 +687,7 @@ class Vehicle:
                     }
                 }
             }),
-            headers={'Content-Type': 'application/vnd.api+json'}
+            headers={'Content-Type': 'application/vnd.api+json', **KAMEREON_INTERCEPTOR_HEADERS}
         )
         _LOGGER.debug("srp-initiates response: status=%s body=%s", resp.status_code, resp.text)
         body = resp.json()
@@ -701,7 +717,7 @@ class Vehicle:
                     }
                 }
             }),
-            headers={'Content-Type': 'application/vnd.api+json'}
+            headers={'Content-Type': 'application/vnd.api+json', **KAMEREON_INTERCEPTOR_HEADERS}
         )
         _LOGGER.debug("srp-sets response: status=%s body=%s", resp.status_code, resp.text)
         body = resp.json()
@@ -715,7 +731,7 @@ class Vehicle:
         _LOGGER.debug("srp-sets accepted, action_id=%s", action_id)
         return action_id
 
-    def _poll_action_status(self, action_id: str, timeout: float=25, interval: float=1.5,
+    def _poll_action_status(self, action_id: str, timeout: float=60, interval: float=1.5,
                              initial_delay: float=1.0):
         """Poll GET .../actions/status?actionId=... until the vehicle responds,
         returning the raw 'attributes' dict of the ActionStatus response.
@@ -737,6 +753,7 @@ class Vehicle:
             resp = self._get(
                 '{}v1/cars/{}/actions/status'.format(self.session.settings['action_status_polling_base_url'], self.vin),
                 params={'actionId': action_id},
+                headers={'Content-Type': 'application/vnd.api+json', **KAMEREON_INTERCEPTOR_HEADERS}
             )
             _LOGGER.debug("actions/status poll #%d for action_id=%s: status=%s body=%s",
                           attempt, action_id, resp.status_code, resp.text)
@@ -757,7 +774,7 @@ class Vehicle:
                 raise TimeoutError('Timed out waiting for action {} to complete'.format(action_id))
             time.sleep(interval)
 
-    def _poll_srp_challenge(self, action_id: str, timeout: float=25, interval: float=1.5):
+    def _poll_srp_challenge(self, action_id: str, timeout: float=60, interval: float=1.5):
         """Poll for the vehicle's SRP challenge (salt, B) in response to a
         prior validate_srp() call. Returns (salt, b) hex strings."""
         for attributes in self._poll_action_status(action_id, timeout=timeout, interval=interval):
@@ -788,6 +805,23 @@ class Vehicle:
                 _LOGGER.error("SRP challenge timed out server-side for action_id=%s", action_id)
                 raise TimeoutError('SRP challenge timed out')
         raise TimeoutError('Timed out waiting for SRP challenge (B) from vehicle')
+
+    def _poll_action_completion(self, action_id: str, timeout: float=60, interval: float=1.5):
+        """Poll GET .../actions/status?actionId=... until the action itself
+        reaches a final state and return its attributes. Mirrors the app's
+        generic ActionMatchEvent.isFinalStatus()/isSuccess() semantics (see
+        also _poll_srp_challenge): final = COMPLETED/CANCELLED/REJECTED/
+        TIMEOUT, success = COMPLETED only. The immediate POST response for
+        an action just means "accepted for processing" - this is how the
+        app finds out whether it actually happened on the vehicle.
+        """
+        final_statuses = ('COMPLETED', 'CANCELLED', 'REJECTED', 'TIMEOUT')
+        for attributes in self._poll_action_status(action_id, timeout=timeout, interval=interval):
+            status = attributes.get('status')
+            _LOGGER.debug("Action completion poll: action_id=%s status=%s", action_id, status)
+            if status in final_statuses:
+                return attributes
+        raise TimeoutError('Timed out waiting for action {} to reach a final status'.format(action_id))
 
     def srp_proof(self, pincode: str, order: str):
         """Perform the full per-command SRP-6a authentication handshake
@@ -1041,16 +1075,18 @@ class Vehicle:
         # confirmed from the app's IRemoteServer.lockUnlockVehicle() and
         # VehicleControls model, not a bespoke lock/doorType shape.
         #
-        # Content-Type: the decompiled custom Retrofit Converter (qb.a in the
-        # app) builds a RequestBody whose contentType() claims
-        # "application/json; charset=utf-8", which I inferred would win on
-        # the wire via OkHttp's BridgeInterceptor overriding the interface's
-        # declared "vnd.api+json" - that inference was wrong. The server
-        # rejects "application/json; charset=utf-8" outright ("Invalid
-        # Content-Type header value"), and separately already accepted
-        # vnd.api+json (got as far as parsing attributes and rejecting the
-        # old field names, before this fix). vnd.api+json it is - confirmed
-        # by the server's own behaviour, not decompiled code.
+        # Content-Type: resolved for good by finding the app's global
+        # "KamereonInterceptor" (p318sb.e), attached to the exact Retrofit
+        # client shared by ISRPServer/IPollingServer/IRemoteServer.x() (i.e.
+        # this whole SRP + lock-unlock + status-polling chain). It
+        # unconditionally overwrites Content-Type to "application/vnd.api+json"
+        # on every request on that client, regardless of what the interface
+        # annotation or a custom RequestBody's own contentType() claims -
+        # which is also where App-Version/User-Agent (KAMEREON_INTERCEPTOR_
+        # HEADERS) come from. This matches the server's own observed
+        # behaviour (rejects "application/json; charset=utf-8" outright,
+        # accepts vnd.api+json), so it's now a verified mechanism, not just
+        # an empirical patch.
         url = '{}v1/cars/{}/actions/lock-unlock'.format(self.session.settings['car_adapter_base_url'], self.vin)
         _LOGGER.debug("POST %s (LockUnlock action=%s)", url, action)
         resp = self._post(
@@ -1065,14 +1101,37 @@ class Vehicle:
                     }
                 }
             }),
-            headers={'Content-Type': 'application/vnd.api+json'}
+            headers={'Content-Type': 'application/vnd.api+json', **KAMEREON_INTERCEPTOR_HEADERS}
         )
         _LOGGER.debug("lock-unlock response: status=%s body=%s", resp.status_code, resp.text)
         body = resp.json()
         if 'errors' in body:
             _LOGGER.error("lock-unlock (%s) failed for vin=%s: %s", action, self.vin, body['errors'])
             raise ValueError(body['errors'])
-        _LOGGER.info("%s request accepted for vin=%s", action, self.vin)
+
+        action_id = body.get('data', {}).get('id')
+        if not action_id:
+            # No action id to confirm against - treat acceptance as done,
+            # same as before this fix.
+            _LOGGER.info("%s request accepted for vin=%s (no action id to confirm completion)", action, self.vin)
+            return body
+
+        _LOGGER.info("%s request accepted for vin=%s, confirming completion (action_id=%s)",
+                     action, self.vin, action_id)
+        final = self._poll_action_completion(action_id)
+        status = final.get('status')
+        if status != 'COMPLETED':
+            values = {
+                item['name']: item['value']
+                for item in (final.get('data') or [])
+                if isinstance(item, dict) and 'name' in item
+            }
+            error_code = values.get('errorCode', final.get('errorCode'))
+            _LOGGER.error("%s did not complete for vin=%s: status=%s errorCode=%s",
+                          action, self.vin, status, error_code)
+            raise ValueError('{} failed: status={} errorCode={}'.format(action, status, error_code))
+
+        _LOGGER.info("%s confirmed complete for vin=%s", action, self.vin)
         return body
 
     def lock(self, pincode: str, group: LockableDoorGroup=None):
