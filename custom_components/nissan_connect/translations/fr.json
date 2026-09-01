@@ -46,19 +46,57 @@
                     "interval_charging": "Intervalle de sondage pendant la charge (minutes)",
                     "interval_statistics": "Intervalle de mise à jour des statistiques quotidiennes/mensuelles (minutes)",
                     "interval_fetch": "Intervalle de mise à jour (minutes)",
-                    "imperial_distance": "Utiliser les unités de distance impériales"
+                    "imperial_distance": "Utiliser les unités de distance impériales",
+                    "configure_remote_lock": "Configurer le verrouillage à distance"
                 },
                 "data_description": {
                     "password": "Si vous ne changez pas vos informations d'identification, laissez le champ du mot de passe vide.",
                     "interval_charging": "La voiture sera réveillée et de nouvelles données seront demandées à chaque intervalle de mise à jour.",
-                    "interval_statistics": "Aux intervalles de mise à jour, les dernières données seront récupérées auprès de Nissan mais la voiture ne sera pas réveillée."
+                    "interval_statistics": "Aux intervalles de mise à jour, les dernières données seront récupérées auprès de Nissan mais la voiture ne sera pas réveillée.",
+                    "configure_remote_lock": "Démarrez ou gérez la configuration sécurisée du verrouillage et du déverrouillage d'un véhicule."
+                }
+            },
+            "remote_lock_vehicle": {
+                "description": "Sélectionnez le véhicule dont vous souhaitez gérer le verrouillage à distance.",
+                "data": {
+                    "vehicle": "Véhicule"
+                }
+            },
+            "remote_lock_otp": {
+                "description": "Saisissez le code de vérification à six chiffres envoyé par Nissan par e-mail.",
+                "data": {
+                    "otp": "Code de vérification"
+                }
+            },
+            "remote_lock_pin": {
+                "description": "Choisissez un code PIN Nissan à quatre chiffres pour les commandes à distance. Home Assistant l'envoie à Nissan pour l'enregistrement, mais ne le conserve pas. Vous devez le saisir à chaque verrouillage ou déverrouillage.",
+                "data": {
+                    "pin": "Code PIN de commande à distance",
+                    "pin_confirm": "Confirmer le code PIN"
+                }
+            },
+            "remote_lock_enabled": {
+                "description": "Gérez l'accès sécurisé à distance pour ce véhicule.",
+                "data": {
+                    "action": "Action"
                 }
             }
         },
         "error": {
-            "auth_error": "Informations d'identification invalides."
+            "auth_error": "Informations d'identification invalides.",
+            "cannot_connect": "Échec de la connexion à Nissan.",
+            "invalid_vehicle": "Sélectionnez un véhicule valide.",
+            "remote_lock_setup_error": "Impossible de démarrer la configuration du verrouillage à distance.",
+            "otp_invalid": "Le code de vérification doit contenir six chiffres.",
+            "device_registration_error": "Nissan a refusé l'enregistrement de l'appareil. Vérifiez le code et réessayez.",
+            "pin_invalid": "Le code PIN doit contenir quatre chiffres.",
+            "pin_mismatch": "Les codes PIN ne correspondent pas.",
+            "pin_enrollment_error": "Nissan n'a pas pu enregistrer le code PIN de commande à distance.",
+            "device_removal_error": "Nissan n'a pas pu supprimer l'appareil de confiance."
         },
-        "abort": {}
+        "abort": {
+            "no_remote_lock_vehicle": "Aucun véhicule de ce compte ne prend en charge cette configuration sécurisée du verrouillage à distance."
+        }
     },
     "issues": {},
     "entity": {
@@ -71,6 +109,11 @@
             },
             "plugged": {
                 "name": "Branché"
+            }
+        },
+        "lock": {
+            "doors": {
+                "name": "Portes"
             }
         },
         "button": {
@@ -122,6 +165,9 @@
             "charge_time_6kw": {
                 "name": "Temps de charge (6 kW)"
             },
+            "charge_time_adaptive": {
+                "name": "Temps de charge (adaptatif)"
+            },
             "last_updated": {
                 "name": "Dernière mise à jour"
             },
@@ -150,6 +196,14 @@
         "options": {
           "eu": "Europe"
         }
+            },
+            "remote_lock_action": {
+                "options": {
+                    "enable": "Activer le verrouillage à distance",
+                    "disable": "Désactiver le verrouillage à distance",
+                    "update_pin": "Modifier le code PIN de commande à distance",
+                    "remove_device": "Supprimer l'appareil de confiance"
+                }
       }
     }
 }

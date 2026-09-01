@@ -13,10 +13,15 @@ from custom_components.nissan_connect import (
 )
 from custom_components.nissan_connect.const import (
     CONFIG_VERSION,
+    CONF_REMOTE_LOCK,
+    CONF_REMOTE_LOCK_DEVICE_ID,
+    CONF_REMOTE_LOCK_STATUS,
     DATA_COORDINATOR_FETCH,
     DATA_COORDINATOR_STATISTICS,
+    DATA_REMOTE_LOCK_CONFIG,
     DATA_VEHICLES,
     DOMAIN,
+    REMOTE_LOCK_STATUS_ENABLED,
 )
 from custom_components.nissan_connect.kamereon import NissanAuthError
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -79,6 +84,7 @@ async def test_update_listener_logs_in_shared_session_once():
                     "vin-1": MagicMock(session=session),
                     "vin-2": MagicMock(session=session),
                 },
+                DATA_REMOTE_LOCK_CONFIG: {},
                 DATA_COORDINATOR_FETCH: fetch_coordinator,
                 DATA_COORDINATOR_STATISTICS: statistics_coordinator,
             }
@@ -101,6 +107,36 @@ async def test_update_listener_logs_in_shared_session_once():
     assert fetch_coordinator.update_interval == timedelta(minutes=10)
     assert statistics_coordinator.update_interval == timedelta(minutes=60)
     fetch_coordinator.async_refresh.assert_awaited_once_with()
+
+
+async def test_update_listener_reloads_when_remote_lock_entities_change():
+    hass = MagicMock()
+    hass.config_entries.async_reload = AsyncMock(return_value=True)
+    hass.data = {
+        DOMAIN: {
+            "test@example.com": {
+                DATA_VEHICLES: {},
+                DATA_REMOTE_LOCK_CONFIG: {},
+            }
+        }
+    }
+    entry = MagicMock(
+        entry_id="entry-id",
+        data={
+            "email": "test@example.com",
+            CONF_REMOTE_LOCK: {
+                "TEST-VIN": {
+                    CONF_REMOTE_LOCK_DEVICE_ID: "0123456789abcdef",
+                    CONF_REMOTE_LOCK_STATUS: REMOTE_LOCK_STATUS_ENABLED,
+                }
+            },
+        },
+    )
+
+    await async_update_listener(hass, entry)
+
+    hass.config_entries.async_reload.assert_awaited_once_with("entry-id")
+    hass.async_add_executor_job.assert_not_called()
 
 
 async def test_migrate_entry_leaves_current_version_alone(hass):
@@ -131,6 +167,30 @@ async def test_migrate_entry_refuses_backwards_migration(hass):
     entry.add_to_hass(hass)
 
     assert await async_migrate_entry(hass, entry) is False
+
+
+async def test_migrate_entry_removes_experimental_remote_lock_secrets(hass):
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        version=1,
+        data={
+            "email": "test@example.com",
+            "password": "test-password",
+            "region": "EU",
+            "device_id": "legacy-device",
+            "remote_lock_enabled": True,
+            "srp_pincode": "1234",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    assert await async_migrate_entry(hass, entry) is True
+
+    assert entry.version == CONFIG_VERSION
+    assert entry.data[CONF_REMOTE_LOCK] == {}
+    assert "device_id" not in entry.data
+    assert "remote_lock_enabled" not in entry.data
+    assert "srp_pincode" not in entry.data
 
 
 async def test_setup_rewrites_legacy_device_identifiers(hass):

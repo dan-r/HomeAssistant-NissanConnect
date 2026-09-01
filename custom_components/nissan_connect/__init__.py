@@ -17,10 +17,32 @@ async def async_update_listener(hass, entry):
     """Handle options flow credentials update."""
     config = entry.data
     account_id = config['email']
+    runtime_data = hass.data[DOMAIN][account_id]
+
+    previous_remote_lock = runtime_data.get(DATA_REMOTE_LOCK_CONFIG, {})
+    current_remote_lock = config.get(CONF_REMOTE_LOCK, {})
+
+    def enabled_configs(remote_lock):
+        return {
+            vin: vehicle_config
+            for vin, vehicle_config in remote_lock.items()
+            if vehicle_config.get(CONF_REMOTE_LOCK_STATUS)
+            == REMOTE_LOCK_STATUS_ENABLED
+        }
+
+    if enabled_configs(previous_remote_lock) != enabled_configs(
+            current_remote_lock):
+        await hass.config_entries.async_reload(entry.entry_id)
+        return
+
+    runtime_data[DATA_REMOTE_LOCK_CONFIG] = {
+        vin: dict(vehicle_config)
+        for vin, vehicle_config in current_remote_lock.items()
+    }
 
     sessions = {
         vehicle.session
-        for vehicle in hass.data[DOMAIN][account_id][DATA_VEHICLES].values()
+        for vehicle in runtime_data[DATA_VEHICLES].values()
     }
     for session in sessions:
         await hass.async_add_executor_job(
@@ -64,7 +86,12 @@ async def async_setup_entry(hass, entry):
     )
 
     data = hass.data[DOMAIN][account_id] = {
-        DATA_VEHICLES: {}
+        DATA_VEHICLES: {},
+        DATA_REMOTE_LOCK_CONFIG: {
+            vin: dict(vehicle_config)
+            for vin, vehicle_config
+            in config.get(CONF_REMOTE_LOCK, {}).items()
+        },
     }
 
     _LOGGER.info("Logging in to service")
@@ -134,6 +161,13 @@ async def async_migrate_entry(hass, config_entry) -> bool:
     if config_entry.version < CONFIG_VERSION:
         _LOGGER.debug("Migrating from version %s", config_entry.version)
         new_data = dict(config_entry.data)
+
+        # The experimental lock branch stored secrets at account scope. It
+        # cannot be mapped safely to a VIN and must never survive migration.
+        for key in (
+                "device_id", "remote_lock_enabled", "srp_pincode"):
+            new_data.pop(key, None)
+        new_data.setdefault(CONF_REMOTE_LOCK, {})
 
         hass.config_entries.async_update_entry(
             config_entry,

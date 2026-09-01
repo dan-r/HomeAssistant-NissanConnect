@@ -46,19 +46,57 @@
             "interval_charging": "Polling-Intervall während des Ladevorgangs (Minuten)",
             "interval_statistics": "Update-Intervall für Statistiken (Minuten)",
             "interval_fetch": "Update-Intervall (Minuten)",
-            "imperial_distance": "Imperiale (amerikanische) Einheiten verwenden"
+            "imperial_distance": "Imperiale (amerikanische) Einheiten verwenden",
+            "configure_remote_lock": "Fernverriegelung konfigurieren"
           },
           "data_description": {
             "password": "Nur bei geänderten Zugangsdaten ausfüllen",
             "interval_charging": "In diesem Intervall werden Daten vom Fahrzeug angefordert (beeinflusst Batterieverbrauch).",
-            "interval_statistics": "In diesem Intervall werden neue Daten aus der Cloud angefordert, ohne das Fahrzeug zu wecken."
+            "interval_statistics": "In diesem Intervall werden neue Daten aus der Cloud angefordert, ohne das Fahrzeug zu wecken.",
+            "configure_remote_lock": "Sichere Ver- und Entriegelung für ein Fahrzeug einrichten oder verwalten."
+          }
+        },
+        "remote_lock_vehicle": {
+          "description": "Wähle das Fahrzeug, dessen Fernverriegelung du verwalten möchtest.",
+          "data": {
+            "vehicle": "Fahrzeug"
+          }
+        },
+        "remote_lock_otp": {
+          "description": "Gib den sechsstelligen Bestätigungscode ein, den Nissan per E-Mail gesendet hat.",
+          "data": {
+            "otp": "Bestätigungscode"
+          }
+        },
+        "remote_lock_pin": {
+          "description": "Lege eine vierstellige Nissan-PIN für Fernsteuerungen fest. Home Assistant sendet sie zur Einrichtung an Nissan, speichert sie aber nicht. Beim Ver- oder Entriegeln musst du sie jeweils eingeben.",
+          "data": {
+            "pin": "Fernsteuerungs-PIN",
+            "pin_confirm": "PIN bestätigen"
+          }
+        },
+        "remote_lock_enabled": {
+          "description": "Verwalte den sicheren Fernzugriff für dieses Fahrzeug.",
+          "data": {
+            "action": "Aktion"
           }
         }
       },
       "error": {
-        "auth_error": "Die Zugangsdaten sind ungültig."
+        "auth_error": "Die Zugangsdaten sind ungültig.",
+        "cannot_connect": "Verbindung zu Nissan fehlgeschlagen.",
+        "invalid_vehicle": "Wähle ein gültiges Fahrzeug aus.",
+        "remote_lock_setup_error": "Die Einrichtung der Fernverriegelung konnte nicht gestartet werden.",
+        "otp_invalid": "Der Bestätigungscode muss aus sechs Ziffern bestehen.",
+        "device_registration_error": "Nissan hat die Geräteregistrierung abgelehnt. Prüfe den Code und versuche es erneut.",
+        "pin_invalid": "Die PIN muss aus vier Ziffern bestehen.",
+        "pin_mismatch": "Die PINs stimmen nicht überein.",
+        "pin_enrollment_error": "Nissan konnte die Fernsteuerungs-PIN nicht einrichten.",
+        "device_removal_error": "Nissan konnte das vertrauenswürdige Gerät nicht entfernen."
       },
-      "abort": {}
+      "abort": {
+        "no_remote_lock_vehicle": "Kein Fahrzeug dieses Kontos unterstützt diese sichere Fernverriegelung."
+      }
     },
     "issues": {},
     "entity": {
@@ -71,6 +109,11 @@
         },
         "plugged": {
           "name": "Ladestation angeschlossen"
+        }
+      },
+      "lock": {
+        "doors": {
+          "name": "Türen"
         }
       },
       "button": {
@@ -122,6 +165,9 @@
         "charge_time_6kw": {
           "name": "Ladezeit (bei 6kW)"
         },
+        "charge_time_adaptive": {
+          "name": "Ladezeit (adaptiv)"
+        },
         "last_updated": {
           "name": "zuletzt aktualisiert"
         },
@@ -149,6 +195,14 @@
       "region": {
         "options": {
           "eu": "Europa"
+        }
+      },
+      "remote_lock_action": {
+        "options": {
+          "enable": "Fernverriegelung aktivieren",
+          "disable": "Fernverriegelung deaktivieren",
+          "update_pin": "Fernsteuerungs-PIN ändern",
+          "remove_device": "Vertrauenswürdiges Gerät entfernen"
         }
       }
     }

@@ -46,19 +46,57 @@
             "interval_charging": "Polling interval while charging (minutes)",
             "interval_statistics": "Update interval for daily/monthly statistics (minutes)",
             "interval_fetch": "Update interval (minutes)",
-            "imperial_distance": "Use imperial distance units (miles)"
+            "imperial_distance": "Use imperial distance units (miles)",
+            "configure_remote_lock": "Configure remote lock"
           },
           "data_description": {
             "password": "If you are not changing your credentials, leave the password field empty.",
             "interval_charging": "The car will be woken up and new data requested at every polling interval. 0 = Polling disabled",
-            "interval_statistics": "On update intervals, the latest data will be fetched from Nissan but the car will not be woken up."
+            "interval_statistics": "On update intervals, the latest data will be fetched from Nissan but the car will not be woken up.",
+            "configure_remote_lock": "Start or manage secure lock/unlock setup for one vehicle."
+          }
+        },
+        "remote_lock_vehicle": {
+          "description": "Select the vehicle whose remote lock setup you want to manage.",
+          "data": {
+            "vehicle": "Vehicle"
+          }
+        },
+        "remote_lock_otp": {
+          "description": "Enter the six-digit verification code Nissan sent by email.",
+          "data": {
+            "otp": "Verification code"
+          }
+        },
+        "remote_lock_pin": {
+          "description": "Choose a four-digit Nissan remote-control PIN. Home Assistant sends it to Nissan for enrollment but does not store it. You must enter it whenever you lock or unlock the vehicle.",
+          "data": {
+            "pin": "Remote-control PIN",
+            "pin_confirm": "Confirm PIN"
+          }
+        },
+        "remote_lock_enabled": {
+          "description": "Manage secure remote lock access for this vehicle.",
+          "data": {
+            "action": "Action"
           }
         }
       },
       "error": {
-        "auth_error": "Invalid credentials provided."
+        "auth_error": "Invalid credentials provided.",
+        "cannot_connect": "Failed to connect to Nissan.",
+        "invalid_vehicle": "Select a valid vehicle.",
+        "remote_lock_setup_error": "Could not start remote lock setup.",
+        "otp_invalid": "The verification code must contain six digits.",
+        "device_registration_error": "Nissan rejected the device registration. Check the code and try again.",
+        "pin_invalid": "The PIN must contain four digits.",
+        "pin_mismatch": "The PINs do not match.",
+        "pin_enrollment_error": "Nissan could not enroll the remote-control PIN.",
+        "device_removal_error": "Nissan could not remove the trusted device."
       },
-      "abort": {}
+      "abort": {
+        "no_remote_lock_vehicle": "No vehicle on this account supports this secure remote lock setup."
+      }
     },
     "issues": {},
     "entity": {
@@ -71,6 +109,11 @@
         },
         "plugged": {
           "name": "Plugged In"
+        }
+      },
+      "lock": {
+        "doors": {
+          "name": "Doors"
         }
       },
       "button": {
@@ -152,6 +195,14 @@
       "region": {
         "options": {
           "eu": "Europe"
+        }
+      },
+      "remote_lock_action": {
+        "options": {
+          "enable": "Enable remote lock",
+          "disable": "Disable remote lock",
+          "update_pin": "Change remote-control PIN",
+          "remove_device": "Remove trusted device"
         }
       }
     }

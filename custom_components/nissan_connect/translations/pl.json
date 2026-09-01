@@ -46,19 +46,57 @@
             "interval_charging": "Interwał odpytywania podczas ładowania (minuty)",
             "interval_statistics": "Interwał aktualizacji dziennych/miesięcznych statystyk (minuty)",
             "interval_fetch": "Interwał aktualizacji (minuty)",
-            "imperial_distance": "Używaj jednostek imperialnych"
+            "imperial_distance": "Używaj jednostek imperialnych",
+            "configure_remote_lock": "Skonfiguruj zdalne ryglowanie"
           },
           "data_description": {
             "password": "Jeżeli nie zmieniasz danych logowania pozostaw hasło puste.",
             "interval_charging": "Samochód zostanie obudzony i poproszony o nowe dane co każdy interwał odpytywania.",
-            "interval_statistics": "Co każdy interwał aktualizacji najnowsze dane zostaną pobrane z serwerów Nissana ale samochód nie zostanie obudzony."
+            "interval_statistics": "Co każdy interwał aktualizacji najnowsze dane zostaną pobrane z serwerów Nissana ale samochód nie zostanie obudzony.",
+            "configure_remote_lock": "Uruchom lub zarządzaj bezpieczną konfiguracją zdalnego ryglowania i odryglowania jednego pojazdu."
+          }
+        },
+        "remote_lock_vehicle": {
+          "description": "Wybierz pojazd, którego zdalnym ryglowaniem chcesz zarządzać.",
+          "data": {
+            "vehicle": "Pojazd"
+          }
+        },
+        "remote_lock_otp": {
+          "description": "Wprowadź sześciocyfrowy kod weryfikacyjny wysłany przez Nissan pocztą elektroniczną.",
+          "data": {
+            "otp": "Kod weryfikacyjny"
+          }
+        },
+        "remote_lock_pin": {
+          "description": "Wybierz czterocyfrowy kod PIN Nissan do zdalnego sterowania. Home Assistant wysyła go do Nissan podczas rejestracji, ale go nie zapisuje. Kod należy podać przy każdym ryglowaniu lub odryglowaniu pojazdu.",
+          "data": {
+            "pin": "PIN zdalnego sterowania",
+            "pin_confirm": "Potwierdź PIN"
+          }
+        },
+        "remote_lock_enabled": {
+          "description": "Zarządzaj bezpiecznym zdalnym dostępem do tego pojazdu.",
+          "data": {
+            "action": "Działanie"
           }
         }
       },
       "error": {
-        "auth_error": "Podane dane logowania są niepoprawne."
+        "auth_error": "Podane dane logowania są niepoprawne.",
+        "cannot_connect": "Nie można połączyć się z Nissan.",
+        "invalid_vehicle": "Wybierz prawidłowy pojazd.",
+        "remote_lock_setup_error": "Nie można rozpocząć konfiguracji zdalnego ryglowania.",
+        "otp_invalid": "Kod weryfikacyjny musi zawierać sześć cyfr.",
+        "device_registration_error": "Nissan odrzucił rejestrację urządzenia. Sprawdź kod i spróbuj ponownie.",
+        "pin_invalid": "Kod PIN musi zawierać cztery cyfry.",
+        "pin_mismatch": "Kody PIN nie są zgodne.",
+        "pin_enrollment_error": "Nissan nie mógł zarejestrować kodu PIN zdalnego sterowania.",
+        "device_removal_error": "Nissan nie mógł usunąć zaufanego urządzenia."
       },
-      "abort": {}
+      "abort": {
+        "no_remote_lock_vehicle": "Żaden pojazd na tym koncie nie obsługuje tej bezpiecznej konfiguracji zdalnego ryglowania."
+      }
     },
     "issues": {},
     "entity": {
@@ -71,6 +109,11 @@
         },
         "plugged": {
           "name": "Podłączony"
+        }
+      },
+      "lock": {
+        "doors": {
+          "name": "Drzwi"
         }
       },
       "button": {
@@ -122,6 +165,9 @@
         "charge_time_6kw": {
           "name": "Czas Ładowania (6kW)"
         },
+        "charge_time_adaptive": {
+          "name": "Czas Ładowania (adaptacyjny)"
+        },
         "last_updated": {
           "name": "Ostatnia Aktualizacja"
         },
@@ -149,6 +195,14 @@
       "region": {
         "options": {
           "eu": "Europa"
+        }
+      },
+      "remote_lock_action": {
+        "options": {
+          "enable": "Włącz zdalne ryglowanie",
+          "disable": "Wyłącz zdalne ryglowanie",
+          "update_pin": "Zmień PIN zdalnego sterowania",
+          "remove_device": "Usuń zaufane urządzenie"
         }
       }
     }

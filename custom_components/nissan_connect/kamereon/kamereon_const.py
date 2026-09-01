@@ -15,7 +15,8 @@ SETTINGS_MAP = {
             'car_adapter_base_url': 'https://alliance-platform-caradapter-prod.apps.eu2.kamereon.io/car-adapter/',
             'notifications_base_url': 'https://alliance-platform-notifications-prod.apps.eu2.kamereon.io/notifications/',
             'user_adapter_base_url': 'https://alliance-platform-usersadapter-prod.apps.eu2.kamereon.io/user-adapter/',
-            'user_base_url': 'https://nci-bff-web-prod.apps.eu2.kamereon.io/bff-web/'
+            'user_base_url': 'https://nci-bff-web-prod.apps.eu2.kamereon.io/bff-web/',
+            'action_status_base_url': 'https://alliance-platform-action-status-polling-prod.apps.eu2.kamereon.io/'
         }
     }
 }
@@ -96,6 +97,7 @@ class Feature(enum.Enum):
     ADVANCED_CAN = '201'
     VEHICLE_STATUS_CHECK = '202'
     LOCK_STATUS_CHECK = '2021'
+    REMOTE_STATUS_CHECK = '886'
     NAVIGATION_FACTORY_RESET = '208'
     MESSAGES_TO_THE_VEHICLE = '21'
     VEHICLE_DATA = '2121'
@@ -120,6 +122,7 @@ class Feature(enum.Enum):
     VEHICLE_ACCESS_TO_MUSIC = '249'
     VEHICLE_ACCESS_TO_CONTACTS = '262'
     APP_DOOR_LOCKING = '27'
+    REMOTE_DOOR_LOCKING = '878'
     GLONASS = '276'
     ZONE_ALERT = '281'
     SPEEDING_ALERT = '282'
@@ -177,8 +180,10 @@ class Feature(enum.Enum):
     VIRTUAL_PERSONAL_ASSISTANT = '734'
     ALEXA_ONBOARD_ASSISTANT = '736'
     SCHEDULED_ROUTE_CLIMATE_CONTROL = '747'
+    SRP_CCS1_5 = '747'
     SCHEDULED_ROUTE_CALENDAR_INTERGRATION = '819'
     OWNER_MANUAL = '827'
+    SRP_CCS2 = '909'
 
 
 class Language(enum.Enum):

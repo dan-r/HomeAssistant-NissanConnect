@@ -46,19 +46,57 @@
                     "interval_charging": "Intervallo di polling durante la ricarica (minuti)",
                     "interval_statistics": "Intervallo di aggiornamento per le statistiche giornaliere/mensili (minuti)",
                     "interval_fetch": "Intervallo di aggiornamento (minuti)",
-                    "imperial_distance": "Utilizza unità di misura imperiali per la distanza"
+                    "imperial_distance": "Utilizza unità di misura imperiali per la distanza",
+                    "configure_remote_lock": "Configura blocco remoto"
                 },
                 "data_description": {
                     "password": "Se non stai cambiando le tue credenziali, lascia vuoto il campo della password.",
                     "interval_charging": "La macchina verrà svegliata e verranno richiesti nuovi dati ad ogni intervallo di aggiornamento.",
-                    "interval_statistics": "Agli intervalli di aggiornamento, i dati più recenti verranno recuperati da Nissan ma l'auto non verrà svegliata."
+                    "interval_statistics": "Agli intervalli di aggiornamento, i dati più recenti verranno recuperati da Nissan ma l'auto non verrà svegliata.",
+                    "configure_remote_lock": "Avvia o gestisci la configurazione sicura di blocco e sblocco per un veicolo."
+                }
+            },
+            "remote_lock_vehicle": {
+                "description": "Seleziona il veicolo di cui vuoi gestire il blocco remoto.",
+                "data": {
+                    "vehicle": "Veicolo"
+                }
+            },
+            "remote_lock_otp": {
+                "description": "Inserisci il codice di verifica a sei cifre inviato da Nissan via email.",
+                "data": {
+                    "otp": "Codice di verifica"
+                }
+            },
+            "remote_lock_pin": {
+                "description": "Scegli un PIN Nissan a quattro cifre per i comandi remoti. Home Assistant lo invia a Nissan per la registrazione, ma non lo memorizza. Devi inserirlo ogni volta che blocchi o sblocchi il veicolo.",
+                "data": {
+                    "pin": "PIN del comando remoto",
+                    "pin_confirm": "Conferma PIN"
+                }
+            },
+            "remote_lock_enabled": {
+                "description": "Gestisci l'accesso remoto sicuro per questo veicolo.",
+                "data": {
+                    "action": "Azione"
                 }
             }
         },
         "error": {
-            "auth_error": "Credenziali fornite non valide."
+            "auth_error": "Credenziali fornite non valide.",
+            "cannot_connect": "Impossibile connettersi a Nissan.",
+            "invalid_vehicle": "Seleziona un veicolo valido.",
+            "remote_lock_setup_error": "Impossibile avviare la configurazione del blocco remoto.",
+            "otp_invalid": "Il codice di verifica deve contenere sei cifre.",
+            "device_registration_error": "Nissan ha rifiutato la registrazione del dispositivo. Controlla il codice e riprova.",
+            "pin_invalid": "Il PIN deve contenere quattro cifre.",
+            "pin_mismatch": "I PIN non corrispondono.",
+            "pin_enrollment_error": "Nissan non ha potuto registrare il PIN del comando remoto.",
+            "device_removal_error": "Nissan non ha potuto rimuovere il dispositivo attendibile."
         },
-        "abort": {}
+        "abort": {
+            "no_remote_lock_vehicle": "Nessun veicolo di questo account supporta questa configurazione sicura del blocco remoto."
+        }
     },
     "issues": {},
     "entity": {
@@ -71,6 +109,11 @@
             },
             "plugged": {
                 "name": "Collegata"
+            }
+        },
+        "lock": {
+            "doors": {
+                "name": "Porte"
             }
         },
         "button": {
@@ -122,6 +165,9 @@
             "charge_time_6kw": {
                 "name": "Tempo di ricarica (6 kW)"
             },
+            "charge_time_adaptive": {
+                "name": "Tempo di ricarica (adattivo)"
+            },
             "last_updated": {
                 "name": "Ultimo aggiornamento"
             },
@@ -150,6 +196,14 @@
         "options": {
           "eu": "Europa"
         }
+            },
+            "remote_lock_action": {
+                "options": {
+                    "enable": "Abilita blocco remoto",
+                    "disable": "Disabilita blocco remoto",
+                    "update_pin": "Modifica PIN del comando remoto",
+                    "remove_device": "Rimuovi dispositivo attendibile"
+                }
       }
     }
 }

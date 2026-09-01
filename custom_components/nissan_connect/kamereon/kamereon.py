@@ -16,6 +16,7 @@ import time
 from oauthlib.oauth2 import TokenExpiredError
 from requests_oauthlib import OAuth2Session
 from .kamereon_const import *
+from .srp import NissanSRPClient
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -119,6 +120,18 @@ class Notification:
 
 class NissanAuthError(RuntimeError):
     """Raised when Nissan rejects the credentials themselves."""
+
+
+class RemoteLockError(RuntimeError):
+    """Raised when remote lock setup or execution fails."""
+
+
+class RemoteLockSetupRequired(RemoteLockError):
+    """Raised when remote lock security setup is incomplete."""
+
+
+class RemoteLockRejected(RemoteLockError):
+    """Raised when Nissan rejects or times out a remote lock operation."""
 
 
 class KamereonSession:
@@ -442,6 +455,44 @@ class Vehicle:
     def session(self):
         return _registry[USERS][self.user_id]
 
+    @property
+    def supports_lock_status(self):
+        return any(
+            feature in self.features
+            for feature in (
+                Feature.LOCK_STATUS_CHECK,
+                Feature.REMOTE_STATUS_CHECK,
+            )
+        )
+
+    @property
+    def supports_remote_lock(self):
+        has_command = any(
+            feature in self.features
+            for feature in (
+                Feature.APP_DOOR_LOCKING,
+                Feature.REMOTE_DOOR_LOCKING,
+            )
+        )
+        if not self.supports_lock_status or not has_command:
+            return False
+        if self.ccs_generation == '1':
+            return Feature.REMOTE_DOOR_LOCKING in self.features
+        return True
+
+    @property
+    def supports_remote_lock_setup(self):
+        if not self.supports_remote_lock or self.role not in (None, 'OWNER'):
+            return False
+        if self.ccs_generation == '1':
+            return (
+                not self.is_cross_badged
+                and Feature.SRP_CCS2 in self.features
+            )
+        if self.ccs_generation == '2':
+            return Feature.SRP_CCS1_5 in self.features
+        return False
+
     def __init__(self, data, user_id):
         self.user_id = user_id
         self.vin = data['vin'].upper()
@@ -459,6 +510,7 @@ class Vehicle:
         _LOGGER.debug("Active features: %s", self.features)
 
         self.can_generation = data.get('canGeneration')
+        self.ccs_generation = data.get('ccsGen')
         self.color = data.get('color')
         self.energy = data.get('energy')
         self.vehicle_gateway = data.get('carGateway')
@@ -473,6 +525,9 @@ class Vehicle:
         self.phase = data.get('phase')
         self.picture_url = data.get('pictureURL')
         self.privacy_mode = data.get('privacyMode')
+        self.is_cross_badged = data.get('isCrossBadged', False)
+        self.role = data.get('role')
+        self.uuid = data.get('uuid')
         self.registration_number = data.get('registrationNumber')
         self.battery_capacity = None
         self.battery_level = None
@@ -526,11 +581,16 @@ class Vehicle:
         for attempt in range(max_retries):
             try:
                 return self.session.request(
-                    method, url, headers=headers, params=params, data=data)
+                    method, url, headers=headers, params=params, data=data,
+                    allow_redirects=False)
             except NissanAuthError:
                 raise
-            except Exception as e:
-                _LOGGER.debug(f"Request failed on attempt {attempt + 1} of {max_retries}: {e}")
+            except Exception:
+                _LOGGER.debug(
+                    "Request failed on attempt %s of %s",
+                    attempt + 1,
+                    max_retries,
+                )
                 if attempt == max_retries - 1:  # Exhausted retries
                     raise
                 time.sleep(2 ** attempt)  # Exponential backoff on retry
@@ -540,8 +600,13 @@ class Vehicle:
     def _get(self, url, headers=None, params=None):
         return self._request('GET', url, headers=headers, params=params)
 
-    def _post(self, url, data=None, headers=None):
-        return self._request('POST', url, headers=headers, data=data)
+    def _post(self, url, data=None, headers=None, max_retries=1):
+        return self._request(
+            'POST', url, headers=headers, data=data,
+            max_retries=max_retries)
+
+    def _delete(self, url, headers=None):
+        return self._request('DELETE', url, headers=headers, max_retries=1)
 
     def refresh(self):
         self.refresh_location()
@@ -616,7 +681,7 @@ class Vehicle:
         return body
 
     def fetch_lock_status(self):
-        if Feature.LOCK_STATUS_CHECK not in self.features:
+        if not self.supports_lock_status:
             return
         resp = self._get(
             '{}v1/cars/{}/lock-status'.format(self.session.settings['car_adapter_base_url'], self.vin),
@@ -647,10 +712,204 @@ class Vehicle:
             raise ValueError(body['errors'])
         return body
 
-    def initiate_srp(self):
-        (salt, verifier) = SRP.enroll(self.user_id, self.vin)
-        resp = self._post(
+    @staticmethod
+    def _remote_lock_error_code(body):
+        errors = body.get('errors') if isinstance(body, dict) else None
+        if not isinstance(errors, list) or not errors:
+            return None
+        code = errors[0].get('code')
+        return str(code) if code is not None else None
+
+    @classmethod
+    def _remote_lock_response(cls, response, operation, allow_empty=False):
+        if response.is_redirect or response.is_permanent_redirect:
+            raise RemoteLockError(f"Unexpected redirect during {operation}")
+        try:
+            body = response.json()
+        except ValueError as error:
+            if response.ok and allow_empty:
+                return {}
+            raise RemoteLockError(f"Invalid {operation} response") from error
+        error_code = cls._remote_lock_error_code(body)
+        if not response.ok or error_code is not None:
+            suffix = f" ({error_code})" if error_code else ""
+            raise RemoteLockError(f"{operation} failed{suffix}")
+        return body
+
+    def _remote_lock_request(
+            self, method, url, operation, headers=None, params=None,
+            data=None):
+        try:
+            return self._request(
+                method,
+                url,
+                headers=headers,
+                params=params,
+                data=data,
+                max_retries=1,
+            )
+        except Exception:
+            raise RemoteLockError(
+                f"Unable to contact Nissan during {operation}") from None
+
+    @staticmethod
+    def _validate_remote_lock_device_id(device_id):
+        valid_chars = set(
+            'abcdefghijklmnopqrstuvwxyz'
+            'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+            '0123456789._-'
+        )
+        if (
+                not isinstance(device_id, str)
+                or not 8 <= len(device_id) <= 64
+                or any(char not in valid_chars for char in device_id)):
+            raise ValueError("Invalid remote lock device ID")
+
+    def _require_remote_lock_setup_support(self):
+        if not self.supports_remote_lock:
+            raise RemoteLockSetupRequired(
+                "Vehicle does not advertise remote lock support")
+        if not self.supports_remote_lock_setup:
+            raise RemoteLockSetupRequired(
+                "Remote lock setup is only supported for the vehicle owner")
+
+    def request_remote_lock_otp(self, device_id):
+        self._require_remote_lock_setup_support()
+        self._validate_remote_lock_device_id(device_id)
+        response = self._remote_lock_request(
+            'POST',
+            '{}v1/users/{}/vehicles/{}/generate-device-otp'.format(
+                self.session.settings['user_base_url'],
+                self.user_id,
+                self.vin,
+            ),
+            'remote lock OTP request',
+            data=json.dumps({
+                'data': {
+                    'type': 'GenerateDeviceOtp',
+                    'attributes': {'deviceId': device_id},
+                }
+            }),
+            headers={'Content-Type': 'application/json'},
+        )
+        return self._remote_lock_response(
+            response, 'remote lock OTP request', allow_empty=True)
+
+    def register_remote_lock_device(
+            self, device_id, otp, model_name='Home Assistant'):
+        self._require_remote_lock_setup_support()
+        self._validate_remote_lock_device_id(device_id)
+        if not isinstance(otp, str) or len(otp) != 6 or not otp.isdigit():
+            raise ValueError("Remote lock OTP must contain six digits")
+        response = self._remote_lock_request(
+            'POST',
+            '{}v1/users/{}/vehicles/{}/register-device'.format(
+                self.session.settings['user_base_url'],
+                self.user_id,
+                self.vin,
+            ),
+            'remote lock device registration',
+            data=json.dumps({
+                'data': {
+                    'type': 'RegisterDevice',
+                    'attributes': {
+                        'deviceId': device_id,
+                        'otp': otp,
+                        'modelName': model_name,
+                    },
+                }
+            }),
+            headers={'Content-Type': 'application/json'},
+        )
+        return self._remote_lock_response(
+            response, 'remote lock device registration', allow_empty=True)
+
+    def remote_lock_device_is_registered(self, device_id):
+        self._require_remote_lock_setup_support()
+        self._validate_remote_lock_device_id(device_id)
+        response = self._remote_lock_request(
+            'GET',
+            '{}v1/users/{}/vehicles/{}/devices/{}/registration-status'.format(
+                self.session.settings['user_base_url'],
+                self.user_id,
+                self.vin,
+                device_id,
+            ),
+            'remote lock registration status',
+            headers={'Content-Type': 'application/json'},
+        )
+        if response.status_code == 404:
+            return False
+        self._remote_lock_response(
+            response, 'remote lock registration status', allow_empty=True)
+        return True
+
+    def unregister_remote_lock_device(self, device_id):
+        self._require_remote_lock_setup_support()
+        self._validate_remote_lock_device_id(device_id)
+        response = self._remote_lock_request(
+            'DELETE',
+            '{}v1/vehicles/{}/devices/{}'.format(
+                self.session.settings['user_base_url'],
+                self.vin,
+                device_id,
+            ),
+            'remote lock device removal',
+            headers={'Content-Type': 'application/json'},
+        )
+        if response.status_code == 404:
+            return {}
+        return self._remote_lock_response(
+            response, 'remote lock device removal', allow_empty=True)
+
+    @staticmethod
+    def _action_id(body, operation):
+        action_id = body.get('data', {}).get('id')
+        if not action_id:
+            raise RemoteLockError(f"{operation} response has no action ID")
+        return action_id
+
+    def _wait_for_action(
+            self, action_id, operation, timeout=60, interval=1.5,
+            initial_delay=1):
+        deadline = time.monotonic() + timeout
+        if initial_delay:
+            time.sleep(initial_delay)
+        while True:
+            response = self._remote_lock_request(
+                'GET',
+                '{}v1/cars/{}/actions/status'.format(
+                    self.session.settings['action_status_base_url'],
+                    self.vin,
+                ),
+                operation,
+                params={'actionId': action_id},
+                headers={'Content-Type': 'application/vnd.api+json'},
+            )
+            if response.status_code != 404:
+                body = self._remote_lock_response(response, operation)
+                attributes = body.get('data', {}).get('attributes')
+                if not isinstance(attributes, dict):
+                    raise RemoteLockError(f"Invalid {operation} status response")
+                status = attributes.get('status')
+                if status in ('COMPLETED', 'CANCELLED', 'REJECTED', 'TIMEOUT'):
+                    if status != 'COMPLETED':
+                        error_code = attributes.get('errorCode')
+                        suffix = f" ({error_code})" if error_code else ""
+                        raise RemoteLockRejected(
+                            f"{operation} ended with {status}{suffix}")
+                    return attributes
+            if time.monotonic() >= deadline:
+                raise RemoteLockRejected(f"{operation} timed out")
+            time.sleep(interval)
+
+    def enroll_remote_lock_pin(self, pin):
+        self._require_remote_lock_setup_support()
+        salt, verifier = NissanSRPClient.enroll(self.user_id, pin)
+        resp = self._remote_lock_request(
+            'POST',
             '{}v1/cars/{}/actions/srp-initiates'.format(self.session.settings['car_adapter_base_url'], self.vin),
+            'remote lock PIN enrollment',
             data=json.dumps({
                 "data": {
                     "type": "SrpInitiates",
@@ -663,30 +922,59 @@ class Vehicle:
             }),
             headers={'Content-Type': 'application/vnd.api+json'}
         )
-        body = resp.json()
-        if 'errors' in body:
-            raise ValueError(body['errors'])
+        body = self._remote_lock_response(resp, 'remote lock PIN enrollment')
+        self._wait_for_action(
+            self._action_id(body, 'remote lock PIN enrollment'),
+            'remote lock PIN enrollment',
+        )
         return body
 
-    def validate_srp(self):
-        a = SRP.generate_a()
-        resp = self._post(
+    def _remote_lock_proof(self, pin, action):
+        client = NissanSRPClient()
+        response = self._remote_lock_request(
+            'POST',
             '{}v1/cars/{}/actions/srp-sets'.format(self.session.settings['car_adapter_base_url'], self.vin),
+            'remote lock SRP challenge',
             data=json.dumps({
                 "data": {
                     "type": "SrpSets",
                     "attributes": {
                         "i": self.user_id,
-                        "a": a
+                        "a": client.public_ephemeral()
                     }
                 }
             }),
             headers={'Content-Type': 'application/vnd.api+json'}
         )
-        body = resp.json()
-        if 'errors' in body:
-            raise ValueError(body['errors'])
-        return body
+        try:
+            body = self._remote_lock_response(
+                response, 'remote lock SRP challenge')
+            attributes = self._wait_for_action(
+                self._action_id(body, 'remote lock SRP challenge'),
+                'remote lock SRP challenge',
+            )
+            values = {
+                item.get('name'): item.get('value')
+                for item in attributes.get('data', [])
+                if isinstance(item, dict) and item.get('name')
+            }
+            salt = values.get('srpLoginS')
+            server_public = values.get('srpLoginB')
+            if not salt or not server_public:
+                raise RemoteLockRejected(
+                    "Remote lock SRP challenge is incomplete")
+            order = '{}/RLU/{}'.format(
+                self.vin,
+                'Lock' if action == 'lock' else 'Unlock',
+            )
+            try:
+                return client.proof(
+                    salt, server_public, self.user_id, pin, order)
+            except ValueError:
+                raise RemoteLockRejected(
+                    "Remote lock SRP challenge is invalid") from None
+        finally:
+            client.clear()
 
     """
     Other vehicle controls to implement / investigate:
@@ -790,36 +1078,46 @@ class Vehicle:
             raise ValueError(body['errors'])
         return body
 
-    def lock_unlock(self, srp: str, action: str, group: LockableDoorGroup=None):
-        if Feature.APP_DOOR_LOCKING not in self.features:
-            return
-        assert action in ('lock', 'unlock')
+    def lock_unlock(
+            self, pin, device_id, action, group: LockableDoorGroup=None):
+        self._require_remote_lock_setup_support()
+        self._validate_remote_lock_device_id(device_id)
+        NissanSRPClient._validate_pin(pin)
+        if action not in ('lock', 'unlock'):
+            raise ValueError("Remote lock action must be lock or unlock")
         if group is None:
             group = LockableDoorGroup.DOORS_AND_HATCH
-        resp = self._post(
-            '{}v1/cars/{}/actions/lock-unlock"'.format(self.session.settings['car_adapter_base_url'], self.vin),
+        proof = self._remote_lock_proof(pin, action)
+        resp = self._remote_lock_request(
+            'POST',
+            '{}v1/cars/{}/actions/lock-unlock'.format(self.session.settings['car_adapter_base_url'], self.vin),
+            f'remote {action}',
             data=json.dumps({
                 'data': {
                     'type': 'LockUnlock',
                     'attributes': {
-                        'lock': action,
-                        'doorType': group.value,
-                        'srp': srp
+                        'action': action,
+                        'deviceId': device_id,
+                        'duration': 0,
+                        'target': group.value,
+                        'srp': proof,
                     }
                 }
             }),
             headers={'Content-Type': 'application/vnd.api+json'}
         )
-        body = resp.json()
-        if 'errors' in body:
-            raise ValueError(body['errors'])
+        body = self._remote_lock_response(resp, f'remote {action}')
+        self._wait_for_action(
+            self._action_id(body, f'remote {action}'),
+            f'remote {action}',
+        )
         return body
 
-    def lock(self, srp: str, group: LockableDoorGroup=None):
-        return self.lock_unlock(srp, 'lock', group)
+    def lock(self, pin, device_id, group: LockableDoorGroup=None):
+        return self.lock_unlock(pin, device_id, 'lock', group)
 
-    def unlock(self, srp: str, group: LockableDoorGroup=None):
-        return self.lock_unlock(srp, 'unlock', group)
+    def unlock(self, pin, device_id, group: LockableDoorGroup=None):
+        return self.lock_unlock(pin, device_id, 'unlock', group)
 
     def fetch_hvac_status(self):
         if Feature.INTERIOR_TEMP_SETTINGS not in self.features and Feature.TEMPERATURE not in self.features:
@@ -1142,44 +1440,3 @@ class NotificationRule:
             self.status.value,
             ', '.join(c.value for c in self.channels)
         )
-
-
-class SRP:
-
-    @classmethod
-    def enroll(cls, user_id, vin):
-        salt, verifier = '0'*20, 'ABCDEFGH'*64
-        # salt = 20 hex chars, verifier = 512 hex chars
-        return (salt, verifier)
-
-    @classmethod
-    def generate_a(cls):
-        # 512 hex chars
-        return ''
-
-    @classmethod
-    def generate_proof(cls, salt, b, user_id, confirm_code, order):
-        """Required for remote lock / unlock."""
-        # order = '<VIN>/<PERMISSIONS>'
-        # where PERMISSIONS is one of:
-        # * "BCI/Block"
-        # * "BCI/Unblock"
-        # * "RC/Delayed"
-        # * "RC/Start"
-        # * "RC/Stop"
-        # * "RES/DoubleStart"
-        # * "RES/Start"
-        # * "RES/Stop"
-        # * "RHL/Start/HornOnly"
-        # * "RHL/Start/HornLight"
-        # * "RHL/Start/LightOnly"
-        # * "RHL/Stop"
-        # * "RLU/Lock"
-        # * "RLU/Unlock"
-        # * "RPC_ICE/Start"
-        # * "RPC_ICE/Stop"
-        # * "RPU_CCS/Disable"
-        # * "RPU_CCS/Enable"
-        # * "RPU_SVTB/Disable"
-        # * "RPU_SVTB/Enable"
-        pass
