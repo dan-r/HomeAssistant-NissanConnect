@@ -1536,6 +1536,14 @@ class SRP:
             h.update(part)
         return h.digest()
 
+    @staticmethod
+    def _minimal_bytes(value: int) -> bytes:
+        """Natural (unpadded) big-endian byte length, as produced by the
+        native lib's BigIntegerToCstr - used for BigIntegers fed into a hash
+        (u = H(A|B), K = H(S)), as opposed to the fixed-width 256-byte hex
+        strings used for values that go over the wire (A, B, verifier)."""
+        return value.to_bytes(max(1, (value.bit_length() + 7) // 8), 'big')
+
     @classmethod
     def _compute_x(cls, salt: bytes, user_id: str, secret: str) -> int:
         inner = cls._sha256(user_id.encode('utf-8'), b':', secret.encode('utf-8'))
@@ -1607,12 +1615,12 @@ class SRP:
 
         A_bytes = self.A.to_bytes(self.N_BYTES, 'big')
         B_bytes = B.to_bytes(self.N_BYTES, 'big')
-        u = int.from_bytes(self._sha256(A_bytes, B_bytes), 'big')
+        u = int.from_bytes(self._sha256(self._minimal_bytes(self.A), B_bytes), 'big')
 
         x = self._compute_x(salt_bytes, user_id, confirm_code)
         gx = pow(self.g, x, self.N)
         S = pow((B - k * gx) % self.N, self.a + u * x, self.N)
-        K = self._sha256(S.to_bytes(self.N_BYTES, 'big'))
+        K = self._sha256(self._minimal_bytes(S))
 
         message = A_bytes + B_bytes + user_id.encode('utf-8') + salt_bytes + order.encode('utf-8')
         proof = hmac.new(K, message, hashlib.sha256).digest()
