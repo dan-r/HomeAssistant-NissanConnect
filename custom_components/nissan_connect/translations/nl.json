@@ -18,13 +18,22 @@
                     "interval_charging": "Bij elke polling-interval wordt de auto gewekt en worden de nieuwste gegevens opgevraagd.",
                     "interval_statistics": "Bij elk update-interval worden de nieuwste gegevens opgehaald bij Nissan, zonder de auto te wekken."
                 }
+            },
+            "reauth_confirm": {
+                "description": "Verifieer uw Nissan-account opnieuw.",
+                "data": {
+                    "password": "Wachtwoord"
+                }
             }
         },
         "error": {
             "auth_error": "Ongeldige inloggegevens opgegeven.",
+            "cannot_connect": "Kan geen verbinding maken met Nissan.",
             "region_error": "Ongeldige regio opgegeven. Geef een geldige regio op."
         },
-        "abort": {}
+        "abort": {
+        "reauth_successful": "Herauthenticatie geslaagd"
+      }
     },
     "options": {
         "step": {

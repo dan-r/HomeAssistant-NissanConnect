@@ -1,17 +1,17 @@
 import enum
 
-API_VERSION = 'protocol=1.0,resource=2.1'
-SRP_KEY = 'D5AF0E14718E662D12DBB4FE42304DF5A8E48359E22261138B40AA16CC85C76A11B43200A1EECB3C9546A262D1FBD51ACE6FCDE558C00665BBF93FF86B9F8F76AA7A53CA74F5B4DFF9A4B847295E7D82450A2078B5A28814A7A07F8BBDD34F8EEB42B0E70499087A242AA2C5BA9513C8F9D35A81B33A121EEF0A71F3F9071CCD'
-
 SETTINGS_MAP = {
     'nissan': {
         'EU': {
-            'client_id': 'a-ncb-nc-android-prod',
-            'client_secret': '6GKIax7fGT5yPHuNmWNVOc4q5POBw1WRSW39ubRA8WPBmQ7MOxhm75EsmKMKENem',
-            'scope': 'openid profile vehicles',
-            'auth_base_url': 'https://prod.eu2.auth.kamereon.org/kauth/',
-            'realm': 'a-ncb-prod',
-            'redirect_uri': 'org.kamereon.service.nci:/oauth2redirect',
+            'client_id': 'ZM3WK7ax1OtQKYQ8Qqzcv5VgiA8a',
+            'scope': 'openid name profile email offline_access',
+            'kamereon_scope': 'openid profile vehicles',
+            'auth_base_url': 'https://login.mynissan-account.com/',
+            'redirect_uri': 'com://wso2.service.nci',
+            'auth_brand': 'Nissan',
+            'auth_client': 'mynissanapp',
+            'auth_platform': 'Android',
+            'auth_locale': 'en_GB',
             'car_adapter_base_url': 'https://alliance-platform-caradapter-prod.apps.eu2.kamereon.io/car-adapter/',
             'notifications_base_url': 'https://alliance-platform-notifications-prod.apps.eu2.kamereon.io/notifications/',
             'user_adapter_base_url': 'https://alliance-platform-usersadapter-prod.apps.eu2.kamereon.io/user-adapter/',

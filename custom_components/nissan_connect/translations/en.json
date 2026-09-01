@@ -18,13 +18,22 @@
             "interval_charging": "The car will be woken up and new data requested at every polling interval.",
             "interval_statistics": "On update intervals, the latest data will be fetched from Nissan but the car will not be woken up."
           }
+        },
+        "reauth_confirm": {
+          "description": "Reauthenticate your Nissan account.",
+          "data": {
+            "password": "Password"
+          }
         }
       },
       "error": {
         "auth_error": "Invalid credentials provided.",
+        "cannot_connect": "Failed to connect to Nissan.",
         "region_error": "Invalid region provided. Please provide a valid region."
       },
-      "abort": {}
+      "abort": {
+        "reauth_successful": "Re-authentication was successful"
+      }
     },
     "options": {
       "step": {

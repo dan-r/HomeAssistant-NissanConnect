@@ -18,13 +18,22 @@
             "interval_charging": "Bilen vil blive vækket, og der anmodes om nye data j.f. opdateringsintervallet.",
             "interval_statistics": "De seneste data vil blive hentet fra Nissan j.f. opdateringsintervallet, men bilen bliver ikke vækket."
           }
+        },
+        "reauth_confirm": {
+          "description": "Godkend din Nissan-konto igen.",
+          "data": {
+            "password": "Adgangskode"
+          }
         }
       },
       "error": {
         "auth_error": "Ugyldige legitimationsoplysninger er angivet.",
+        "cannot_connect": "Kunne ikke oprette forbindelse til Nissan.",
         "region_error": "Ugyldig region angivet. Angiv venligst en gyldig region."
       },
-      "abort": {}
+      "abort": {
+        "reauth_successful": "Genautentificering lykkedes"
+      }
     },
     "options": {
       "step": {
