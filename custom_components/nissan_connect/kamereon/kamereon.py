@@ -1,15 +1,18 @@
 # Based on work by @mitchellrj and @Tobiaswk
 # Portions re-licensed from Apache License, Version 2.0 with permission
 
+import base64
 import collections
 import datetime
+import hashlib
+from html.parser import HTMLParser
 import json
-import os
 import logging
+import secrets
 from typing import List
+from urllib.parse import parse_qs, urljoin, urlparse
 import requests
 import time
-from oauthlib.common import generate_nonce
 from oauthlib.oauth2 import TokenExpiredError
 from requests_oauthlib import OAuth2Session
 from .kamereon_const import *
@@ -27,6 +30,39 @@ _registry = {
 
 NotificationType = collections.namedtuple('NotificationType', ['key', 'title', 'message', 'category'])
 NotificationCategory = collections.namedtuple('Category', ['key', 'title'])
+
+
+class _LoginFormParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.forms = []
+        self._form = None
+
+    def handle_starttag(self, tag, attrs):
+        attributes = dict(attrs)
+        if tag == 'form':
+            self._form = {
+                'action': attributes.get('action'),
+                'method': attributes.get('method', 'get').lower(),
+                'inputs': {}
+            }
+        elif tag == 'input' and self._form is not None:
+            name = attributes.get('name')
+            if name:
+                self._form['inputs'][name] = attributes.get('value', '')
+
+    def handle_endtag(self, tag):
+        if tag == 'form' and self._form is not None:
+            self.forms.append(self._form)
+            self._form = None
+
+    @property
+    def login_form(self):
+        for form in self.forms:
+            inputs = form['inputs']
+            if 'sessionDataKey' in inputs and 'password' in inputs:
+                return form
+        return None
 
 class Notification:
 
@@ -81,6 +117,10 @@ class Notification:
         return resp
 
 
+class NissanAuthError(RuntimeError):
+    """Raised when Nissan rejects the credentials themselves."""
+
+
 class KamereonSession:
 
     tenant = None
@@ -89,99 +129,270 @@ class KamereonSession:
 
     def __init__(self, region, unique_id=None):
         self.settings = SETTINGS_MAP[self.tenant][region]
-        session = requests.session()
-        self.session = session
+        self.session = requests.session()
         self._oauth = None
         self._user_id = None
+        self._kamereon_refresh_token = None
         self.unique_id = unique_id
-        # ugly hack
-        os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+
+    @staticmethod
+    def _generate_pkce_pair():
+        verifier = secrets.token_urlsafe(64)
+        digest = hashlib.sha256(verifier.encode('ascii')).digest()
+        challenge = base64.urlsafe_b64encode(digest).rstrip(b'=').decode('ascii')
+        return verifier, challenge
+
+    def _is_auth_url(self, url):
+        try:
+            expected = urlparse(self.settings['auth_base_url'])
+            parsed = urlparse(url)
+            return (
+                parsed.scheme == 'https'
+                and parsed.hostname == expected.hostname
+                and (parsed.port or 443) == (expected.port or 443)
+            )
+        except ValueError:
+            return False
+
+    @staticmethod
+    def _parse_token_response(response, token_name, require_id_token=False):
+        try:
+            data = response.json()
+        except ValueError as error:
+            raise RuntimeError(f"Invalid {token_name} response") from error
+
+        if not response.ok or data.get('error') or not data.get('access_token'):
+            raise RuntimeError(f"Unable to obtain {token_name}")
+        if require_id_token and not data.get('id_token'):
+            raise RuntimeError(f"Missing ID token in {token_name} response")
+        return data
+
+    def _authorization_code(self, username, password):
+        verifier, challenge = self._generate_pkce_pair()
+        state = secrets.token_urlsafe(32)
+        try:
+            response = self.session.get(
+                urljoin(self.settings['auth_base_url'], 'oauth2/authorize'),
+                params={
+                    'response_type': 'code',
+                    'redirect_uri': self.settings['redirect_uri'],
+                    'client_id': self.settings['client_id'],
+                    'state': state,
+                    'scope': self.settings['scope'],
+                    'code_challenge': challenge,
+                    'code_challenge_method': 'S256',
+                    'locale': self.settings['auth_locale'],
+                    'brand': self.settings['auth_brand'],
+                    'client': self.settings['auth_client'],
+                },
+                allow_redirects=False,
+                timeout=30,
+            )
+        except requests.RequestException:
+            raise RuntimeError("Unable to contact Nissan login") from None
+        response = self._follow_login_redirects(response)
+
+        parser = _LoginFormParser()
+        parser.feed(response.text)
+        form = parser.login_form
+        if form is None or not form['action']:
+            raise RuntimeError("Nissan login form is unavailable")
+
+        login_data = dict(form['inputs'])
+        login_region = login_data.get('regionCode', '')
+        login_data.update({
+            'userName': username,
+            'username': (
+                f"{login_region}/{username}" if login_region else username
+            ),
+            'password': password,
+        })
+        form_url = urljoin(response.url, form['action'])
+        if not self._is_auth_url(form_url):
+            raise RuntimeError("Unexpected Nissan login form target")
+        form_origin = urlparse(form_url)
+        try:
+            response = self.session.post(
+                form_url,
+                data=login_data,
+                headers={
+                    'Origin': f"{form_origin.scheme}://{form_origin.netloc}",
+                    'Referer': response.url,
+                },
+                allow_redirects=False,
+                timeout=30,
+            )
+        except requests.RequestException:
+            raise RuntimeError("Unable to submit Nissan login") from None
+
+        callback_url = self._follow_authorization_redirects(response)
+        callback = urlparse(callback_url)
+        expected_callback = urlparse(self.settings['redirect_uri'])
+        if (callback.scheme, callback.netloc) != (
+                expected_callback.scheme, expected_callback.netloc):
+            raise RuntimeError("Unexpected Nissan login callback")
+
+        callback_data = parse_qs(callback.query)
+        if callback_data.get('state', [None])[0] != state:
+            raise RuntimeError("Invalid Nissan login state")
+        code = callback_data.get('code', [None])[0]
+        if not code:
+            raise NissanAuthError("Invalid credentials")
+        return code, verifier
+
+    def _follow_login_redirects(self, response):
+        for _ in range(10):
+            if response.is_redirect or response.is_permanent_redirect:
+                location = response.headers.get('Location')
+                if not location:
+                    break
+                target = urljoin(response.url, location)
+                if not self._is_auth_url(target):
+                    raise RuntimeError("Unexpected Nissan login redirect")
+                try:
+                    response = self.session.get(
+                        target, allow_redirects=False, timeout=30)
+                except requests.RequestException:
+                    raise RuntimeError("Unable to load Nissan login") from None
+                continue
+            if response.ok and self._is_auth_url(response.url):
+                return response
+            break
+        raise RuntimeError("Unable to load Nissan login")
+
+    def _follow_authorization_redirects(self, response):
+        expected_callback = urlparse(self.settings['redirect_uri'])
+        for _ in range(10):
+            if response.is_redirect or response.is_permanent_redirect:
+                location = response.headers.get('Location')
+                if not location:
+                    break
+                target = urljoin(response.url, location)
+                parsed_target = urlparse(target)
+                if (parsed_target.scheme, parsed_target.netloc) == (
+                        expected_callback.scheme, expected_callback.netloc):
+                    return target
+                if not self._is_auth_url(target):
+                    raise RuntimeError("Unexpected Nissan authorization redirect")
+                try:
+                    response = self.session.get(
+                        target, allow_redirects=False, timeout=30)
+                except requests.RequestException:
+                    raise RuntimeError(
+                        "Unable to complete Nissan login") from None
+                continue
+
+            if response.ok:
+                parser = _LoginFormParser()
+                parser.feed(response.text)
+                if parser.login_form is not None:
+                    raise NissanAuthError("Invalid credentials")
+            break
+
+        raise RuntimeError("Nissan login did not return an authorization code")
+
+    def _exchange_wso2_token(self, code, verifier):
+        response = self.session.post(
+            urljoin(self.settings['auth_base_url'], 'oauth2/token'),
+            data={
+                'redirect_uri': self.settings['redirect_uri'],
+                'grant_type': 'authorization_code',
+                'client_id': self.settings['client_id'],
+                'code': code,
+                'code_verifier': verifier,
+                'scope': self.settings['scope'],
+            },
+            allow_redirects=False,
+            timeout=30,
+        )
+        return self._parse_token_response(
+            response, 'Nissan OneID token', require_id_token=True)
+
+    def _exchange_kamereon_token(self, wso2_id_token):
+        response = self.session.post(
+            urljoin(self.settings['user_base_url'], 'v1/oauth2/access_token'),
+            params={'platform': self.settings['auth_platform']},
+            headers={
+                'Authorization': wso2_id_token,
+                'Content-Type': 'application/vnd.api+json',
+            },
+            allow_redirects=False,
+            timeout=30,
+        )
+        return self._parse_token_response(response, 'Kamereon token')
+
+    def _install_kamereon_token(self, token):
+        expires_in = int(token.get('expires_in', 3600))
+        refresh_token = token.get('refresh_token') or self._kamereon_refresh_token
+        oauth_token = {
+            'access_token': token['access_token'],
+            'token_type': token.get('token_type', 'Bearer'),
+            'expires_in': expires_in,
+            'expires_at': time.time() + expires_in,
+        }
+        if refresh_token:
+            oauth_token['refresh_token'] = refresh_token
+        self._kamereon_refresh_token = refresh_token
+        self._oauth = OAuth2Session(
+            client_id=self.settings['client_id'],
+            token=oauth_token,
+        )
+
+    def _refresh_kamereon_token(self):
+        if not self._kamereon_refresh_token:
+            raise RuntimeError("No Kamereon refresh token available")
+        response = self.session.post(
+            urljoin(self.settings['user_base_url'], 'v1/oauth2/refresh-token'),
+            params={'platform': self.settings['auth_platform']},
+            headers={
+                'Authorization': self._kamereon_refresh_token,
+                'Content-Type': 'application/vnd.api+json',
+            },
+            data=json.dumps({'scope': self.settings['kamereon_scope']}),
+            allow_redirects=False,
+            timeout=30,
+        )
+        self._install_kamereon_token(
+            self._parse_token_response(response, 'Kamereon refresh token'))
+
+    def _refresh_authentication(self):
+        try:
+            self._refresh_kamereon_token()
+        except Exception as error:
+            _LOGGER.debug("Kamereon token refresh failed, logging in again: %s", error)
+            self.login()
 
     def login(self, username=None, password=None):
         if username is not None and password is not None:
-            # Cache credentials
             self._username = username
             self._password = password
-        else:
-            # Use cached credentials
+
+        try:
             username = self._username
             password = self._password
-        
-        # Reset session
+        except AttributeError as error:
+            raise RuntimeError("Credentials are required") from error
+
         self.session = requests.session()
+        code, verifier = self._authorization_code(username, password)
+        wso2_token = self._exchange_wso2_token(code, verifier)
+        self._install_kamereon_token(
+            self._exchange_kamereon_token(wso2_token['id_token']))
 
-        # grab an auth ID to use as part of the username/password login request,
-        # then move to the regular OAuth2 process
-        auth_url = '{}json/realms/root/realms/{}/authenticate'.format(
-            self.settings['auth_base_url'],
-            self.settings['realm'],
-        )
-        resp = self.session.post(
-            auth_url,
-            headers={
-                'Accept-Api-Version': API_VERSION,
-                'X-Username': 'anonymous',
-                'X-Password': 'anonymous',
-                'Accept': 'application/json',
-            })
-        next_body = resp.json()
-
-        # insert the username, and password
-        for c in next_body['callbacks']:
-            input_type = c['type']
-            if input_type == 'NameCallback':
-                c['input'][0]['value'] = username
-            elif input_type == 'PasswordCallback':
-                c['input'][0]['value'] = password
-
-        resp = self.session.post(
-            auth_url,
-            headers={
-                'Accept-Api-Version': API_VERSION,
-                'X-Username': 'anonymous',
-                'X-Password': 'anonymous',
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-            },
-            data=json.dumps(next_body))
-
-        oauth_data = resp.json()
-
-        if 'realm' not in oauth_data:
-            _LOGGER.error("Invalid credentials provided: %s", resp.text)
-            raise RuntimeError("Invalid credentials")
-        
-        oauth_authorize_url = '{}oauth2/{}/authorize'.format(
-            self.settings['auth_base_url'],
-            self.settings['realm']
-            )
-        nonce = generate_nonce()
-        resp = self.session.get(
-            oauth_authorize_url,
-            params={
-                'client_id': self.settings['client_id'],
-                'redirect_uri': self.settings['redirect_uri'],
-                'response_type': 'code',
-                'scope': self.settings['scope'],
-                'nonce': nonce,
-            },
-            allow_redirects=False)
-        oauth_authorize_url = resp.headers['location']
-
-        oauth_token_url = '{}oauth2/{}/access_token'.format(
-            self.settings['auth_base_url'],
-            self.settings['realm']
-            )
-        self._oauth = OAuth2Session(
-            client_id=self.settings['client_id'],
-            redirect_uri=self.settings['redirect_uri'],
-            scope=self.settings['scope'])
-        self._oauth._client.nonce = nonce
-        self._oauth.fetch_token(
-            oauth_token_url,
-            authorization_response=oauth_authorize_url,
-            client_secret=self.settings['client_secret'],
-            include_client_id=True)
+    def request(self, method, url, **kwargs):
+        for attempt in range(2):
+            try:
+                response = self.oauth.request(method, url, **kwargs)
+            except TokenExpiredError:
+                if attempt == 1:
+                    raise
+                self._refresh_authentication()
+                continue
+            if response.status_code != 401:
+                return response
+            if attempt == 0:
+                self._refresh_authentication()
+        raise TokenExpiredError()
 
     @property
     def oauth(self):
@@ -192,7 +403,8 @@ class KamereonSession:
     @property
     def user_id(self):
         if not self._user_id:
-            resp = self.oauth.get(
+            resp = self.request(
+                'GET',
                 '{}v1/users/current'.format(self.settings['user_adapter_base_url'])
             )
             self._user_id = resp.json()['userId']
@@ -200,7 +412,8 @@ class KamereonSession:
         return self._user_id
 
     def fetch_vehicles(self):
-        resp = self.oauth.get(
+        resp = self.request(
+            'GET',
             '{}v5/users/{}/cars'.format(self.settings['user_base_url'], self.user_id)
         )
         vehicles = []
@@ -261,7 +474,6 @@ class Vehicle:
         self.picture_url = data.get('pictureURL')
         self.privacy_mode = data.get('privacyMode')
         self.registration_number = data.get('registrationNumber')
-        self.battery_supported = True
         self.battery_capacity = None
         self.battery_level = None
         self.battery_temperature = None
@@ -313,23 +525,10 @@ class Vehicle:
     def _request(self, method, url, headers=None, params=None, data=None, max_retries=3):
         for attempt in range(max_retries):
             try:
-                if method == 'GET':
-                    resp = self.session.oauth.get(url, headers=headers, params=params)
-                elif method == 'POST':
-                    resp = self.session.oauth.post(url, data=data, headers=headers)
-                else:
-                    raise ValueError(f"Unsupported HTTP method: {method}")
-
-                # Check for token expiration
-                if resp.status_code == 401:
-                    raise TokenExpiredError()
-                
-                # Successful request
-                return resp
-
-            except TokenExpiredError:
-                _LOGGER.debug("Token expired. Refreshing session and retrying.")
-                self.session.login()
+                return self.session.request(
+                    method, url, headers=headers, params=params, data=data)
+            except NissanAuthError:
+                raise
             except Exception as e:
                 _LOGGER.debug(f"Request failed on attempt {attempt + 1} of {max_retries}: {e}")
                 if attempt == max_retries - 1:  # Exhausted retries
@@ -347,6 +546,23 @@ class Vehicle:
     def refresh(self):
         self.refresh_location()
         self.refresh_battery_status()
+
+    @property
+    def last_updated(self):
+        timestamps = [
+            self.battery_status_last_updated,
+            self.location_last_updated,
+            self.hvac_status_last_updated,
+            self.lock_status_last_updated,
+        ]
+        return max(
+            (
+                t if t.tzinfo is not None
+                else t.replace(tzinfo=datetime.timezone.utc)
+                for t in timestamps if t is not None
+            ),
+            default=None,
+        )
 
     def fetch_all(self):
         # The new Micra uses the newer v3 battery API and does not support
@@ -669,7 +885,7 @@ class Vehicle:
             raise ValueError(body['errors'])
 
         if not 'data' in body or not 'attributes' in body['data']:
-            self.battery_supported = False
+            return
 
         battery_data = body['data']['attributes']
         self.battery_capacity = battery_data.get('batteryCapacity')  # kWh
@@ -687,10 +903,12 @@ class Vehicle:
         }
         self.range_hvac_off = battery_data.get('rangeHvacOff')
         self.range_hvac_on = battery_data.get('rangeHvacOn')
-        
-        # For ICE vehicles, we should get the range at least. If not, dont bother again
+
+        if 'lastUpdateTime' in battery_data:
+            self.battery_status_last_updated = datetime.datetime.fromisoformat(battery_data['lastUpdateTime'].replace('Z','+00:00'))
+
+        # Everything below is EV-only
         if self.range_hvac_on is None and Feature.BATTERY_STATUS not in self.features:
-            self.battery_supported = False
             return
 
         self.charging = ChargingStatus(battery_data.get('chargeStatus', 0))
@@ -699,8 +917,6 @@ class Vehicle:
             self.plugged_in_time = datetime.datetime.fromisoformat(battery_data['vehiclePlugTimestamp'].replace('Z','+00:00'))
         if 'vehicleUnplugTimestamp' in battery_data:
             self.unplugged_time = datetime.datetime.fromisoformat(battery_data['vehicleUnplugTimestamp'].replace('Z','+00:00'))
-        if 'lastUpdateTime' in battery_data:
-            self.battery_status_last_updated = datetime.datetime.fromisoformat(battery_data['lastUpdateTime'].replace('Z','+00:00'))
 
     def fetch_battery_status_ariya(self):
         """Fetch battery data from Nissan's newer v3 battery-status API.
@@ -721,8 +937,7 @@ class Vehicle:
         if 'errors' in body and Feature.BATTERY_STATUS in self.features:
             raise ValueError(body['errors'])
 
-        if 'data' not in body or 'attributes' not in body['data']:
-            self.battery_supported = False
+        if not 'data' in body or not 'attributes' in body['data']:
             return
 
         battery_data = body['data']['attributes']

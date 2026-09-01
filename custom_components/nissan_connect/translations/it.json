@@ -18,13 +18,22 @@
                     "interval_charging": "La macchina verrà svegliata e verranno richiesti nuovi dati ad ogni intervallo di aggiornamento.",
                     "interval_statistics": "Agli intervalli di aggiornamento, i dati più recenti verranno recuperati da Nissan ma l'auto non verrà svegliata."
                 }
+            },
+            "reauth_confirm": {
+                "description": "Autentica nuovamente il tuo account Nissan.",
+                "data": {
+                    "password": "Password"
+                }
             }
         },
         "error": {
             "auth_error": "Credenziali fornite non valide.",
+            "cannot_connect": "Impossibile connettersi a Nissan.",
             "region_error": "Regione fornita non valida. Fornisci una regione valida."
         },
-        "abort": {}
+        "abort": {
+        "reauth_successful": "Riautenticazione riuscita"
+      }
     },
     "options": {
         "step": {

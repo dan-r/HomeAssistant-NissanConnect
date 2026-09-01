@@ -1,6 +1,8 @@
 import logging
 from datetime import timedelta
-from .kamereon import NCISession
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
+from homeassistant.helpers import device_registry as dr
+from .kamereon import NCISession, NissanAuthError
 from .coordinator import KamereonFetchCoordinator, KamereonPollCoordinator, StatisticsCoordinator
 from .const import *
 
@@ -16,12 +18,16 @@ async def async_update_listener(hass, entry):
     config = entry.data
     account_id = config['email']
 
-    # Loop each vehicle and update its session with the new credentials
-    for vehicle in hass.data[DOMAIN][account_id][DATA_VEHICLES]:
-        await hass.async_add_executor_job(hass.data[DOMAIN][account_id][DATA_VEHICLES][vehicle].session.login,
-                                            config.get("email"),
-                                            config.get("password")
-                                            )
+    sessions = {
+        vehicle.session
+        for vehicle in hass.data[DOMAIN][account_id][DATA_VEHICLES].values()
+    }
+    for session in sessions:
+        await hass.async_add_executor_job(
+            session.login,
+            config.get("email"),
+            config.get("password"),
+        )
 
     # Update intervals for coordinators
     hass.data[DOMAIN][account_id][DATA_COORDINATOR_STATISTICS].update_interval = timedelta(minutes=config.get("interval_statistics", DEFAULT_INTERVAL_STATISTICS))
@@ -40,6 +46,18 @@ async def async_setup_entry(hass, entry):
 
     config = dict(entry.data)
 
+    # Devices were once registered with a (domain, tenant, vin) identifier.
+    # This rewrites them to (domain, vin) in place without affecting the device.
+    device_registry = dr.async_get(hass)
+    for device in dr.async_entries_for_config_entry(device_registry, entry.entry_id):
+        legacy = {i for i in device.identifiers if i[0] == DOMAIN and len(i) == 3}
+        if legacy:
+            device_registry.async_update_device(
+                device.id,
+                new_identifiers={(DOMAIN, i[2]) for i in legacy}
+                | (device.identifiers - legacy),
+            )
+
     kamereon_session = NCISession(
         region=config["region"],
         unique_id=entry.unique_id
@@ -50,16 +68,28 @@ async def async_setup_entry(hass, entry):
     }
 
     _LOGGER.info("Logging in to service")
-    await hass.async_add_executor_job(kamereon_session.login,
-                                      config.get("email"),
-                                      config.get("password")
-                                      )
+    try:
+        await hass.async_add_executor_job(kamereon_session.login,
+                                          config.get("email"),
+                                          config.get("password")
+                                          )
+    except NissanAuthError as error:
+        raise ConfigEntryAuthFailed("Nissan authentication failed") from error
+    except Exception as error:
+        _LOGGER.warning("Login failed, will retry: %s", error)
+        raise ConfigEntryNotReady("Could not reach the Nissan API") from error
 
     _LOGGER.debug("Finding vehicles")
-    for vehicle in await hass.async_add_executor_job(kamereon_session.fetch_vehicles):
-        await hass.async_add_executor_job(vehicle.fetch_all)
-        if vehicle.vin not in data[DATA_VEHICLES]:
-            data[DATA_VEHICLES][vehicle.vin] = vehicle
+    try:
+        for vehicle in await hass.async_add_executor_job(kamereon_session.fetch_vehicles):
+            await hass.async_add_executor_job(vehicle.fetch_all)
+            if vehicle.vin not in data[DATA_VEHICLES]:
+                data[DATA_VEHICLES][vehicle.vin] = vehicle
+    except NissanAuthError as error:
+        raise ConfigEntryAuthFailed("Nissan authentication failed") from error
+    except Exception as error:
+        _LOGGER.warning("Could not fetch vehicles, will retry: %s", error)
+        raise ConfigEntryNotReady("Could not reach the Nissan API") from error
 
     coordinator = data[DATA_COORDINATOR_FETCH] = KamereonFetchCoordinator(hass, config)
     poll_coordinator = data[DATA_COORDINATOR_POLL] = KamereonPollCoordinator(hass, config)
@@ -103,10 +133,13 @@ async def async_migrate_entry(hass, config_entry) -> bool:
     # Version number has gone up
     if config_entry.version < CONFIG_VERSION:
         _LOGGER.debug("Migrating from version %s", config_entry.version)
-        new_data = config_entry.data
+        new_data = dict(config_entry.data)
 
-        config_entry.version = CONFIG_VERSION
-        hass.config_entries.async_update_entry(config_entry, data=new_data)
+        hass.config_entries.async_update_entry(
+            config_entry,
+            data=new_data,
+            version=CONFIG_VERSION,
+        )
 
         _LOGGER.debug("Migration to version %s successful",
                       config_entry.version)

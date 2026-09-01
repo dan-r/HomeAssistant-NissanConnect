@@ -28,9 +28,10 @@ async def async_setup_entry(hass, config, async_add_entities):
     imperial_distance = config.data.get("imperial_distance", False)
 
     for vehicle in data:
+        entities.append(TimestampSensor(coordinator, data[vehicle], 'last_updated', 'last_updated', 'mdi:clock-time-eleven-outline'))
+
         if Feature.BATTERY_STATUS in data[vehicle].features or data[vehicle].range_hvac_on is not None:
-            entities += [RangeSensor(coordinator, data[vehicle], True, imperial_distance),
-                         TimestampSensor(coordinator, data[vehicle], 'battery_status_last_updated', 'last_updated', 'mdi:clock-time-eleven-outline')]
+            entities.append(RangeSensor(coordinator, data[vehicle], True, imperial_distance))
         if Feature.BATTERY_STATUS in data[vehicle].features:
             entities.append(BatteryLevelSensor(coordinator, data[vehicle]))
         if data[vehicle].charge_time_required_to_full[ChargingSpeed.NORMAL] is not None:
@@ -70,7 +71,7 @@ class BatteryLevelSensor(KamereonEntity, SensorEntity):
 
     def __init__(self, coordinator, vehicle):
         KamereonEntity.__init__(self, coordinator, vehicle)
-        
+
     @property
     def state(self):
         """Return the state."""
@@ -95,12 +96,14 @@ class BatteryLevelSensor(KamereonEntity, SensorEntity):
             'battery_capacity': self.vehicle.battery_capacity,
             'battery_level': self.vehicle.battery_level,
         })
+        return a
 
 
 class InternalTemperatureSensor(KamereonEntity, SensorEntity):
     _attr_translation_key = "internal_temperature"
     _attr_device_class = SensorDeviceClass.TEMPERATURE
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
     @property
     def native_value(self):
@@ -127,6 +130,7 @@ class ExternalTemperatureSensor(KamereonEntity, SensorEntity):
     _attr_translation_key = "external_temperature"
     _attr_device_class = SensorDeviceClass.TEMPERATURE
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
     @property
     def native_value(self):
@@ -152,6 +156,8 @@ class ExternalTemperatureSensor(KamereonEntity, SensorEntity):
 class RangeSensor(KamereonEntity, SensorEntity):
     _attr_device_class = SensorDeviceClass.DISTANCE
     _attr_native_unit_of_measurement = UnitOfLength.KILOMETERS
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 0
 
     def __init__(self, coordinator, vehicle, hvac, imperial_distance):
         if imperial_distance:
@@ -179,6 +185,7 @@ class OdometerSensor(KamereonEntity, SensorEntity):
     _attr_device_class = SensorDeviceClass.DISTANCE
     _attr_native_unit_of_measurement = UnitOfLength.KILOMETERS
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_suggested_display_precision = 0
 
     def __init__(self, coordinator, vehicle, imperial_distance):
         if imperial_distance:
@@ -193,7 +200,7 @@ class OdometerSensor(KamereonEntity, SensorEntity):
         new_state = getattr(self.vehicle, "total_mileage")
 
         # This sometimes goes backwards? So only accept a positive odometer delta
-        if new_state is not None and new_state > (self._state or 0):           
+        if new_state is not None and new_state > (self._state or 0):
             self._state = new_state
             self.async_write_ha_state()
 
@@ -311,3 +318,4 @@ class TimestampSensor(KamereonEntity, SensorEntity):
         if val is None:
             return None
         return val.isoformat()
+

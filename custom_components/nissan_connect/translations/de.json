@@ -18,13 +18,22 @@
             "interval_charging": "Polling-Intervall: Es werden Daten direkt vom Fahrzeug angefordert (beeinflusst Batterieverbrauch).",
             "interval_statistics": "Update-Intervall: Es werden Daten aus der Cloud angefordert, ohne das Fahrzeug zu wecken."
           }
+        },
+        "reauth_confirm": {
+          "description": "Nissan-Konto erneut authentifizieren.",
+          "data": {
+            "password": "Passwort"
+          }
         }
       },
       "error": {
         "auth_error": "Die Zugangsdaten sind ungültig.",
+        "cannot_connect": "Verbindung zu Nissan fehlgeschlagen.",
         "region_error": "Diese Region wird nicht unterstützt. Bitte eine unterstützte Region auswählen!"
       },
-      "abort": {}
+      "abort": {
+        "reauth_successful": "Erneute Authentifizierung war erfolgreich"
+      }
     },
     "options": {
       "step": {

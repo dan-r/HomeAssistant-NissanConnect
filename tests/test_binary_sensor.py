@@ -28,7 +28,7 @@ def coordinator(hass):
     async def async_update_data():
         return {}
 
-    return DataUpdateCoordinator(hass, None, name="test", update_method=async_update_data)
+    return DataUpdateCoordinator(hass, None, config_entry=None, name="test", update_method=async_update_data)
 
 async def test_charging_status_entity(vehicle, coordinator):
     entity = ChargingStatusEntity(coordinator, vehicle)

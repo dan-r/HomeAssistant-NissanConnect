@@ -18,13 +18,22 @@
             "interval_charging": "Samochód zostanie obudzony i poproszony o nowe dane co każdy interwał odpytywania.",
             "interval_statistics": "Co każdy interwał aktualizacji najnowsze dane zostaną pobrane z serwerów Nissana ale samochód nie zostanie obudzony."
           }
+        },
+        "reauth_confirm": {
+          "description": "Ponownie uwierzytelnij konto Nissan.",
+          "data": {
+            "password": "Hasło"
+          }
         }
       },
       "error": {
         "auth_error": "Podane dane logowania są niepoprawne.",
+        "cannot_connect": "Nie udało się połączyć z Nissanem.",
         "region_error": "Niepoprawny region. Proszę podać poprawny region."
       },
-      "abort": {}
+      "abort": {
+        "reauth_successful": "Ponowne uwierzytelnienie powiodło się"
+      }
     },
     "options": {
       "step": {

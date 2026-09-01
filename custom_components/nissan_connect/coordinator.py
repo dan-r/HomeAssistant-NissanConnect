@@ -2,9 +2,10 @@ import logging
 
 from datetime import timedelta
 from time import time
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from .const import DOMAIN, DATA_VEHICLES, DEFAULT_INTERVAL_POLL, DEFAULT_INTERVAL_CHARGING, DEFAULT_INTERVAL_STATISTICS, DEFAULT_INTERVAL_FETCH, DATA_COORDINATOR_FETCH, DATA_COORDINATOR_POLL
-from .kamereon import Feature, PluggedStatus, ChargingStatus, Period
+from .kamereon import Feature, PluggedStatus, ChargingStatus, Period, NissanAuthError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -27,6 +28,8 @@ class KamereonFetchCoordinator(DataUpdateCoordinator):
         try:
             for vehicle in self._vehicles:
                 await self._hass.async_add_executor_job(self._vehicles[vehicle].fetch_all)
+        except NissanAuthError as error:
+            raise ConfigEntryAuthFailed("Nissan authentication failed") from error
         except BaseException:
             _LOGGER.warning("Error communicating with API")
             return False
@@ -112,6 +115,8 @@ class KamereonPollCoordinator(DataUpdateCoordinator):
                     await self._hass.async_add_executor_job(self._vehicles[vehicle].refresh)
                 else:
                     _LOGGER.debug("NOT polling #%s. %d mins have elapsed (interval %d)", vehicle[-3:], time_since_updated, self._intervals[vehicle])                   
+        except NissanAuthError as error:
+            raise ConfigEntryAuthFailed("Nissan authentication failed") from error
         except BaseException:
             _LOGGER.warning("Error communicating with API")
             return False
@@ -145,6 +150,8 @@ class StatisticsCoordinator(DataUpdateCoordinator):
                     'daily': await self._hass.async_add_executor_job(self._vehicles[vehicle].fetch_trip_histories, Period.DAILY),
                     'monthly': await self._hass.async_add_executor_job(self._vehicles[vehicle].fetch_trip_histories, Period.MONTHLY)
                 }
+        except NissanAuthError as error:
+            raise ConfigEntryAuthFailed("Nissan authentication failed") from error
         except BaseException:
             _LOGGER.warning("Error communicating with statistics API")
         
