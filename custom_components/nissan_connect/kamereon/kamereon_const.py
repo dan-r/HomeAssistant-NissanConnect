@@ -13,11 +13,21 @@ SETTINGS_MAP = {
             'auth_platform': 'Android',
             'auth_locale': 'en_GB',
             'car_adapter_base_url': 'https://alliance-platform-caradapter-prod.apps.eu2.kamereon.io/car-adapter/',
+            'action_status_base_url': 'https://alliance-platform-action-status-polling-prod.apps.eu2.kamereon.io/',
             'notifications_base_url': 'https://alliance-platform-notifications-prod.apps.eu2.kamereon.io/notifications/',
             'user_adapter_base_url': 'https://alliance-platform-usersadapter-prod.apps.eu2.kamereon.io/user-adapter/',
             'user_base_url': 'https://nci-bff-web-prod.apps.eu2.kamereon.io/bff-web/'
         }
     }
+}
+
+# Headers required by the MyNISSAN Android app (captured via HTTP Toolkit)
+Y63_APP_VERSION = '3.16.2(1804)'
+Y63_USER_AGENT = 'MyNISSAN/3.16.2 (eu.gom.services; build:1804; Android SDK 35) 4.12.0'
+Y63_HEADERS = {
+    'Content-Type': 'application/vnd.api+json',
+    'App-Version': Y63_APP_VERSION,
+    'User-Agent': Y63_USER_AGENT,
 }
 
 

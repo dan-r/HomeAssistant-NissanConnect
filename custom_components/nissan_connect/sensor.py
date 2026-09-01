@@ -9,6 +9,7 @@ from homeassistant.components.sensor import (
 from homeassistant.core import callback
 from homeassistant.const import PERCENTAGE, UnitOfLength, UnitOfTime
 from homeassistant.components.sensor import SensorStateClass
+from homeassistant.const import UnitOfPressure
 from .base import KamereonEntity
 from .kamereon import ChargingSpeed, Feature
 from .const import DOMAIN, DATA_VEHICLES, DATA_COORDINATOR_FETCH, DATA_COORDINATOR_STATISTICS
@@ -59,6 +60,20 @@ async def async_setup_entry(hass, config, async_add_entities):
                 ]
 
         entities.append(OdometerSensor(coordinator, data[vehicle], imperial_distance))
+
+        # ICE-specific: fuel autonomy + maintenance (always add for ICE vehicles)
+        entities.append(FuelAutonomySensor(coordinator, data[vehicle], imperial_distance))
+        entities.append(SimpleDistanceSensor(
+            coordinator, data[vehicle], 'engine_oil_draining_range',
+            'Oil Change Range', 'mdi:oil', imperial_distance))
+        entities.append(SimpleDistanceSensor(
+            coordinator, data[vehicle], 'due_mileage',
+            'Service Due Mileage', 'mdi:wrench-clock', imperial_distance))
+
+        # Tyre pressure sensors (4 wheels) — add when vehicle health check is available
+        if Feature.VEHICLE_STATUS_CHECK in data[vehicle].features:
+            for wheel in ('fl', 'fr', 'rl', 'rr'):
+                entities.append(TyrePressureSensor(coordinator, data[vehicle], wheel))
 
     async_add_entities(entities, update_before_add=True)
 
@@ -295,6 +310,102 @@ class ChargeTimeRequiredSensor(KamereonEntity, SensorEntity):
     def icon(self):
         """Icon of the sensor."""
         return "mdi:battery-clock"
+
+
+class FuelAutonomySensor(KamereonEntity, SensorEntity):
+    """Fuel range remaining (km)."""
+    _attr_device_class = SensorDeviceClass.DISTANCE
+    _attr_native_unit_of_measurement = UnitOfLength.KILOMETERS
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_name = 'Fuel Range'
+
+    def __init__(self, coordinator, vehicle, imperial_distance):
+        if imperial_distance:
+            self._attr_suggested_unit_of_measurement = UnitOfLength.MILES
+        KamereonEntity.__init__(self, coordinator, vehicle)
+
+    @property
+    def unique_id(self):
+        base = self.vehicle.session.unique_id or self.vehicle.nickname or self.vehicle.model_name
+        return f"{base}_{self.vehicle.vin}_fuel_autonomy"
+
+    @property
+    def native_value(self):
+        return self.vehicle.fuel_autonomy
+
+    @property
+    def icon(self):
+        return 'mdi:gas-station'
+
+
+class SimpleDistanceSensor(KamereonEntity, SensorEntity):
+    """Generic distance sensor backed by a vehicle attribute."""
+    _attr_device_class = SensorDeviceClass.DISTANCE
+    _attr_native_unit_of_measurement = UnitOfLength.KILOMETERS
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator, vehicle, attribute, name, icon, imperial_distance):
+        self._attribute = attribute
+        self._attr_name = name
+        self._icon = icon
+        if imperial_distance:
+            self._attr_suggested_unit_of_measurement = UnitOfLength.MILES
+        KamereonEntity.__init__(self, coordinator, vehicle)
+
+    @property
+    def unique_id(self):
+        base = self.vehicle.session.unique_id or self.vehicle.nickname or self.vehicle.model_name
+        return f"{base}_{self.vehicle.vin}_{self._attribute}"
+
+    @property
+    def native_value(self):
+        return getattr(self.vehicle, self._attribute)
+
+    @property
+    def icon(self):
+        return self._icon
+
+
+class TyrePressureSensor(KamereonEntity, SensorEntity):
+    """Tyre pressure for one wheel (kPa)."""
+    _attr_device_class = SensorDeviceClass.PRESSURE
+    _attr_native_unit_of_measurement = UnitOfPressure.KPA
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 1
+
+    WHEEL_NAMES = {
+        'fl': 'Tyre Pressure Front Left',
+        'fr': 'Tyre Pressure Front Right',
+        'rl': 'Tyre Pressure Rear Left',
+        'rr': 'Tyre Pressure Rear Right',
+    }
+    WHEEL_LABELS = {'fl': 'Front Left', 'fr': 'Front Right', 'rl': 'Rear Left', 'rr': 'Rear Right'}
+
+    def __init__(self, coordinator, vehicle, wheel: str):
+        self._wheel = wheel
+        self._attr_name = self.WHEEL_NAMES[wheel]
+        KamereonEntity.__init__(self, coordinator, vehicle)
+
+    @property
+    def unique_id(self):
+        base = self.vehicle.session.unique_id or self.vehicle.nickname or self.vehicle.model_name
+        return f"{base}_{self.vehicle.vin}_tyre_{self._wheel}"
+
+    @property
+    def native_value(self):
+        return self.vehicle.tyre_pressure.get(self._wheel)
+
+    @property
+    def icon(self):
+        status = self.vehicle.tyre_pressure_status.get(self._wheel)
+        return 'mdi:tire-alert' if status else 'mdi:tire'
+
+    @property
+    def extra_state_attributes(self):
+        return {
+            'wheel': self.WHEEL_LABELS.get(self._wheel),
+            'status': self.vehicle.tyre_pressure_status.get(self._wheel),
+        }
 
 
 class TimestampSensor(KamereonEntity, SensorEntity):
