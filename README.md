@@ -41,10 +41,36 @@ This is the recommended installation method.
 ## Setup
 From the Home Assistant Integrations page, search for and add the Nissan Connect integration.
 
+### Remote Lock and Unlock
+
+Remote lock and unlock is optional and must be configured separately for each
+vehicle:
+
+1. Open the NissanConnect integration options and select **Configure remote
+    lock**.
+2. Select a supported vehicle. Nissan sends a six-digit verification code to
+    the account email address.
+3. Enter the verification code, then choose a four-digit Nissan remote-control
+    PIN.
+4. Enter that PIN in Home Assistant's `code` field whenever you lock or unlock
+    the vehicle.
+
+Home Assistant does not store the verification code or PIN. The integration
+stores only a random per-vehicle device ID and the setup state. The options
+flow can disable or re-enable the entity, change the enrolled PIN, or remove
+the trusted Home Assistant device from Nissan.
+
+The lock entity is offered only when the vehicle advertises compatible lock
+status, command, and security services. Availability still depends on vehicle
+model, production date, equipment, country, and an active NissanConnect
+subscription. Setup currently supports the vehicle owner account; vehicles
+shared through a secondary account are not enabled.
+
 ## Update Time
 Terminology used for this integration:
 * Polling - the car is woken up and new status is reported. This is disabled by default, but can be enabled by setting the polling interval to a non-zero value
 * Update - data is fetched from Nissan but the car is not woken up
+* Remote lock/unlock - an explicit user command. It is never sent by a coordinator update, and the integration does not add a speculative vehicle wake-up before the command
 
 Following the model of leaf2mqtt, this integration can be set to use a different polling time when plugged in. When HVAC is turned on the polling time always drops to once per minute.
 
@@ -87,6 +113,8 @@ This integration exposes the following entities. Please note that entities will 
     * Monthly Efficiency (EV Only)
 * Climate
 * Device Tracker
+* Lock
+    * Doors (requires the four-digit Nissan remote-control PIN for every command)
 * Buttons
     * Update Data
     * Flash Lights

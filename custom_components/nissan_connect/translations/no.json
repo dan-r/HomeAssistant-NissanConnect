@@ -46,19 +46,57 @@
             "interval_charging": "Oppdateringsfrekvens under lading for henting av data (i minutter)",
             "interval_statistics": "Oppdateringsfrekvens for daglig / månedlig statistikk (i minutter)",
             "interval_fetch": "Oppdateringsfrekvens for henting av data (i minutter)",
-            "imperial_distance": "Bruk Britiske/Amerikanske (Imperial) måleenheter"
+            "imperial_distance": "Bruk Britiske/Amerikanske (Imperial) måleenheter",
+            "configure_remote_lock": "Konfigurer fjernlåsing"
           },
           "data_description": {
             "password": "La stå tomt hvis du ikke skal oppdatere innloggingsinformasjon",
             "interval_charging": "Bilen vil vekkes ved hver spørring, som angitt i oppdateringsfrekvensen",
-            "interval_statistics": "Ved oppdatering av statistikk blir data forespurt fra Nissan, men bilen blir ikke vekket."
+            "interval_statistics": "Ved oppdatering av statistikk blir data forespurt fra Nissan, men bilen blir ikke vekket.",
+            "configure_remote_lock": "Start eller administrer sikkert oppsett av låsing og opplåsing for ett kjøretøy."
+          }
+        },
+        "remote_lock_vehicle": {
+          "description": "Velg kjøretøyet du vil administrere fjernlåsing for.",
+          "data": {
+            "vehicle": "Kjøretøy"
+          }
+        },
+        "remote_lock_otp": {
+          "description": "Skriv inn den sekssifrede bekreftelseskoden Nissan sendte via e-post.",
+          "data": {
+            "otp": "Bekreftelseskode"
+          }
+        },
+        "remote_lock_pin": {
+          "description": "Velg en firesifret Nissan-PIN for fjernstyring. Home Assistant sender den til Nissan for registrering, men lagrer den ikke. Du må skrive den inn hver gang du låser eller låser opp kjøretøyet.",
+          "data": {
+            "pin": "PIN for fjernstyring",
+            "pin_confirm": "Bekreft PIN"
+          }
+        },
+        "remote_lock_enabled": {
+          "description": "Administrer sikker fjerntilgang for dette kjøretøyet.",
+          "data": {
+            "action": "Handling"
           }
         }
       },
       "error": {
-        "auth_error": "Ugyldig innloggingsinformasjon"
+        "auth_error": "Ugyldig innloggingsinformasjon",
+        "cannot_connect": "Kunne ikke koble til Nissan.",
+        "invalid_vehicle": "Velg et gyldig kjøretøy.",
+        "remote_lock_setup_error": "Kunne ikke starte oppsett av fjernlåsing.",
+        "otp_invalid": "Bekreftelseskoden må bestå av seks sifre.",
+        "device_registration_error": "Nissan avviste enhetsregistreringen. Kontroller koden og prøv igjen.",
+        "pin_invalid": "PIN-koden må bestå av fire sifre.",
+        "pin_mismatch": "PIN-kodene er ikke like.",
+        "pin_enrollment_error": "Nissan kunne ikke registrere PIN-koden for fjernstyring.",
+        "device_removal_error": "Nissan kunne ikke fjerne den klarerte enheten."
       },
-      "abort": {}
+      "abort": {
+        "no_remote_lock_vehicle": "Ingen kjøretøy på denne kontoen støtter dette sikre oppsettet for fjernlåsing."
+      }
     },
     "issues": {},
     "entity": {
@@ -71,6 +109,11 @@
         },
         "plugged": {
           "name": "Plugget inn"
+        }
+      },
+      "lock": {
+        "doors": {
+          "name": "Dører"
         }
       },
       "button": {
@@ -122,6 +165,9 @@
         "charge_time_6kw": {
           "name": "Ladetid (6kW)"
         },
+        "charge_time_adaptive": {
+          "name": "Ladetid (adaptiv)"
+        },
         "last_updated": {
           "name": "Sist oppdatert"
         },
@@ -149,6 +195,14 @@
       "region": {
         "options": {
           "eu": "Europa"
+        }
+      },
+      "remote_lock_action": {
+        "options": {
+          "enable": "Aktiver fjernlåsing",
+          "disable": "Deaktiver fjernlåsing",
+          "update_pin": "Endre PIN for fjernstyring",
+          "remove_device": "Fjern klarert enhet"
         }
       }
     }
