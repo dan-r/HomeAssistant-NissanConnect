@@ -565,9 +565,13 @@ class Vehicle:
         )
 
     def fetch_all(self):
+        self.fetch_battery_status()
+        
+        if self.model_name == "MICRA":
+            return
+        
         self.fetch_cockpit()
         self.fetch_location()
-        self.fetch_battery_status()
         self.fetch_hvac_status()
         self.fetch_lock_status()
 
@@ -857,9 +861,10 @@ class Vehicle:
         return body
 
     def fetch_battery_status(self):
-        self.fetch_battery_status_leaf()
-        if self.model_name == "Ariya":
+        if self.model_name == "MICRA" or self.model_name == "Ariya":
             self.fetch_battery_status_ariya()
+        else:
+            self.fetch_battery_status_leaf()
 
     def fetch_battery_status_leaf(self):
         """The battery-status endpoint isn't just for EV's. ICE Nissans publish the range under this!
@@ -907,10 +912,20 @@ class Vehicle:
             self.unplugged_time = datetime.datetime.fromisoformat(battery_data['vehicleUnplugTimestamp'].replace('Z','+00:00'))
 
     def fetch_battery_status_ariya(self):
+        """Fetch battery data from Nissan's newer v3 battery-status API.
+
+        Originally added for the Ariya, this endpoint is also used by the
+        new Micra EV.
+        """
         resp = self._get(
-            '{}v3/cars/{}/battery-status?canGen={}'.format(self.session.settings['user_base_url'], self.vin, self.can_generation),
+            '{}v3/cars/{}/battery-status?canGen={}'.format(
+                self.session.settings['user_base_url'],
+                self.vin,
+                self.can_generation
+            ),
             headers={'Content-Type': 'application/vnd.api+json'}
         )
+
         body = resp.json()
         if 'errors' in body and Feature.BATTERY_STATUS in self.features:
             raise ValueError(body['errors'])
@@ -919,26 +934,76 @@ class Vehicle:
             return
 
         battery_data = body['data']['attributes']
-        
+
+        # Newer Nissan/Renault-derived vehicles may expose state of charge
+        # using different field names. Use the first populated value.
+        self.battery_level = battery_data.get('batteryLevel')
+        self.battery_capacity = battery_data.get('batteryCapacity')
+        self.battery_temperature = battery_data.get('batteryTemperature')
+        self.instantaneous_power = battery_data.get('instantaneousPower')
+
         self.range_hvac_off = None
-        self.range_hvac_on = battery_data.get('batteryAutonomy') or self.range_hvac_on
+        self.range_hvac_on = (
+            battery_data.get('batteryAutonomy')
+            or battery_data.get('rangeHvacOn')
+            or self.range_hvac_on
+        )
 
         self.charging_speed = ChargingSpeed(None)
         self.charge_time_required_to_full = {
             ChargingSpeed.FAST: None,
             ChargingSpeed.NORMAL: None,
             ChargingSpeed.SLOW: None,
-            ChargingSpeed.ADAPTIVE: battery_data.get('chargingRemainingTime') or self.charge_time_required_to_full[ChargingSpeed.NORMAL]
+            ChargingSpeed.ADAPTIVE: (
+                battery_data.get('chargingRemainingTime')
+                or self.charge_time_required_to_full[ChargingSpeed.NORMAL]
+            )
         }
 
-        self.plugged_in = PluggedStatus(battery_data.get('plugStatus', 0))
-                
+        try:
+            self.plugged_in = PluggedStatus(battery_data.get('plugStatus', 0))
+        except (TypeError, ValueError):
+            _LOGGER.debug(
+                "Unknown plugStatus from v3 battery API: %s",
+                battery_data.get('plugStatus')
+            )
+        charging_status = battery_data.get('chargingStatus')
+
+        if charging_status is None:
+            charging_status = battery_data.get('chargeStatus')
+
+        if charging_status is not None:
+            try:
+                self.charging = ChargingStatus(charging_status)
+            except (TypeError, ValueError):
+                _LOGGER.debug(
+                    "Unknown charging status from v3 battery API: %s",
+                    charging_status
+                )
+
         if 'vehiclePlugTimestamp' in battery_data:
-            self.plugged_in_time = datetime.datetime.fromisoformat(battery_data['vehiclePlugTimestamp'].replace('Z','+00:00'))
+            try:
+                self.plugged_in_time = datetime.datetime.fromisoformat(
+                    battery_data['vehiclePlugTimestamp'].replace('Z', '+00:00')
+                )
+            except (TypeError, ValueError):
+                pass
+
         if 'vehicleUnplugTimestamp' in battery_data:
-            self.unplugged_time = datetime.datetime.fromisoformat(battery_data['vehicleUnplugTimestamp'].replace('Z','+00:00'))
+            try:
+                self.unplugged_time = datetime.datetime.fromisoformat(
+                    battery_data['vehicleUnplugTimestamp'].replace('Z', '+00:00')
+                )
+            except (TypeError, ValueError):
+                pass
+
         if 'lastUpdateTime' in battery_data:
-            self.battery_status_last_updated = datetime.datetime.fromisoformat(battery_data['lastUpdateTime'].replace('Z','+00:00'))
+            try:
+                self.battery_status_last_updated = datetime.datetime.fromisoformat(
+                    battery_data['lastUpdateTime'].replace('Z', '+00:00')
+                )
+            except (TypeError, ValueError):
+                pass
 
     def set_energy_unit_cost(self, cost):
         resp = self._post(
