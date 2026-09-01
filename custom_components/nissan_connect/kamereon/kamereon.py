@@ -565,15 +565,13 @@ class Vehicle:
         )
 
     def fetch_all(self):
-        # The new Micra uses the newer v3 battery API and does not support
-        # the legacy cockpit / Leaf battery endpoints used by older models.
+        self.fetch_battery_status()
+        
         if self.model_name == "MICRA":
-            self.fetch_battery_status()
             return
-
+        
         self.fetch_cockpit()
         self.fetch_location()
-        self.fetch_battery_status()
         self.fetch_hvac_status()
         self.fetch_lock_status()
 
@@ -863,15 +861,10 @@ class Vehicle:
         return body
 
     def fetch_battery_status(self):
-        # The new Micra gateway does not support the legacy Leaf v1
-        # battery-status endpoint, so go directly to the newer v3 API.
-        if (self.model_name or "").casefold() == "micra":
+        if self.model_name == "MICRA" or self.model_name == "Ariya":
             self.fetch_battery_status_ariya()
-            return
-
-        self.fetch_battery_status_leaf()
-        if self.model_name == "Ariya":
-            self.fetch_battery_status_ariya()
+        else:
+            self.fetch_battery_status_leaf()
 
     def fetch_battery_status_leaf(self):
         """The battery-status endpoint isn't just for EV's. ICE Nissans publish the range under this!
@@ -941,7 +934,6 @@ class Vehicle:
             return
 
         battery_data = body['data']['attributes']
-        self.battery_supported = True
 
         # Newer Nissan/Renault-derived vehicles may expose state of charge
         # using different field names. Use the first populated value.
