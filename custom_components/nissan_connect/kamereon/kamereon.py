@@ -9,6 +9,7 @@ from html.parser import HTMLParser
 import json
 import logging
 import secrets
+import threading
 from typing import List
 from urllib.parse import parse_qs, urljoin, urlparse
 import requests
@@ -119,6 +120,10 @@ class Notification:
 
 class NissanAuthError(RuntimeError):
     """Raised when Nissan rejects the credentials themselves."""
+
+
+class RefreshInProgressError(RuntimeError):
+    """Raised when a vehicle refresh is already in progress."""
 
 
 class KamereonSession:
@@ -443,6 +448,8 @@ class Vehicle:
         return _registry[USERS][self.user_id]
 
     def __init__(self, data, user_id):
+        self._refresh_fetch_lock = threading.Lock()
+        
         self.user_id = user_id
         self.vin = data['vin'].upper()
         self.features = []
@@ -570,6 +577,32 @@ class Vehicle:
         self.fetch_battery_status()
         self.fetch_hvac_status()
         self.fetch_lock_status()
+
+    def refresh_fetch(self, check_interval=10, max_attempts=5):
+        """Wake the vehicle and update data repeatedly until new data is fetched or timeout is reached."""
+        if check_interval < 0:
+            raise ValueError('check_interval must not be negative')
+        if max_attempts < 1:
+            raise ValueError('max_attempts must be at least 1')
+
+        if not self._refresh_fetch_lock.acquire(blocking=False):
+            raise RefreshInProgressError(
+                f"An update is already in progress for this vehicle"
+            )
+
+        try:
+            self.fetch_all()
+            previous_last_updated = self.last_updated
+            self.refresh()
+
+            for _ in range(max_attempts):
+                time.sleep(check_interval)
+                self.fetch_all()
+                if self.last_updated != previous_last_updated:
+                    return True
+            return False
+        finally:
+            self._refresh_fetch_lock.release()
 
     def refresh_location(self):
         if Feature.MY_CAR_FINDER not in self.features:

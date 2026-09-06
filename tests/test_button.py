@@ -56,14 +56,15 @@ async def test_async_setup_entry(mock_hass, mock_config, mock_async_add_entities
 async def test_force_update_button():
     coordinator = AsyncMock()
     vehicle = MagicMock()
+    vehicle.refresh_fetch.return_value = True
     hass = AsyncMock()
     stats_coordinator = MagicMock()
 
     button = ForceUpdateButton(coordinator, vehicle, hass, stats_coordinator)
 
     await button.async_press()
-    vehicle.refresh.assert_called_once()
-    coordinator.async_refresh.assert_called_once()
+    vehicle.refresh_fetch.assert_called_once()
+    coordinator.async_set_updated_data.assert_called_once_with(True)
 
 
 def test_horn_lights_buttons():
