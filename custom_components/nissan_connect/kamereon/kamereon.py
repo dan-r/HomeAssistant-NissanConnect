@@ -574,7 +574,7 @@ class Vehicle:
     def fetch_all(self):
         self.fetch_battery_status()
         
-        if self.model_name == "MICRA":
+        if (self.model_name or "").upper() == "MICRA":
             return
         
         self.fetch_cockpit()
