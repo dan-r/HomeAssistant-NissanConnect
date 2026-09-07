@@ -894,7 +894,6 @@ class Vehicle:
         return body
 
     def fetch_battery_status(self):
-        # Nissan reports modelName as either "Ariya" or "ARIYA"
         model = (self.model_name or "").upper()
         if model == "MICRA" or model == "ARIYA":
             self.fetch_battery_status_ariya()
