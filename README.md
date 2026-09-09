@@ -13,6 +13,7 @@ This integration has been tested with the following vehicles:
 * Nissan Ariya
 * Nissan X-Trail (2024)
 * Nissan Juke (2021)
+* Nissan Townstar (2025)
 
 ## Supported Regions
 * Europe
