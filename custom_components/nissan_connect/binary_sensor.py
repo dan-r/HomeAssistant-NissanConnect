@@ -21,6 +21,17 @@ async def async_setup_entry(hass, config, async_add_entities):
                          PluggedStatusEntity(coordinator, data[vehicle])]
         if Feature.LOCK_STATUS_CHECK in data[vehicle].features:
             entities += [LockStatusEntity(coordinator, data[vehicle])]
+        if Feature.VEHICLE_STATUS_CHECK in data[vehicle].features:
+            entities += [
+                WarningBinarySensor(coordinator, data[vehicle], 'warning_abs',           'ABS Warning',           'mdi:car-brake-abs',         'mdi:car-brake-abs'),
+                WarningBinarySensor(coordinator, data[vehicle], 'warning_airbag',        'Airbag Warning',        'mdi:airbag',                'mdi:airbag'),
+                WarningBinarySensor(coordinator, data[vehicle], 'warning_brake_fluid',   'Brake Fluid Warning',   'mdi:car-brake-fluid-level', 'mdi:car-brake-fluid-level'),
+                WarningBinarySensor(coordinator, data[vehicle], 'warning_oil_pressure',  'Oil Pressure Warning',  'mdi:oil-level',             'mdi:oil-level'),
+                WarningBinarySensor(coordinator, data[vehicle], 'warning_tyre_pressure', 'Tyre Pressure Warning', 'mdi:tire-alert',            'mdi:tire'),
+                WarningBinarySensor(coordinator, data[vehicle], 'warning_check_engine',  'Check Engine Warning',  'mdi:engine-outline',        'mdi:engine'),
+                WarningBinarySensor(coordinator, data[vehicle], 'warning_service',       'Service Warning',       'mdi:wrench-clock',          'mdi:wrench-clock'),
+                WarningBinarySensor(coordinator, data[vehicle], 'warning_battery_low',   'Battery Low Warning',   'mdi:car-battery',           'mdi:car-battery'),
+            ]
 
     async_add_entities(entities, update_before_add=True)
 
@@ -92,3 +103,31 @@ class LockStatusEntity(KamereonEntity, BinarySensorEntity):
     @property
     def is_on(self):
         return self.vehicle.lock_status == LockStatus.UNLOCKED
+
+
+class WarningBinarySensor(KamereonEntity, BinarySensorEntity):
+    """A dashboard warning lamp (on = warning active)."""
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+
+    def __init__(self, coordinator, vehicle, attribute, name, icon_on, icon_off):
+        self._attribute = attribute
+        self._attr_name = name
+        self._icon_on = icon_on
+        self._icon_off = icon_off
+        KamereonEntity.__init__(self, coordinator, vehicle)
+
+    @property
+    def unique_id(self):
+        base = self.vehicle.session.unique_id or self.vehicle.nickname or self.vehicle.model_name
+        return f"{base}_{self.vehicle.vin}_{self._attribute}"
+
+    @property
+    def is_on(self):
+        val = getattr(self.vehicle, self._attribute, None)
+        if val is None:
+            return None
+        return bool(val)
+
+    @property
+    def icon(self):
+        return self._icon_on if self.is_on else self._icon_off
