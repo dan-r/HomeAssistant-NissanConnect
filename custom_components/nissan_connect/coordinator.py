@@ -62,8 +62,10 @@ class KamereonPollCoordinator(DataUpdateCoordinator):
 
     def set_next_interval(self):
         """Calculate the next update interval."""
-        interval = self._config.get("interval", DEFAULT_INTERVAL_POLL)
-        interval_charging = self._config.get("interval_charging", DEFAULT_INTERVAL_CHARGING)
+        # A negative interval would schedule the next refresh in the past, so the
+        # coordinator would refresh in a tight loop. Clamp to 0 (polling disabled).
+        interval = max(0, self._config.get("interval", DEFAULT_INTERVAL_POLL))
+        interval_charging = max(0, self._config.get("interval_charging", DEFAULT_INTERVAL_CHARGING))
         
         # Get the shortest interval from all vehicles
         for vehicle in self._vehicles:
@@ -96,7 +98,15 @@ class KamereonPollCoordinator(DataUpdateCoordinator):
         # Set the coordinator to update at the shortest interval
         shortest_interval = min(self._intervals.values())
 
-        if shortest_interval != (self.update_interval.seconds / 60):
+        # timedelta.seconds drops whole days, so intervals of 24h or more never
+        # compared equal here and the timer was re-armed on every call.
+        current_interval = (
+            self.update_interval.total_seconds() / 60
+            if self.update_interval is not None
+            else None
+        )
+
+        if shortest_interval != current_interval:
             _LOGGER.debug(f"Changing coordinator update interval to {shortest_interval} minutes")
             self.update_interval = timedelta(minutes=shortest_interval)
             self._async_unsub_refresh()
