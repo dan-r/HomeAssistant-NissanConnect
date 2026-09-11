@@ -362,3 +362,87 @@ def test_vehicle_request_does_not_retry_auth_failures(requests_mock):
             vehicle._get("https://example.invalid/anything")
 
     assert mock_request.call_count == 1
+
+
+CAR_BASE_URL = (
+    "https://alliance-platform-caradapter-prod.apps.eu2.kamereon.io/car-adapter/"
+)
+# Verbatim from a petrol Townstar (dan-r/HomeAssistant-NissanConnect#109)
+BATTERY_ADAPTER_500 = {"errors": [{
+    "code": "500", "status": "Internal Server Error",
+    "title": "BatteryAdapter.getBatteryStatus()"}]}
+
+
+def _ice_vehicle(requests_mock):
+    """A vehicle that does not advertise BATTERY_STATUS."""
+    user_url = (
+        "https://alliance-platform-usersadapter-prod.apps.eu2.kamereon.io/"
+        "user-adapter/v1/users/current"
+    )
+    requests_mock.get(user_url, json={"userId": "test-user"})
+    requests_mock.get(f"{BFF_BASE_URL}v5/users/test-user/cars", json={"data": [{
+        "vin": "test-vin", "modelName": "TOWNSTAR",
+        "services": [{"id": "12", "activationState": "ACTIVATED"}]}]})
+    session = NCISession(region="EU")
+    session._install_kamereon_token({
+        "access_token": "kamereon-access-token",
+        "token_type": "Bearer", "expires_in": 1800})
+    return session.fetch_vehicles()[0]
+
+
+def _battery_requests(requests_mock):
+    return [r.path for r in requests_mock.request_history if "battery-status" in r.path]
+
+
+def test_battery_status_is_probed_then_abandoned(requests_mock):
+    """A car whose gateway 500s here must not be asked forever."""
+    vehicle = _ice_vehicle(requests_mock)
+    requests_mock.get(f"{CAR_BASE_URL}v1/cars/TEST-VIN/battery-status",
+                      json=BATTERY_ADAPTER_500, status_code=500)
+
+    for _ in range(10):
+        vehicle.fetch_battery_status()
+
+    assert len(_battery_requests(requests_mock)) == 3
+    assert vehicle._battery_status_supported is False
+
+
+def test_a_transient_error_does_not_abandon_the_endpoint(requests_mock):
+    """An ICE vehicle that does publish its range here must keep it."""
+    vehicle = _ice_vehicle(requests_mock)
+    requests_mock.get(f"{CAR_BASE_URL}v1/cars/TEST-VIN/battery-status", [
+        {"json": BATTERY_ADAPTER_500, "status_code": 500},
+        {"json": BATTERY_ADAPTER_500, "status_code": 500},
+        {"json": {"data": {"attributes": {"rangeHvacOn": 480}}}, "status_code": 200},
+        {"json": BATTERY_ADAPTER_500, "status_code": 500},
+    ])
+
+    for _ in range(4):
+        vehicle.fetch_battery_status()
+
+    assert vehicle.range_hvac_on == 480
+    assert vehicle._battery_status_supported is True
+    assert len(_battery_requests(requests_mock)) == 4
+
+
+def test_an_ev_still_raises_immediately(requests_mock):
+    """With BATTERY_STATUS active an error is a real failure, not a probe."""
+    user_url = (
+        "https://alliance-platform-usersadapter-prod.apps.eu2.kamereon.io/"
+        "user-adapter/v1/users/current"
+    )
+    requests_mock.get(user_url, json={"userId": "test-user"})
+    requests_mock.get(f"{BFF_BASE_URL}v5/users/test-user/cars", json={"data": [{
+        "vin": "test-vin", "modelName": "LEAF",
+        "services": [{"id": "319", "activationState": "ACTIVATED"}]}]})
+    session = NCISession(region="EU")
+    session._install_kamereon_token({
+        "access_token": "kamereon-access-token",
+        "token_type": "Bearer", "expires_in": 1800})
+    vehicle = session.fetch_vehicles()[0]
+    requests_mock.get(f"{CAR_BASE_URL}v1/cars/TEST-VIN/battery-status",
+                      json=BATTERY_ADAPTER_500, status_code=500)
+
+    with pytest.raises(ValueError):
+        vehicle.fetch_battery_status()
+    assert vehicle._battery_status_supported is True
