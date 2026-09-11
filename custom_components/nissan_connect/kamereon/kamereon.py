@@ -25,6 +25,12 @@ _LOGGER = logging.getLogger(__name__)
 # with "Not supported Feature"; every other car is still served by v1.
 COCKPIT_VERSIONS = ('v1', 'v2')
 
+# How many consecutive errored battery-status responses to tolerate from a
+# vehicle that does not advertise BATTERY_STATUS before giving up on the
+# endpoint. Deliberately not 1, so a transient outage does not cost an ICE
+# vehicle its range until Home Assistant restarts.
+BATTERY_STATUS_ERROR_LIMIT = 3
+
 _registry = {
     USERS: {},
     VEHICLES: {},
@@ -455,6 +461,8 @@ class Vehicle:
     def __init__(self, data, user_id):
         self._refresh_fetch_lock = threading.Lock()
         self._cockpit_version = None
+        self._battery_status_supported = True
+        self._battery_status_errors = 0
         
         self.user_id = user_id
         self.vin = data['vin'].upper()
@@ -907,7 +915,24 @@ class Vehicle:
             raise ValueError(body['errors'])
         return body
 
+    def _note_battery_status_error(self, errors):
+        """Record an errored battery-status response.
+
+        The endpoint is not EV-only - some ICE vehicles publish their range
+        under it - so we probe rather than trusting the feature list. Stop once
+        it has failed consistently, instead of re-requesting on every update.
+        """
+        self._battery_status_errors += 1
+        if self._battery_status_errors >= BATTERY_STATUS_ERROR_LIMIT:
+            _LOGGER.debug(
+                "Vehicle #%s does not serve battery-status (%s); no longer requesting it",
+                self.vin[-3:], errors)
+            self._battery_status_supported = False
+
     def fetch_battery_status(self):
+        if not self._battery_status_supported:
+            return
+
         model = (self.model_name or "").upper()
         if model == "MICRA" or model == "ARIYA":
             self.fetch_battery_status_ariya()
@@ -922,12 +947,16 @@ class Vehicle:
             headers={'Content-Type': 'application/vnd.api+json'}
         )
         body = resp.json()
-        if 'errors' in body and Feature.BATTERY_STATUS in self.features:
-            raise ValueError(body['errors'])
+        if 'errors' in body:
+            if Feature.BATTERY_STATUS in self.features:
+                raise ValueError(body['errors'])
+            self._note_battery_status_error(body['errors'])
+            return
 
         if not 'data' in body or not 'attributes' in body['data']:
             return
 
+        self._battery_status_errors = 0
         battery_data = body['data']['attributes']
         self.battery_capacity = battery_data.get('batteryCapacity')  # kWh
         self.battery_level = battery_data.get('batteryLevel')  # %
@@ -975,12 +1004,16 @@ class Vehicle:
         )
 
         body = resp.json()
-        if 'errors' in body and Feature.BATTERY_STATUS in self.features:
-            raise ValueError(body['errors'])
+        if 'errors' in body:
+            if Feature.BATTERY_STATUS in self.features:
+                raise ValueError(body['errors'])
+            self._note_battery_status_error(body['errors'])
+            return
 
         if not 'data' in body or not 'attributes' in body['data']:
             return
 
+        self._battery_status_errors = 0
         battery_data = body['data']['attributes']
 
         # Newer Nissan/Renault-derived vehicles may expose state of charge
