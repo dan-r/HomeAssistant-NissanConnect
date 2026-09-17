@@ -116,6 +116,15 @@
         "odometer": {
           "name": "Odometer"
         },
+        "fuel_range": {
+          "name": "Fuel Range"
+        },
+        "fuel_quantity": {
+          "name": "Fuel Quantity"
+        },
+        "fuel_level": {
+          "name": "Fuel Level"
+        },
         "charge_time_3kw": {
           "name": "Charge Time (3kW)"
         },

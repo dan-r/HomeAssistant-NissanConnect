@@ -7,7 +7,7 @@ from homeassistant.components.sensor import (
     UnitOfTemperature
 )
 from homeassistant.core import callback
-from homeassistant.const import PERCENTAGE, UnitOfLength, UnitOfTime
+from homeassistant.const import PERCENTAGE, UnitOfLength, UnitOfTime, UnitOfVolume
 from homeassistant.components.sensor import SensorStateClass
 from .base import KamereonEntity
 from .kamereon import ChargingSpeed, Feature
@@ -41,6 +41,12 @@ async def async_setup_entry(hass, config, async_add_entities):
             entities.append(ChargeTimeRequiredSensor(coordinator, data[vehicle], ChargingSpeed.ADAPTIVE))
         if data[vehicle].range_hvac_off is not None:
             entities.append(RangeSensor(coordinator, data[vehicle], False, imperial_distance))
+        if data[vehicle].fuel_autonomy is not None:
+            entities.append(FuelRangeSensor(coordinator, data[vehicle], imperial_distance))
+        if data[vehicle].fuel_quantity is not None:
+            entities.append(FuelQuantitySensor(coordinator, data[vehicle]))
+        if data[vehicle].fuel_level is not None:
+            entities.append(FuelLevelSensor(coordinator, data[vehicle]))
         if data[vehicle].internal_temperature is not None:
             entities.append(InternalTemperatureSensor(coordinator, data[vehicle]))
         if data[vehicle].external_temperature is not None:
@@ -178,6 +184,71 @@ class RangeSensor(KamereonEntity, SensorEntity):
     def icon(self):
         """Icon of the sensor."""
         return "mdi:map-marker-distance"
+
+
+class FuelRangeSensor(KamereonEntity, SensorEntity):
+    """Distance the vehicle estimates it can still travel on the fuel it has."""
+    _attr_translation_key = "fuel_range"
+    _attr_device_class = SensorDeviceClass.DISTANCE
+    _attr_native_unit_of_measurement = UnitOfLength.KILOMETERS
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 0
+
+    def __init__(self, coordinator, vehicle, imperial_distance):
+        if imperial_distance:
+            self._attr_suggested_unit_of_measurement = UnitOfLength.MILES
+        KamereonEntity.__init__(self, coordinator, vehicle)
+
+    @property
+    def native_value(self):
+        """Return the state."""
+        return self.vehicle.fuel_autonomy
+
+    @property
+    def icon(self):
+        """Icon of the sensor."""
+        return "mdi:gas-station"
+
+
+class FuelQuantitySensor(KamereonEntity, SensorEntity):
+    """Fuel currently in the tank."""
+    _attr_translation_key = "fuel_quantity"
+    _attr_device_class = SensorDeviceClass.VOLUME_STORAGE
+    _attr_native_unit_of_measurement = UnitOfVolume.LITERS
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 1
+
+    @property
+    def native_value(self):
+        """Return the state."""
+        return self.vehicle.fuel_quantity
+
+    @property
+    def icon(self):
+        """Icon of the sensor."""
+        return "mdi:fuel"
+
+
+class FuelLevelSensor(KamereonEntity, SensorEntity):
+    """Fuel tank level as a percentage.
+
+    There is no fuel equivalent of SensorDeviceClass.BATTERY, so this is a
+    plain percentage sensor.
+    """
+    _attr_translation_key = "fuel_level"
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 0
+
+    @property
+    def native_value(self):
+        """Return the state."""
+        return self.vehicle.fuel_level
+
+    @property
+    def icon(self):
+        """Icon of the sensor."""
+        return "mdi:gauge"
 
 
 class OdometerSensor(KamereonEntity, SensorEntity):
