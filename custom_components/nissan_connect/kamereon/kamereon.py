@@ -1059,7 +1059,7 @@ class Vehicle:
             end = datetime.datetime.now(datetime.UTC).date()
             start = end.replace(day=1)
         elif start is None:
-            start = datetime.datetime.now(datetime.timezone.utc).date()
+            start = datetime.datetime.now(datetime.UTC).date()
         if end is None:
             end = start
         resp = self._get(
