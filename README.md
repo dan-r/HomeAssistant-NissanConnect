@@ -51,6 +51,33 @@ Following the model of leaf2mqtt, this integration can be set to use a different
 To prevent excessive 12v battery drain when plugged in but not charging for extended periods of time, the polling interval reverts to the standard interval after 4 consecutive updates show the car as plugged in but not charging.
 This logic was added to give the benefit of quicker response times on the charging status binary sensor, which can be especially useful when charging with load-balanced or 'smart' chargers.
 
+## Companion Automation
+Because the integration only pulls the charging state at configured intervals (or not at all automatically by default), it cant know in a timely manner that the car was attached to the charger and the state changed.
+
+In order to trigger a refresh of the charging state and switch to a more frequent updating, this HA automation can help, if you have your wallbox available in HA or some other triggers:
+
+```yaml
+alias: Trigger Nissan Integration polling during charging
+description: 'This tells the Nissan Integration that the car is charging now and it could change the polling interval'
+triggers:
+  - trigger: numeric_state
+    entity_id:
+      - sensor.YOURWALLBOXSENSORFORCHARGINGPOWER
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 30
+    above: 0
+conditions: []
+actions:
+  - action: button.press
+    metadata: {}
+    target:
+      entity_id: button.leaf_update_data
+    data: {}
+mode: single
+```
+
 ## Translations
 Translations are provided for the following languages. If you are a native speaker and spot any mistakes, please let me know.
 * English
