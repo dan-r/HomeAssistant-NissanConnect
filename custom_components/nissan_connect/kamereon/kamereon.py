@@ -579,10 +579,18 @@ class Vehicle:
 
     def fetch_all(self):
         self.fetch_battery_status()
-        self.fetch_cockpit()
-        self.fetch_location()
-        self.fetch_hvac_status()
-        self.fetch_lock_status()
+        # The battery is the one the integration cannot do without. The rest
+        # is optional: a car with its privacy mode on answers 403 for the
+        # location, and that must not stop the other data from loading.
+        for fetch in (self.fetch_cockpit, self.fetch_location,
+                      self.fetch_hvac_status, self.fetch_lock_status):
+            try:
+                fetch()
+            except NissanAuthError:
+                raise
+            except Exception as error:
+                _LOGGER.warning("%s failed for #%s, keeping the other data: %s",
+                              fetch.__name__, self.vin[-3:], error)
 
     def refresh_fetch(self, check_interval=10, max_attempts=5):
         """Wake the vehicle and update data repeatedly until new data is fetched or timeout is reached."""

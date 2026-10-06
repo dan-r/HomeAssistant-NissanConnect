@@ -179,3 +179,57 @@ def test_hvac_status_is_not_requested_without_any_climate_service(requests_mock)
 
     assert vehicle.internal_temperature is None
     assert not [p for p in _requested(requests_mock) if "hvac-status" in p]
+
+
+PRIVACY_MODE_ON = {"errors": [{
+    "status": "Forbidden", "code": "403009", "title": "Forbidden action",
+    "detail": "Privacy mode currently ON"}]}
+
+
+def test_fetch_all_survives_a_refused_location(requests_mock):
+    """With the privacy mode on, the location answers 403. The battery and the
+    other data must still load (this stopped the setup in #103 and #107)."""
+    vehicle = _micra(requests_mock)
+    requests_mock.get(f"{CAR_BASE_URL}v1/cars/TEST-VIN/location",
+                      json=PRIVACY_MODE_ON, status_code=403)
+
+    vehicle.fetch_all()
+
+    assert vehicle.location is None
+    assert vehicle.battery_level == 57
+    assert vehicle.internal_temperature == 21.0
+    assert vehicle.total_mileage == 12345.0
+
+
+def test_fetch_all_survives_an_hvac_platform_error(requests_mock):
+    """hvac endpoints answer 502 on some RVG calls, the rest must still load."""
+    vehicle = _micra(requests_mock)
+    requests_mock.get(f"{CAR_BASE_URL}v1/cars/TEST-VIN/hvac-status", status_code=502,
+                      json={"errors": [{"status": "Bad Gateway", "code": "502"}]})
+
+    vehicle.fetch_all()
+
+    assert vehicle.internal_temperature is None
+    assert vehicle.location == (12.34, 56.78)
+    assert vehicle.total_mileage == 12345.0
+
+
+def test_fetch_all_still_raises_when_the_battery_fails(requests_mock):
+    """The battery stays mandatory: its error must still surface."""
+    vehicle = _micra(requests_mock)
+    requests_mock.get(f"{BFF_BASE_URL}v3/cars/TEST-VIN/battery-status", status_code=500,
+                      json={"errors": [{"status": "Internal Server Error", "code": "500"}]})
+
+    with pytest.raises(ValueError):
+        vehicle.fetch_all()
+
+
+def test_fetch_all_still_raises_on_an_auth_error(requests_mock):
+    """A credential problem must not be swallowed with the optional data."""
+    from custom_components.nissan_connect.kamereon import NissanAuthError
+    vehicle = _micra(requests_mock)
+    requests_mock.get(f"{CAR_BASE_URL}v1/cars/TEST-VIN/location",
+                      exc=NissanAuthError("Invalid credentials"))
+
+    with pytest.raises(NissanAuthError):
+        vehicle.fetch_all()
