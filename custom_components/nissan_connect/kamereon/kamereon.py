@@ -865,7 +865,11 @@ class Vehicle:
         return self.lock_unlock(srp, 'unlock', group)
 
     def fetch_hvac_status(self):
-        if Feature.INTERIOR_TEMP_SETTINGS not in self.features and Feature.TEMPERATURE not in self.features:
+        # The new Micra only lists CLIMATE_ON_OFF, not the two temperature
+        # services, yet its hvac-status endpoint answers.
+        if (Feature.INTERIOR_TEMP_SETTINGS not in self.features
+                and Feature.TEMPERATURE not in self.features
+                and Feature.CLIMATE_ON_OFF not in self.features):
             return
         
         resp = self._get(
