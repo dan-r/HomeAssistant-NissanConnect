@@ -65,6 +65,33 @@ async def test_setup_entry_retries_transient_login_failure(hass, caplog):
     assert "Login failed, will retry: Unable to contact Nissan login" in caplog.text
 
 
+async def test_setup_entry_vehicle_failure_does_not_log_the_full_vin(hass, caplog):
+    """Request errors carry the URL, and the URL carries the VIN."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="test@example.com",
+        data={
+            "email": "test@example.com",
+            "password": "test-password",
+            "region": "EU",
+        },
+    )
+    entry.add_to_hass(hass)
+    vin = "SJNFAAZE1U1234567"
+    vehicle = MagicMock(vin=vin)
+    vehicle.fetch_all.side_effect = RuntimeError(
+        f"Max retries exceeded with url: /car-adapter/v1/cars/{vin}/battery-status")
+
+    with patch("custom_components.nissan_connect.NCISession") as mock_session:
+        mock_session.return_value.fetch_vehicles.return_value = [vehicle]
+        with pytest.raises(ConfigEntryNotReady):
+            await async_setup_entry(hass, entry)
+
+    assert "Could not fetch vehicles, will retry" in caplog.text
+    assert "/cars/***567/battery-status" in caplog.text
+    assert vin not in caplog.text
+
+
 async def test_update_listener_logs_in_shared_session_once():
     session = MagicMock()
     fetch_coordinator = MagicMock()

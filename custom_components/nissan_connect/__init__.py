@@ -2,7 +2,7 @@ import logging
 from datetime import timedelta
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
-from .kamereon import NCISession, NissanAuthError
+from .kamereon import NCISession, NissanAuthError, redact_vin
 from .coordinator import KamereonFetchCoordinator, KamereonPollCoordinator, StatisticsCoordinator
 from .const import *
 
@@ -80,15 +80,20 @@ async def async_setup_entry(hass, entry):
         raise ConfigEntryNotReady("Could not reach the Nissan API") from error
 
     _LOGGER.debug("Finding vehicles")
+    vehicles = []
     try:
-        for vehicle in await hass.async_add_executor_job(kamereon_session.fetch_vehicles):
+        vehicles = await hass.async_add_executor_job(kamereon_session.fetch_vehicles)
+        for vehicle in vehicles:
             await hass.async_add_executor_job(vehicle.fetch_all)
             if vehicle.vin not in data[DATA_VEHICLES]:
                 data[DATA_VEHICLES][vehicle.vin] = vehicle
     except NissanAuthError as error:
         raise ConfigEntryAuthFailed("Nissan authentication failed") from error
     except Exception as error:
-        _LOGGER.warning("Could not fetch vehicles, will retry: %s", error)
+        message = str(error)
+        for vehicle in vehicles:
+            message = redact_vin(message, vehicle.vin)
+        _LOGGER.warning("Could not fetch vehicles, will retry: %s", message)
         raise ConfigEntryNotReady("Could not reach the Nissan API") from error
 
     coordinator = data[DATA_COORDINATOR_FETCH] = KamereonFetchCoordinator(hass, config)
