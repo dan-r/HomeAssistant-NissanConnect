@@ -76,18 +76,13 @@ class KamereonClimate(KamereonEntity, ClimateEntity):
 
     def set_temperature(self, **kwargs):
         """Set new target temperatures."""
-        if Feature.TEMPERATURE not in self.vehicle.features:
-            raise NotImplementedError()
-
         temperature = kwargs.get(ATTR_TEMPERATURE)
         if not temperature:
             return
         
-        if self.vehicle.hvac_status:
-            self._target = temperature
+        self._target = temperature
+        if self.vehicle.hvac_status and Feature.TEMPERATURE in self.vehicle.features:
             self.vehicle.set_hvac_status(HVACAction.START, temperature)
-        else:
-            self._target = temperature
 
     async def async_set_hvac_mode(self, hvac_mode):
         """Set new target hvac mode."""
