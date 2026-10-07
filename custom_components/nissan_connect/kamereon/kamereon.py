@@ -8,6 +8,7 @@ import hashlib
 from html.parser import HTMLParser
 import json
 import logging
+import re
 import secrets
 import threading
 from typing import List
@@ -36,6 +37,15 @@ _registry = {
 
 NotificationType = collections.namedtuple('NotificationType', ['key', 'title', 'message', 'category'])
 NotificationCategory = collections.namedtuple('Category', ['key', 'title'])
+
+
+def redact_vin(text, vin):
+    """Shorten every occurrence of vin in text to its last three characters.
+
+    Request errors carry the URL, and every car URL contains the full VIN.
+    Logs get pasted into public issues, so only the tail may appear in them.
+    """
+    return re.sub(re.escape(vin), '***' + vin[-3:], str(text), flags=re.IGNORECASE)
 
 
 class _LoginFormParser(HTMLParser):
@@ -543,7 +553,8 @@ class Vehicle:
             except NissanAuthError:
                 raise
             except Exception as e:
-                _LOGGER.debug(f"Request failed on attempt {attempt + 1} of {max_retries}: {e}")
+                _LOGGER.debug("Request failed on attempt %d of %d: %s",
+                              attempt + 1, max_retries, redact_vin(e, self.vin))
                 if attempt == max_retries - 1:  # Exhausted retries
                     raise
                 time.sleep(2 ** attempt)  # Exponential backoff on retry
@@ -590,7 +601,8 @@ class Vehicle:
                 raise
             except Exception as error:
                 _LOGGER.warning("%s failed for #%s, keeping the other data: %s",
-                              fetch.__name__, self.vin[-3:], error)
+                              fetch.__name__, self.vin[-3:],
+                              redact_vin(error, self.vin))
 
     def refresh_fetch(self, check_interval=10, max_attempts=5):
         """Wake the vehicle and update data repeatedly until new data is fetched or timeout is reached."""

@@ -5,7 +5,7 @@ from time import time
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from .const import DOMAIN, DATA_VEHICLES, DEFAULT_INTERVAL_POLL, DEFAULT_INTERVAL_CHARGING, DEFAULT_INTERVAL_STATISTICS, DEFAULT_INTERVAL_FETCH, DATA_COORDINATOR_FETCH, DATA_COORDINATOR_POLL
-from .kamereon import Feature, PluggedStatus, ChargingStatus, Period, NissanAuthError
+from .kamereon import Feature, PluggedStatus, ChargingStatus, Period, NissanAuthError, redact_vin
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,7 +34,8 @@ class VehicleCoordinator(DataUpdateCoordinator):
             except NissanAuthError as error:
                 raise ConfigEntryAuthFailed("Nissan authentication failed") from error
             except Exception as error:
-                _LOGGER.warning("Error communicating with API for #%s: %s", vin[-3:], error)
+                _LOGGER.warning("Error communicating with API for #%s: %s",
+                                vin[-3:], redact_vin(error, vin))
                 failed.add(vin)
 
         self.failed_vins = failed
