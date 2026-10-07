@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 from homeassistant.components.climate.const import HVACMode, HVACAction as HASSHVACAction
 from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
+from homeassistant.exceptions import ServiceValidationError
 from custom_components.nissan_connect.climate import KamereonClimate
 from custom_components.nissan_connect.kamereon.kamereon_const import Feature, HVACAction
 
@@ -45,11 +46,12 @@ def test_target_temperature(climate_entity):
     climate_entity.set_temperature(**{ATTR_TEMPERATURE: 25})
     assert climate_entity.target_temperature == 25
 
-def test_target_temperature_not_sent_while_running_without_temperature_service(climate_entity, mock_vehicle):
+def test_target_temperature_refused_while_running_without_temperature_service(climate_entity, mock_vehicle):
     mock_vehicle.features = [Feature.CLIMATE_ON_OFF]
     mock_vehicle.hvac_status = True
-    climate_entity.set_temperature(**{ATTR_TEMPERATURE: 25})
-    assert climate_entity.target_temperature == 25
+    with pytest.raises(ServiceValidationError):
+        climate_entity.set_temperature(**{ATTR_TEMPERATURE: 25})
+    assert climate_entity.target_temperature == 20
     mock_vehicle.set_hvac_status.assert_not_called()
 
 def test_target_temperature_sent_while_running_with_temperature_service(climate_entity, mock_vehicle):

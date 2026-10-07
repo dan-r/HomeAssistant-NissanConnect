@@ -8,6 +8,7 @@ from homeassistant.components.climate import ClimateEntity
 from homeassistant.components.climate.const import (HVACMode, ClimateEntityFeature)
 from homeassistant.components.climate.const import HVACAction as HASSHVACAction
 from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
+from homeassistant.exceptions import ServiceValidationError
 
 SUPPORT_HVAC = [HVACMode.HEAT_COOL, HVACMode.OFF]
 
@@ -80,9 +81,13 @@ class KamereonClimate(KamereonEntity, ClimateEntity):
         if not temperature:
             return
         
-        self._target = temperature
-        if self.vehicle.hvac_status and Feature.TEMPERATURE in self.vehicle.features:
+        if self.vehicle.hvac_status:
+            if Feature.TEMPERATURE not in self.vehicle.features:
+                raise ServiceValidationError("This vehicle cannot change the temperature while the climate is on. Turn it off and on again.")
+            self._target = temperature
             self.vehicle.set_hvac_status(HVACAction.START, temperature)
+        else:
+            self._target = temperature
 
     async def async_set_hvac_mode(self, hvac_mode):
         """Set new target hvac mode."""
