@@ -1,6 +1,8 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from homeassistant.const import PERCENTAGE, UnitOfTemperature, UnitOfLength, UnitOfTime
+from homeassistant.components.sensor import SensorDeviceClass
+from homeassistant.const import (
+    PERCENTAGE, UnitOfTemperature, UnitOfLength, UnitOfTime, UnitOfVolume)
 from custom_components.nissan_connect.base import KamereonEntity
 from custom_components.nissan_connect.kamereon import ChargingSpeed, Feature
 
@@ -13,6 +15,9 @@ from custom_components.nissan_connect.sensor import (
     StatisticSensor,
     ChargeTimeRequiredSensor,
     TimestampSensor,
+    FuelRangeSensor,
+    FuelQuantitySensor,
+    FuelLevelSensor,
     async_setup_entry
 )
 
@@ -98,3 +103,84 @@ def test_timestamp_sensor(mock_hass):
     vehicle = mock_hass.data['nissan_connect']['test_account']['vehicles']['test_vehicle']
     coordinator = mock_hass.data['nissan_connect']['test_account']['coordinator_fetch']
     sensor = TimestampSensor(coordinator, vehicle, 'battery_status_last_updated', 'last_updated', 'mdi:clock-time-eleven-outline')
+
+
+@pytest.fixture
+def ice_vehicle():
+    """A petrol Townstar: cockpit data, no EV features at all.
+
+    Values are from a real 2021 Townstar (dan-r/HomeAssistant-NissanConnect#109),
+    whose v2 cockpit response carries fuelAutonomy, fuelQuantity and
+    totalMileage but no fuelLevel.
+    """
+    return MagicMock(
+        fuel_autonomy=671.0,
+        fuel_quantity=52.0,
+        fuel_level=None,
+        total_mileage=2580.0,
+        internal_temperature=None,
+        external_temperature=None,
+        range_hvac_on=None,
+        range_hvac_off=None,
+        charge_time_required_to_full={
+            ChargingSpeed.NORMAL: None, ChargingSpeed.FAST: None,
+            ChargingSpeed.ADAPTIVE: None},
+        features=[Feature.MY_CAR_FINDER],
+    )
+
+
+def test_fuel_range_sensor(ice_vehicle):
+    sensor = FuelRangeSensor(MagicMock(), ice_vehicle, False)
+    assert sensor.native_value == 671.0
+    assert sensor.native_unit_of_measurement == UnitOfLength.KILOMETERS
+    assert sensor.device_class == SensorDeviceClass.DISTANCE
+
+
+def test_fuel_range_sensor_honours_imperial(ice_vehicle):
+    sensor = FuelRangeSensor(MagicMock(), ice_vehicle, True)
+    assert sensor.suggested_unit_of_measurement == UnitOfLength.MILES
+
+
+def test_fuel_quantity_sensor(ice_vehicle):
+    sensor = FuelQuantitySensor(MagicMock(), ice_vehicle)
+    assert sensor.native_value == 52.0
+    assert sensor.native_unit_of_measurement == UnitOfVolume.LITERS
+    assert sensor.device_class == SensorDeviceClass.VOLUME_STORAGE
+
+
+def test_fuel_level_sensor(ice_vehicle):
+    ice_vehicle.fuel_level = 62
+    sensor = FuelLevelSensor(MagicMock(), ice_vehicle)
+    assert sensor.native_value == 62
+    assert sensor.native_unit_of_measurement == PERCENTAGE
+
+
+async def test_ice_vehicle_gets_fuel_sensors(mock_hass, mock_config,
+                                             mock_async_add_entities, ice_vehicle):
+    """A petrol car must surface the cockpit data it already fetches."""
+    mock_hass.data['nissan_connect']['test_account']['vehicles'] = {
+        'townstar': ice_vehicle}
+
+    await async_setup_entry(mock_hass, mock_config, mock_async_add_entities)
+
+    keys = {e._attr_translation_key for e in mock_async_add_entities.call_args[0][0]}
+    assert 'fuel_range' in keys
+    assert 'fuel_quantity' in keys
+    # No fuelLevel in this car's response, so no percentage sensor
+    assert 'fuel_level' not in keys
+    # and still nothing EV-shaped
+    assert not {'battery_level', 'range_ac_on', 'range_ac_off'} & keys
+
+
+async def test_ev_does_not_gain_fuel_sensors(mock_hass, mock_config,
+                                             mock_async_add_entities):
+    """The EV fixture has no cockpit fuel data, so nothing new appears."""
+    vehicle = mock_hass.data['nissan_connect']['test_account']['vehicles']['test_vehicle']
+    vehicle.fuel_autonomy = None
+    vehicle.fuel_quantity = None
+    vehicle.fuel_level = None
+
+    await async_setup_entry(mock_hass, mock_config, mock_async_add_entities)
+
+    keys = {e._attr_translation_key for e in mock_async_add_entities.call_args[0][0]}
+    assert not {'fuel_range', 'fuel_quantity', 'fuel_level'} & keys
