@@ -13,6 +13,7 @@ This integration has been tested with the following vehicles:
 * Nissan Ariya
 * Nissan X-Trail (2024)
 * Nissan Juke (2021)
+* Nissan Micra EV (2025) [@TheIceMagmaCube]
 
 ## Supported Regions
 * Europe
