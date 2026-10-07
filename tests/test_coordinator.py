@@ -3,6 +3,7 @@ from datetime import timedelta
 from unittest.mock import MagicMock
 
 import pytest
+import requests
 from homeassistant import config_entries
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import UpdateFailed
@@ -96,6 +97,30 @@ async def test_one_failing_vehicle_does_not_affect_the_others(hass):
     assert fetch_coordinator.last_update_success is True
     assert KamereonEntity(fetch_coordinator, good).available is True
     assert KamereonEntity(fetch_coordinator, bad).available is False
+
+
+async def test_warning_does_not_log_the_full_vin(hass, caplog):
+    """Request errors carry the URL, and the URL carries the VIN."""
+    vin = "SJNFAAZE1U1234567"
+    vehicle = MagicMock(vin=vin)
+    vehicle.fetch_all.side_effect = requests.ConnectionError(
+        "HTTPSConnectionPool(host='example.invalid', port=443): Max retries "
+        f"exceeded with url: /car-adapter/v1/cars/{vin.lower()}/hvac-status")
+    hass.data[DOMAIN] = {
+        "test@example.com": {
+            DATA_VEHICLES: {vin: vehicle},
+            DATA_COORDINATOR_POLL: MagicMock(),
+        }
+    }
+    fetch_coordinator = KamereonFetchCoordinator(hass, {"email": "test@example.com"})
+
+    await fetch_coordinator.async_refresh()
+
+    ours = "\n".join(r.getMessage() for r in caplog.records
+                     if r.name.startswith("custom_components.nissan_connect"))
+    assert "Error communicating with API for #567" in ours
+    assert "/cars/***567/hvac-status" in ours
+    assert vin.lower() not in ours.lower()
 
 
 async def test_cancellation_is_not_swallowed(coordinator):
