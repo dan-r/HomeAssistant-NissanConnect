@@ -43,7 +43,7 @@ async def async_setup_entry(hass, config, async_add_entities):
             entities.append(RangeSensor(coordinator, data[vehicle], False, imperial_distance))
         if data[vehicle].fuel_autonomy is not None:
             entities.append(FuelRangeSensor(coordinator, data[vehicle], imperial_distance))
-        if data[vehicle].fuel_quantity is not None:
+        if data[vehicle].fuel_quantity is not None and Feature.BATTERY_STATUS not in data[vehicle].features:
             entities.append(FuelQuantitySensor(coordinator, data[vehicle]))
         if data[vehicle].fuel_level is not None:
             entities.append(FuelLevelSensor(coordinator, data[vehicle]))

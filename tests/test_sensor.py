@@ -172,6 +172,20 @@ async def test_ice_vehicle_gets_fuel_sensors(mock_hass, mock_config,
     assert not {'battery_level', 'range_ac_on', 'range_ac_off'} & keys
 
 
+async def test_ev_reporting_a_zero_fuel_quantity_gets_no_fuel_sensor(mock_hass, mock_config,
+                                                                    mock_async_add_entities):
+    """The new Micra EV answers fuelQuantity 0.0 in its cockpit."""
+    vehicle = mock_hass.data['nissan_connect']['test_account']['vehicles']['test_vehicle']
+    vehicle.fuel_autonomy = None
+    vehicle.fuel_quantity = 0.0
+    vehicle.fuel_level = None
+
+    await async_setup_entry(mock_hass, mock_config, mock_async_add_entities)
+
+    keys = {e._attr_translation_key for e in mock_async_add_entities.call_args[0][0]}
+    assert 'fuel_quantity' not in keys
+
+
 async def test_ev_does_not_gain_fuel_sensors(mock_hass, mock_config,
                                              mock_async_add_entities):
     """The EV fixture has no cockpit fuel data, so nothing new appears."""
