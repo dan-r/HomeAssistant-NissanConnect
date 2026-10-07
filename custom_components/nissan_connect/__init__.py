@@ -99,9 +99,12 @@ async def async_setup_entry(hass, entry):
     _LOGGER.debug("Initialising entities")
     await hass.config_entries.async_forward_entry_setups(entry, ENTITY_TYPES)
 
-    # Init fetch and state coordinators
-    await coordinator.async_config_entry_first_refresh()
-    await stats_coordinator.async_config_entry_first_refresh()
+    # Init fetch and state coordinators. Not async_config_entry_first_refresh:
+    # the platforms are already set up, so a failure must not raise
+    # ConfigEntryNotReady here. The vehicles were fetched above, and a failed
+    # refresh only marks the affected entities unavailable until the next one.
+    await coordinator.async_refresh()
+    await stats_coordinator.async_refresh()
 
     # Init poll coordinator and ensure it runs
     entry.async_on_unload(
@@ -109,7 +112,7 @@ async def async_setup_entry(hass, entry):
                 lambda *args: None, None
             )
     )
-    await poll_coordinator.async_config_entry_first_refresh()
+    await poll_coordinator.async_refresh()
 
     entry.async_on_unload(entry.add_update_listener(async_update_listener))
 

@@ -3,56 +3,78 @@ import logging
 from datetime import timedelta
 from time import time
 from homeassistant.exceptions import ConfigEntryAuthFailed
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from .const import DOMAIN, DATA_VEHICLES, DEFAULT_INTERVAL_POLL, DEFAULT_INTERVAL_CHARGING, DEFAULT_INTERVAL_STATISTICS, DEFAULT_INTERVAL_FETCH, DATA_COORDINATOR_FETCH, DATA_COORDINATOR_POLL
 from .kamereon import Feature, PluggedStatus, ChargingStatus, Period, NissanAuthError
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class KamereonFetchCoordinator(DataUpdateCoordinator):
+class VehicleCoordinator(DataUpdateCoordinator):
+    """Coordinator that updates each vehicle on its own.
+
+    One car failing must not stop the others from updating, nor make their
+    entities unavailable. Failures are tracked per VIN in failed_vins, and
+    the update as a whole only fails when every vehicle did.
+    """
+
+    def __init__(self, hass, config, **kwargs):
+        super().__init__(hass, _LOGGER, **kwargs)
+        self._hass = hass
+        self._account_id = config['email']
+        self._vehicles = hass.data[DOMAIN][self._account_id][DATA_VEHICLES]
+        self.failed_vins = set()
+
+    async def _async_update_vehicles(self, update):
+        """Run update(vin) for every vehicle, recording which ones failed."""
+        failed = set()
+        for vin in self._vehicles:
+            try:
+                await update(vin)
+            except NissanAuthError as error:
+                raise ConfigEntryAuthFailed("Nissan authentication failed") from error
+            except Exception as error:
+                _LOGGER.warning("Error communicating with API for #%s: %s", vin[-3:], error)
+                failed.add(vin)
+
+        self.failed_vins = failed
+        if self._vehicles and failed == set(self._vehicles):
+            raise UpdateFailed("Error communicating with API")
+
+
+class KamereonFetchCoordinator(VehicleCoordinator):
     def __init__(self, hass, config):
         """Coordinator to fetch the latest states."""
         super().__init__(
             hass,
-            _LOGGER,
+            config,
             name="Update Coordinator",
             update_interval=timedelta(minutes=config.get("interval_fetch", DEFAULT_INTERVAL_FETCH)),
         )
-        self._hass = hass
-        self._account_id = config['email']
-        self._vehicles = hass.data[DOMAIN][self._account_id][DATA_VEHICLES]
 
     async def _async_update_data(self):
         """Fetch data from API."""
-        try:
-            for vehicle in self._vehicles:
-                await self._hass.async_add_executor_job(self._vehicles[vehicle].fetch_all)
-        except NissanAuthError as error:
-            raise ConfigEntryAuthFailed("Nissan authentication failed") from error
-        except BaseException:
-            _LOGGER.warning("Error communicating with API")
-            return False
-        
+        async def fetch(vin):
+            await self._hass.async_add_executor_job(self._vehicles[vin].fetch_all)
+
+        await self._async_update_vehicles(fetch)
+
         # Set interval for polling (the other coordinator)
         self._hass.data[DOMAIN][self._account_id][DATA_COORDINATOR_POLL].set_next_interval()
 
         return True
 
 
-class KamereonPollCoordinator(DataUpdateCoordinator):
+class KamereonPollCoordinator(VehicleCoordinator):
     def __init__(self, hass, config):
         """Coordinator to poll the car for updates."""
         super().__init__(
             hass,
-            _LOGGER,
+            config,
             name="Poll Coordinator",
             # This interval is overwritten by _set_next_interval in the first run
             update_interval=timedelta(minutes=15),
         )
-        self._hass = hass
-        self._account_id = config['email']
-        self._vehicles = hass.data[DOMAIN][self._account_id][DATA_VEHICLES]
         self._config = config
         
         self._pluggednotcharging = {key: 0 for key in self._vehicles}
@@ -115,54 +137,45 @@ class KamereonPollCoordinator(DataUpdateCoordinator):
 
     async def _async_update_data(self):
         """Fetch data from API."""
-        try:
-            for vehicle in self._vehicles:
-                time_since_updated = round((time() - self._last_updated[vehicle]) / 60)
-                if not self._intervals[vehicle] == 0 and (self._force_update[vehicle] or time_since_updated >= self._intervals[vehicle]):
-                    _LOGGER.debug("Polling #%s as %d mins have elapsed (interval %d)", vehicle[-3:], time_since_updated, self._intervals[vehicle])
-                    self._last_updated[vehicle] = int(time())
-                    self._force_update[vehicle] = False
-                    await self._hass.async_add_executor_job(self._vehicles[vehicle].refresh)
-                else:
-                    _LOGGER.debug("NOT polling #%s. %d mins have elapsed (interval %d)", vehicle[-3:], time_since_updated, self._intervals[vehicle])                   
-        except NissanAuthError as error:
-            raise ConfigEntryAuthFailed("Nissan authentication failed") from error
-        except BaseException:
-            _LOGGER.warning("Error communicating with API")
-            return False
-        
+        async def poll(vehicle):
+            time_since_updated = round((time() - self._last_updated[vehicle]) / 60)
+            if not self._intervals[vehicle] == 0 and (self._force_update[vehicle] or time_since_updated >= self._intervals[vehicle]):
+                _LOGGER.debug("Polling #%s as %d mins have elapsed (interval %d)", vehicle[-3:], time_since_updated, self._intervals[vehicle])
+                self._last_updated[vehicle] = int(time())
+                self._force_update[vehicle] = False
+                await self._hass.async_add_executor_job(self._vehicles[vehicle].refresh)
+            else:
+                _LOGGER.debug("NOT polling #%s. %d mins have elapsed (interval %d)", vehicle[-3:], time_since_updated, self._intervals[vehicle])
+
+        await self._async_update_vehicles(poll)
+
         self._hass.async_create_task(self._hass.data[DOMAIN][self._account_id][DATA_COORDINATOR_FETCH].async_refresh())
         return True
 
 
-class StatisticsCoordinator(DataUpdateCoordinator):
+class StatisticsCoordinator(VehicleCoordinator):
     def __init__(self, hass, config):
         """Initialise coordinator."""
         super().__init__(
             hass,
-            _LOGGER,
+            config,
             name="Statistics Coordinator",
             update_interval=timedelta(minutes=config.get("interval_statistics", DEFAULT_INTERVAL_STATISTICS)),
         )
-        self._hass = hass
-        self._account_id = config['email']
-        self._vehicles = hass.data[DOMAIN][self._account_id][DATA_VEHICLES]
 
     async def _async_update_data(self):
         """Fetch data from API."""
         output = {}
-        try:
-            for vehicle in self._vehicles:
-                if not Feature.DRIVING_JOURNEY_HISTORY in self._vehicles[vehicle].features:
-                    continue
 
-                output[vehicle] = {
-                    'daily': await self._hass.async_add_executor_job(self._vehicles[vehicle].fetch_trip_histories, Period.DAILY),
-                    'monthly': await self._hass.async_add_executor_job(self._vehicles[vehicle].fetch_trip_histories, Period.MONTHLY)
-                }
-        except NissanAuthError as error:
-            raise ConfigEntryAuthFailed("Nissan authentication failed") from error
-        except BaseException:
-            _LOGGER.warning("Error communicating with statistics API")
-        
+        async def fetch(vehicle):
+            if not Feature.DRIVING_JOURNEY_HISTORY in self._vehicles[vehicle].features:
+                return
+
+            output[vehicle] = {
+                'daily': await self._hass.async_add_executor_job(self._vehicles[vehicle].fetch_trip_histories, Period.DAILY),
+                'monthly': await self._hass.async_add_executor_job(self._vehicles[vehicle].fetch_trip_histories, Period.MONTHLY)
+            }
+
+        await self._async_update_vehicles(fetch)
+
         return output

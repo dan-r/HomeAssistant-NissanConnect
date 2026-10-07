@@ -50,11 +50,15 @@ async def test_async_setup_entry(mock_hass, mock_config, mock_async_add_entities
     assert isinstance(entities[1], HornLightsButtons)
     assert isinstance(entities[2], HornLightsButtons)
     assert isinstance(entities[3], ChargeControlButtons)
+    # Not the poll coordinator: a failed wake-up says nothing about whether
+    # the car can take a command, and with polling off it never runs again.
+    fetch = mock_hass.data[DOMAIN]['test_account'][DATA_COORDINATOR_FETCH]
+    assert all(entity.coordinator is fetch for entity in entities)
 
 
 @pytest.mark.asyncio
 async def test_force_update_button():
-    coordinator = AsyncMock()
+    coordinator = MagicMock()
     vehicle = MagicMock()
     vehicle.refresh_fetch.return_value = True
     hass = AsyncMock()
@@ -64,6 +68,7 @@ async def test_force_update_button():
 
     await button.async_press()
     vehicle.refresh_fetch.assert_called_once()
+    coordinator.failed_vins.discard.assert_called_once_with(vehicle.vin)
     coordinator.async_set_updated_data.assert_called_once_with(True)
 
 

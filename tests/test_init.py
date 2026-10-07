@@ -160,7 +160,7 @@ async def test_setup_rewrites_legacy_device_identifiers(hass):
     )
 
     coordinator = MagicMock()
-    coordinator.async_config_entry_first_refresh = AsyncMock()
+    coordinator.async_refresh = AsyncMock()
     with (
         patch("custom_components.nissan_connect.NCISession") as mock_session,
         patch(
