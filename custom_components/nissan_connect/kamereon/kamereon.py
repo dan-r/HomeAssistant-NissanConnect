@@ -20,6 +20,11 @@ from .kamereon_const import *
 
 _LOGGER = logging.getLogger(__name__)
 
+# Cockpit API versions to try, in order. Renault-derived gateways (the RVG
+# fitted to the Townstar and the new Micra) only implement v2 and answer v1
+# with "Not supported Feature"; every other car is still served by v1.
+COCKPIT_VERSIONS = ('v1', 'v2')
+
 _registry = {
     USERS: {},
     VEHICLES: {},
@@ -449,6 +454,7 @@ class Vehicle:
 
     def __init__(self, data, user_id):
         self._refresh_fetch_lock = threading.Lock()
+        self._cockpit_version = None
         
         self.user_id = user_id
         self.vin = data['vin'].upper()
@@ -573,14 +579,18 @@ class Vehicle:
 
     def fetch_all(self):
         self.fetch_battery_status()
-        
-        if (self.model_name or "").upper() == "MICRA":
-            return
-        
-        self.fetch_cockpit()
-        self.fetch_location()
-        self.fetch_hvac_status()
-        self.fetch_lock_status()
+        # The battery is the one the integration cannot do without. The rest
+        # is optional: a car with its privacy mode on answers 403 for the
+        # location, and that must not stop the other data from loading.
+        for fetch in (self.fetch_cockpit, self.fetch_location,
+                      self.fetch_hvac_status, self.fetch_lock_status):
+            try:
+                fetch()
+            except NissanAuthError:
+                raise
+            except Exception as error:
+                _LOGGER.warning("%s failed for #%s, keeping the other data: %s",
+                              fetch.__name__, self.vin[-3:], error)
 
     def refresh_fetch(self, check_interval=10, max_attempts=5):
         """Wake the vehicle and update data repeatedly until new data is fetched or timeout is reached."""
@@ -859,7 +869,11 @@ class Vehicle:
         return self.lock_unlock(srp, 'unlock', group)
 
     def fetch_hvac_status(self):
-        if Feature.INTERIOR_TEMP_SETTINGS not in self.features and Feature.TEMPERATURE not in self.features:
+        # The new Micra only lists CLIMATE_ON_OFF, not the two temperature
+        # services, yet its hvac-status endpoint answers.
+        if (Feature.INTERIOR_TEMP_SETTINGS not in self.features
+                and Feature.TEMPERATURE not in self.features
+                and Feature.CLIMATE_ON_OFF not in self.features):
             return
         
         resp = self._get(
@@ -1156,15 +1170,66 @@ class Vehicle:
         # TODO
         pass
 
-    def fetch_cockpit(self):
-        resp = self._get(
-            "{}v1/cars/{}/cockpit".format(self.session.settings['car_adapter_base_url'], self.vin)
-        )
-        body = resp.json()
-        if 'errors' in body:
-            raise ValueError(body['errors'])
+    @staticmethod
+    def _cockpit_payload(body):
+        """Return data.attributes if this is a usable cockpit response."""
+        if not isinstance(body, dict) or body.get('errors'):
+            return None
+        data = body.get('data')
+        if isinstance(data, dict) and isinstance(data.get('attributes'), dict):
+            return data['attributes']
+        return None
 
-        cockpit_data = body['data']['attributes']
+    @staticmethod
+    def _version_unavailable(response, body):
+        """True if the response means this API version is not served here.
+
+        Only 404 and 501 qualify. A 403 or a 500 is a real failure and must
+        surface instead of sending us on to try another version.
+        """
+        if response.status_code in (404, 501):
+            return True
+        errors = body.get('errors') if isinstance(body, dict) else None
+        if not isinstance(errors, list):
+            return False
+        return any(
+            str(error.get('code')) in ('404', '501')
+            for error in errors if isinstance(error, dict)
+        )
+
+    def _fetch_cockpit_attributes(self):
+        """Fetch cockpit data, resolving which API version this car serves."""
+        # Try the version we already know works, but keep the others as a
+        # fallback in case the gateway starts serving a different one.
+        candidates = [v for v in COCKPIT_VERSIONS if v != self._cockpit_version]
+        if self._cockpit_version is not None:
+            candidates.insert(0, self._cockpit_version)
+
+        body = None
+        for version in candidates:
+            resp = self._get("{}{}/cars/{}/cockpit".format(
+                self.session.settings['car_adapter_base_url'], version, self.vin))
+            body = resp.json()
+
+            attributes = self._cockpit_payload(body)
+            if attributes is not None:
+                if self._cockpit_version != version:
+                    _LOGGER.debug("Using the %s cockpit endpoint for #%s",
+                                  version, self.vin[-3:])
+                    self._cockpit_version = version
+                return attributes
+
+            # Anything other than "this version is not served here" is a real
+            # error, so stop rather than probing the remaining versions.
+            if not self._version_unavailable(resp, body):
+                break
+
+        if isinstance(body, dict) and body.get('errors'):
+            raise ValueError(body['errors'])
+        raise ValueError(body)
+
+    def fetch_cockpit(self):
+        cockpit_data = self._fetch_cockpit_attributes()
         self.eco_score = cockpit_data.get('ecoScore')
         self.fuel_autonomy = cockpit_data.get('fuelAutonomy')
         self.fuel_consumption = cockpit_data.get('fuelConsumption')

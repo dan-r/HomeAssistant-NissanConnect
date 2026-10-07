@@ -362,3 +362,108 @@ def test_vehicle_request_does_not_retry_auth_failures(requests_mock):
             vehicle._get("https://example.invalid/anything")
 
     assert mock_request.call_count == 1
+
+
+def _vehicle(requests_mock, model="TOWNSTAR"):
+    """A vehicle whose session is already authenticated."""
+    user_url = (
+        "https://alliance-platform-usersadapter-prod.apps.eu2.kamereon.io/"
+        "user-adapter/v1/users/current"
+    )
+    requests_mock.get(user_url, json={"userId": "test-user"})
+    requests_mock.get(f"{BFF_BASE_URL}v5/users/test-user/cars", json={"data": [
+        {"vin": "test-vin", "modelName": model}]})
+    session = NCISession(region="EU")
+    session._install_kamereon_token({
+        "access_token": "kamereon-access-token",
+        "token_type": "Bearer",
+        "expires_in": 1800,
+    })
+    return session.fetch_vehicles()[0]
+
+
+CAR_BASE_URL = (
+    "https://alliance-platform-caradapter-prod.apps.eu2.kamereon.io/car-adapter/"
+)
+# Verbatim from a Townstar (dan-r/HomeAssistant-NissanConnect#109)
+GATEWAY_NOT_IMPLEMENTED = {"errors": [{
+    "status": "Not Implemented", "code": "501", "title": "Not supported Feature",
+    "detail": "This feature is not technically supported by this gateway"}]}
+
+
+def _cockpit_requests(requests_mock):
+    return [r.path for r in requests_mock.request_history if "cockpit" in r.path]
+
+
+def test_cockpit_still_uses_v1_when_it_works(requests_mock):
+    """Cars that work today must not gain an extra request."""
+    vehicle = _vehicle(requests_mock, model="LEAF")
+    requests_mock.get(f"{CAR_BASE_URL}v1/cars/TEST-VIN/cockpit", json={"data": {
+        "attributes": {"totalMileage": 1000.0, "fuelLevel": 50}}})
+
+    vehicle.fetch_cockpit()
+
+    assert vehicle.total_mileage == 1000.0
+    assert _cockpit_requests(requests_mock) == ["/car-adapter/v1/cars/test-vin/cockpit"]
+
+
+def test_cockpit_falls_back_to_v2_when_gateway_does_not_implement_v1(requests_mock):
+    """The Townstar's RVG gateway answers v1 with 501 but serves v2."""
+    vehicle = _vehicle(requests_mock)
+    requests_mock.get(f"{CAR_BASE_URL}v1/cars/TEST-VIN/cockpit",
+                      json=GATEWAY_NOT_IMPLEMENTED, status_code=501)
+    requests_mock.get(f"{CAR_BASE_URL}v2/cars/TEST-VIN/cockpit", json={"data": {
+        "attributes": {"fuelAutonomy": 671.0, "fuelQuantity": 52.0,
+                       "totalMileage": 2580.0}}})
+
+    vehicle.fetch_cockpit()
+
+    assert vehicle.total_mileage == 2580.0
+    assert vehicle.fuel_autonomy == 671.0
+    assert vehicle.fuel_quantity == 52.0
+    assert _cockpit_requests(requests_mock) == [
+        "/car-adapter/v1/cars/test-vin/cockpit",
+        "/car-adapter/v2/cars/test-vin/cockpit",
+    ]
+
+
+def test_cockpit_version_is_resolved_only_once(requests_mock):
+    """After the first fetch we must stop calling the unsupported version."""
+    vehicle = _vehicle(requests_mock)
+    requests_mock.get(f"{CAR_BASE_URL}v1/cars/TEST-VIN/cockpit",
+                      json=GATEWAY_NOT_IMPLEMENTED, status_code=501)
+    requests_mock.get(f"{CAR_BASE_URL}v2/cars/TEST-VIN/cockpit", json={"data": {
+        "attributes": {"totalMileage": 2580.0}}})
+
+    vehicle.fetch_cockpit()
+    vehicle.fetch_cockpit()
+    vehicle.fetch_cockpit()
+
+    assert _cockpit_requests(requests_mock) == [
+        "/car-adapter/v1/cars/test-vin/cockpit",
+        "/car-adapter/v2/cars/test-vin/cockpit",
+        "/car-adapter/v2/cars/test-vin/cockpit",
+        "/car-adapter/v2/cars/test-vin/cockpit",
+    ]
+
+
+def test_cockpit_does_not_probe_other_versions_on_a_real_error(requests_mock):
+    """A 403 is a real failure, not 'try another version'."""
+    vehicle = _vehicle(requests_mock)
+    requests_mock.get(f"{CAR_BASE_URL}v1/cars/TEST-VIN/cockpit", status_code=403, json={
+        "errors": [{"status": "Forbidden", "code": "403", "title": "security.access"}]})
+
+    with pytest.raises(ValueError):
+        vehicle.fetch_cockpit()
+
+    assert _cockpit_requests(requests_mock) == ["/car-adapter/v1/cars/test-vin/cockpit"]
+
+
+def test_cockpit_raises_when_no_version_is_served(requests_mock):
+    vehicle = _vehicle(requests_mock)
+    for version in ("v1", "v2"):
+        requests_mock.get(f"{CAR_BASE_URL}{version}/cars/TEST-VIN/cockpit",
+                          json=GATEWAY_NOT_IMPLEMENTED, status_code=501)
+
+    with pytest.raises(ValueError):
+        vehicle.fetch_cockpit()
