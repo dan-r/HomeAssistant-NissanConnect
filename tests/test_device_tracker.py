@@ -40,3 +40,11 @@ def test_kamereon_device_tracker_properties(mock_vehicle, mock_coordinator):
     assert tracker.latitude == 12.34
     assert tracker.longitude == 56.78
     assert tracker.source_type == SourceType.GPS
+
+
+def test_kamereon_device_tracker_without_location(mock_coordinator):
+    """Privacy mode answers 403 for the location, leaving it unknown."""
+    tracker = KamereonDeviceTracker(mock_coordinator, MagicMock(location=None))
+
+    assert tracker.latitude is None
+    assert tracker.longitude is None
