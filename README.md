@@ -13,6 +13,7 @@ This integration has been tested with the following vehicles:
 * Nissan Ariya
 * Nissan X-Trail (2024)
 * Nissan Juke (2021)
+* Nissan Micra EV (2025)
 
 ## Supported Regions
 * Europe
@@ -73,12 +74,16 @@ This integration exposes the following entities. Please note that entities will 
     * Car Charging (EV Only)
     * Doors Locked
 * Sensors
-    * Battery Level
-    * Charge Time
+    * Battery Level (EV Only)
+    * Charge Time (3kW, 6kW or adaptive, EV Only)
     * Internal Temperature
     * External Temperature
-    * Range (EV Only)
+    * Range (AC On / AC Off, EV Only)
+    * Fuel Range
+    * Fuel Quantity (Combustion Only)
+    * Fuel Level
     * Odometer
+    * Last Updated
     * Daily Distance
     * Daily Trips
     * Daily Efficiency (EV Only)
