@@ -60,6 +60,10 @@ class KamereonPollCoordinator(DataUpdateCoordinator):
         self._last_updated = {key: 0 for key in self._vehicles}
         self._force_update = {key: False for key in self._vehicles}
 
+    def update_config(self, config):
+        """Use new options, such as the intervals changed in the options flow."""
+        self._config = dict(config)
+
     def set_next_interval(self):
         """Calculate the next update interval."""
         # A negative interval would schedule the next refresh in the past, so the

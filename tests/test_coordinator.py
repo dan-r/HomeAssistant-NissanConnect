@@ -200,3 +200,21 @@ async def test_interval_change_still_rearms_the_timer(hass, poll_coordinator):
         15 * 60, abs=2)
 
     coordinator._async_unsub_refresh()
+
+
+async def test_updated_options_change_the_poll_interval(hass, poll_coordinator):
+    """Intervals changed in the options flow apply without a restart."""
+    coordinator = poll_coordinator({"interval": 60, "interval_charging": 15})
+
+    coordinator.set_next_interval()
+    assert coordinator.update_interval == timedelta(minutes=60)
+
+    coordinator.update_config(
+        {"email": "test@example.com", "interval": 30, "interval_charging": 15})
+    coordinator.set_next_interval()
+
+    assert coordinator.update_interval == timedelta(minutes=30)
+    assert _seconds_until_next_refresh(hass, coordinator) == pytest.approx(
+        30 * 60, abs=2)
+
+    coordinator._async_unsub_refresh()
