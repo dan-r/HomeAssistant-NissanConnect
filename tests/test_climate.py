@@ -55,6 +55,13 @@ def test_hvac_action(climate_entity, mock_vehicle):
     mock_vehicle.hvac_status = False
     assert climate_entity.hvac_action == HASSHVACAction.OFF
 
+def test_hvac_action_without_interior_temperature(climate_entity, mock_vehicle):
+    mock_vehicle.hvac_status = True
+    mock_vehicle.internal_temperature = None
+    assert climate_entity.hvac_action is None
+    mock_vehicle.hvac_status = False
+    assert climate_entity.hvac_action == HASSHVACAction.OFF
+
 @pytest.mark.asyncio
 async def test_async_set_hvac_mode(climate_entity, mock_hass, mock_vehicle):
     await climate_entity.async_set_hvac_mode(HVACMode.OFF)
