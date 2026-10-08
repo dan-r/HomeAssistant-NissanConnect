@@ -116,11 +116,23 @@
             "odometer": {
                 "name": "Одометр"
             },
+            "fuel_range": {
+                "name": "Запас хода (топливо)"
+            },
+            "fuel_quantity": {
+                "name": "Количество топлива"
+            },
+            "fuel_level": {
+                "name": "Уровень топлива"
+            },
             "charge_time_3kw": {
                 "name": "Время зарядки (3 кВт)"
             },
             "charge_time_6kw": {
                 "name": "Время зарядки (6 кВт)"
+            },
+            "charge_time_adaptive": {
+                "name": "Время зарядки (адаптивное)"
             },
             "last_updated": {
                 "name": "Последнее обновление"

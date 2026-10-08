@@ -116,11 +116,23 @@
         "odometer": {
           "name": "Drogomierz"
         },
+        "fuel_range": {
+          "name": "Zasięg (Paliwo)"
+        },
+        "fuel_quantity": {
+          "name": "Ilość Paliwa"
+        },
+        "fuel_level": {
+          "name": "Poziom Paliwa"
+        },
         "charge_time_3kw": {
           "name": "Czas Ładowania (3kW)"
         },
         "charge_time_6kw": {
           "name": "Czas Ładowania (6kW)"
+        },
+        "charge_time_adaptive": {
+          "name": "Czas Ładowania (adaptacyjny)"
         },
         "last_updated": {
           "name": "Ostatnia Aktualizacja"
