@@ -32,7 +32,10 @@ async def async_update_listener(hass, entry):
     # Update intervals for coordinators
     hass.data[DOMAIN][account_id][DATA_COORDINATOR_STATISTICS].update_interval = timedelta(minutes=config.get("interval_statistics", DEFAULT_INTERVAL_STATISTICS))
     hass.data[DOMAIN][account_id][DATA_COORDINATOR_FETCH].update_interval = timedelta(minutes=config.get("interval_fetch", DEFAULT_INTERVAL_FETCH))
-    
+    # The poll intervals are applied by set_next_interval(), which the fetch
+    # coordinator calls after the refresh below
+    hass.data[DOMAIN][account_id][DATA_COORDINATOR_POLL].update_config(config)
+
     # Refresh fetch coordinator
     await hass.data[DOMAIN][account_id][DATA_COORDINATOR_FETCH].async_refresh()
 
