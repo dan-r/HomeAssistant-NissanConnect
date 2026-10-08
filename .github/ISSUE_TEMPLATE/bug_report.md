@@ -20,7 +20,7 @@ A clear and concise description of what you expected to happen.
 Any relevant logs from Home Assistant.
 
 **Diagnostics**
-Attach the file from Settings > Devices & services > NissanConnect > ⋮ > Download diagnostics. Your email address, password, VIN, registration, nickname and location are removed from it.
+Attach the file from Settings > Devices & services > NissanConnect > ⋮ > Download diagnostics.
 
 **Home Assistant Version**
 Find this in Settings > About.
