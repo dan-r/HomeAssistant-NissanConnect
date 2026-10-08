@@ -3,7 +3,6 @@ Support for Kamereon Platform
 """
 import logging
 import asyncio
-from time import sleep
 from homeassistant.components.climate import ClimateEntity
 from homeassistant.components.climate.const import (HVACMode, ClimateEntityFeature)
 from homeassistant.components.climate.const import HVACAction as HASSHVACAction
@@ -13,7 +12,7 @@ SUPPORT_HVAC = [HVACMode.HEAT_COOL, HVACMode.OFF]
 
 from .base import KamereonEntity
 from .kamereon import Feature, HVACAction
-from .const import DOMAIN, DATA_VEHICLES, DATA_COORDINATOR_FETCH, DATA_COORDINATOR_POLL
+from .const import DOMAIN, DATA_VEHICLES, DATA_COORDINATOR_FETCH
 
 _LOGGER = logging.getLogger(__name__)
 

@@ -601,7 +601,7 @@ class Vehicle:
 
         if not self._refresh_fetch_lock.acquire(blocking=False):
             raise RefreshInProgressError(
-                f"An update is already in progress for this vehicle"
+                "An update is already in progress for this vehicle"
             )
 
         try:
