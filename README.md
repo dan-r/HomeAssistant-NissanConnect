@@ -13,7 +13,7 @@ This integration has been tested with the following vehicles:
 * Nissan Ariya
 * Nissan X-Trail (2024)
 * Nissan Juke (2021)
-* Nissan Micra EV (2025) [@TheIceMagmaCube]
+* Nissan Micra EV (2025)
 
 ## Supported Regions
 * Europe
@@ -52,6 +52,9 @@ Following the model of leaf2mqtt, this integration can be set to use a different
 To prevent excessive 12v battery drain when plugged in but not charging for extended periods of time, the polling interval reverts to the standard interval after 4 consecutive updates show the car as plugged in but not charging.
 This logic was added to give the benefit of quicker response times on the charging status binary sensor, which can be especially useful when charging with load-balanced or 'smart' chargers.
 
+## Reporting Problems
+When opening an issue, please attach the integration's diagnostics: Settings > Devices & services > NissanConnect > ⋮ > Download diagnostics. They show what the car reports to Nissan and which features it has. Your email address, password, VIN, registration, nickname and location are removed from the file.
+
 ## Translations
 Translations are provided for the following languages. If you are a native speaker and spot any mistakes, please let me know.
 * English
@@ -74,12 +77,16 @@ This integration exposes the following entities. Please note that entities will 
     * Car Charging (EV Only)
     * Doors Locked
 * Sensors
-    * Battery Level
-    * Charge Time
+    * Battery Level (EV Only)
+    * Charge Time (3kW, 6kW or adaptive, EV Only)
     * Internal Temperature
     * External Temperature
-    * Range (EV Only)
+    * Range (AC On / AC Off, EV Only)
+    * Fuel Range
+    * Fuel Quantity (Combustion Only)
+    * Fuel Level
     * Odometer
+    * Last Updated
     * Daily Distance
     * Daily Trips
     * Daily Efficiency (EV Only)

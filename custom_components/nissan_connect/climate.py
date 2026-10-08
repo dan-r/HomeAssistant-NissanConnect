@@ -69,6 +69,8 @@ class KamereonClimate(KamereonEntity, ClimateEntity):
     def hvac_action(self):
         """Shows heating or cooling depending on temperature."""
         if self.vehicle.hvac_status:
+            if self.vehicle.internal_temperature is None:
+                return None
             if self._target < self.vehicle.internal_temperature:
                 return HASSHVACAction.COOLING
             else:
