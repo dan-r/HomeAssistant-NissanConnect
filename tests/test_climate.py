@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 from homeassistant.components.climate.const import HVACMode, HVACAction as HASSHVACAction
-from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
+from homeassistant.const import ATTR_TEMPERATURE
 from custom_components.nissan_connect.climate import KamereonClimate
 from custom_components.nissan_connect.kamereon.kamereon_const import Feature, HVACAction
 
