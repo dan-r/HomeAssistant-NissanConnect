@@ -2,7 +2,7 @@ import logging
 from datetime import timedelta
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
-from .kamereon import NCISession, NissanAuthError
+from .kamereon import NCISession, NissanAuthError, redact_vin
 from .coordinator import KamereonFetchCoordinator, KamereonPollCoordinator, StatisticsCoordinator
 from .const import *
 
@@ -83,15 +83,20 @@ async def async_setup_entry(hass, entry):
         raise ConfigEntryNotReady("Could not reach the Nissan API") from error
 
     _LOGGER.debug("Finding vehicles")
+    vehicles = []
     try:
-        for vehicle in await hass.async_add_executor_job(kamereon_session.fetch_vehicles):
+        vehicles = await hass.async_add_executor_job(kamereon_session.fetch_vehicles)
+        for vehicle in vehicles:
             await hass.async_add_executor_job(vehicle.fetch_all)
             if vehicle.vin not in data[DATA_VEHICLES]:
                 data[DATA_VEHICLES][vehicle.vin] = vehicle
     except NissanAuthError as error:
         raise ConfigEntryAuthFailed("Nissan authentication failed") from error
     except Exception as error:
-        _LOGGER.warning("Could not fetch vehicles, will retry: %s", error)
+        message = str(error)
+        for vehicle in vehicles:
+            message = redact_vin(message, vehicle.vin)
+        _LOGGER.warning("Could not fetch vehicles, will retry: %s", message)
         raise ConfigEntryNotReady("Could not reach the Nissan API") from error
 
     coordinator = data[DATA_COORDINATOR_FETCH] = KamereonFetchCoordinator(hass, config)
@@ -102,9 +107,12 @@ async def async_setup_entry(hass, entry):
     _LOGGER.debug("Initialising entities")
     await hass.config_entries.async_forward_entry_setups(entry, ENTITY_TYPES)
 
-    # Init fetch and state coordinators
-    await coordinator.async_config_entry_first_refresh()
-    await stats_coordinator.async_config_entry_first_refresh()
+    # Init fetch and state coordinators. Not async_config_entry_first_refresh:
+    # the platforms are already set up, so a failure must not raise
+    # ConfigEntryNotReady here. The vehicles were fetched above, and a failed
+    # refresh only marks the affected entities unavailable until the next one.
+    await coordinator.async_refresh()
+    await stats_coordinator.async_refresh()
 
     # Init poll coordinator and ensure it runs
     entry.async_on_unload(
@@ -112,7 +120,7 @@ async def async_setup_entry(hass, entry):
                 lambda *args: None, None
             )
     )
-    await poll_coordinator.async_config_entry_first_refresh()
+    await poll_coordinator.async_refresh()
 
     entry.async_on_unload(entry.add_update_listener(async_update_listener))
 

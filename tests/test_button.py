@@ -52,9 +52,24 @@ async def test_async_setup_entry(mock_hass, mock_config, mock_async_add_entities
     assert isinstance(entities[3], ChargeControlButtons)
 
 
+def test_buttons_stay_available_when_an_update_failed():
+    """Above all the update button, which is how the user retries."""
+    coordinator = MagicMock(last_update_success=False)
+    vehicle = MagicMock(vin="TEST-VIN")
+    coordinator.failed_vins = {"TEST-VIN"}
+
+    buttons = [
+        ForceUpdateButton(coordinator, vehicle, MagicMock(), MagicMock()),
+        HornLightsButtons(coordinator, vehicle, "honk_horn", "mdi:bullhorn", "horn_lights"),
+        ChargeControlButtons(coordinator, vehicle, "charge_start", "mdi:play", "start"),
+    ]
+
+    assert all(button.available for button in buttons)
+
+
 @pytest.mark.asyncio
 async def test_force_update_button():
-    coordinator = AsyncMock()
+    coordinator = MagicMock()
     vehicle = MagicMock()
     vehicle.refresh_fetch.return_value = True
     hass = AsyncMock()
@@ -64,6 +79,7 @@ async def test_force_update_button():
 
     await button.async_press()
     vehicle.refresh_fetch.assert_called_once()
+    coordinator.failed_vins.discard.assert_called_once_with(vehicle.vin)
     coordinator.async_set_updated_data.assert_called_once_with(True)
 
 
