@@ -25,8 +25,6 @@ _LOGGER = logging.getLogger(__name__)
 # with "Not supported Feature"; every other car is still served by v1.
 COCKPIT_VERSIONS = ('v1', 'v2')
 
-# Seconds to wait for Nissan to answer. Without a timeout a stalled
-# connection blocks the executor thread, and the coordinator with it, forever.
 REQUEST_TIMEOUT = 30
 
 _registry = {
