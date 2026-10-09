@@ -7,6 +7,7 @@ import pytest
 import requests
 
 from custom_components.nissan_connect.kamereon import NCISession, NissanAuthError
+from custom_components.nissan_connect.kamereon.kamereon import REQUEST_TIMEOUT
 
 
 AUTH_BASE_URL = "https://login.mynissan-account.com/"
@@ -467,3 +468,15 @@ def test_cockpit_raises_when_no_version_is_served(requests_mock):
 
     with pytest.raises(ValueError):
         vehicle.fetch_cockpit()
+
+
+def test_api_requests_time_out(requests_mock):
+    """A stalled connection must not block the executor thread forever."""
+    vehicle = _vehicle(requests_mock, model="LEAF")
+    requests_mock.get(f"{CAR_BASE_URL}v1/cars/TEST-VIN/cockpit", json={"data": {
+        "attributes": {"totalMileage": 1000.0}}})
+
+    vehicle.fetch_cockpit()
+
+    assert requests_mock.request_history
+    assert all(r.timeout == REQUEST_TIMEOUT for r in requests_mock.request_history)

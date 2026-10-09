@@ -25,6 +25,8 @@ _LOGGER = logging.getLogger(__name__)
 # with "Not supported Feature"; every other car is still served by v1.
 COCKPIT_VERSIONS = ('v1', 'v2')
 
+REQUEST_TIMEOUT = 30
+
 _registry = {
     USERS: {},
     VEHICLES: {},
@@ -196,7 +198,7 @@ class KamereonSession:
                     'client': self.settings['auth_client'],
                 },
                 allow_redirects=False,
-                timeout=30,
+                timeout=REQUEST_TIMEOUT,
             )
         except requests.RequestException:
             raise RuntimeError("Unable to contact Nissan login") from None
@@ -230,7 +232,7 @@ class KamereonSession:
                     'Referer': response.url,
                 },
                 allow_redirects=False,
-                timeout=30,
+                timeout=REQUEST_TIMEOUT,
             )
         except requests.RequestException:
             raise RuntimeError("Unable to submit Nissan login") from None
@@ -261,7 +263,7 @@ class KamereonSession:
                     raise RuntimeError("Unexpected Nissan login redirect")
                 try:
                     response = self.session.get(
-                        target, allow_redirects=False, timeout=30)
+                        target, allow_redirects=False, timeout=REQUEST_TIMEOUT)
                 except requests.RequestException:
                     raise RuntimeError("Unable to load Nissan login") from None
                 continue
@@ -286,7 +288,7 @@ class KamereonSession:
                     raise RuntimeError("Unexpected Nissan authorization redirect")
                 try:
                     response = self.session.get(
-                        target, allow_redirects=False, timeout=30)
+                        target, allow_redirects=False, timeout=REQUEST_TIMEOUT)
                 except requests.RequestException:
                     raise RuntimeError(
                         "Unable to complete Nissan login") from None
@@ -313,7 +315,7 @@ class KamereonSession:
                 'scope': self.settings['scope'],
             },
             allow_redirects=False,
-            timeout=30,
+            timeout=REQUEST_TIMEOUT,
         )
         return self._parse_token_response(
             response, 'Nissan OneID token', require_id_token=True)
@@ -327,7 +329,7 @@ class KamereonSession:
                 'Content-Type': 'application/vnd.api+json',
             },
             allow_redirects=False,
-            timeout=30,
+            timeout=REQUEST_TIMEOUT,
         )
         return self._parse_token_response(response, 'Kamereon token')
 
@@ -360,7 +362,7 @@ class KamereonSession:
             },
             data=json.dumps({'scope': self.settings['kamereon_scope']}),
             allow_redirects=False,
-            timeout=30,
+            timeout=REQUEST_TIMEOUT,
         )
         self._install_kamereon_token(
             self._parse_token_response(response, 'Kamereon refresh token'))
@@ -390,6 +392,7 @@ class KamereonSession:
             self._exchange_kamereon_token(wso2_token['id_token']))
 
     def request(self, method, url, **kwargs):
+        kwargs.setdefault('timeout', REQUEST_TIMEOUT)
         for attempt in range(2):
             try:
                 response = self.oauth.request(method, url, **kwargs)
