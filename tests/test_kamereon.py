@@ -1,12 +1,13 @@
 import base64
 import hashlib
 from urllib.parse import parse_qs, urlparse
+from oauthlib.oauth2 import TokenExpiredError
 from unittest.mock import patch
 
 import pytest
 import requests
 
-from custom_components.nissan_connect.kamereon import NCISession, NissanAuthError
+from custom_components.nissan_connect.kamereon import Feature, NCISession, NissanAuthError
 
 
 AUTH_BASE_URL = "https://login.mynissan-account.com/"
@@ -467,3 +468,50 @@ def test_cockpit_raises_when_no_version_is_served(requests_mock):
 
     with pytest.raises(ValueError):
         vehicle.fetch_cockpit()
+
+
+def test_get_is_retried_after_a_transport_error(requests_mock):
+    vehicle = _vehicle(requests_mock, model="LEAF")
+    url = f"{CAR_BASE_URL}v1/cars/TEST-VIN/cockpit"
+    requests_mock.get(url, [
+        {"exc": requests.ConnectionError("reset")},
+        {"json": {"data": {"attributes": {"totalMileage": 1000.0}}}},
+    ])
+
+    with patch("custom_components.nissan_connect.kamereon.kamereon.time.sleep"):
+        vehicle.fetch_cockpit()
+
+    assert vehicle.total_mileage == 1000.0
+    assert _cockpit_requests(requests_mock) == [
+        "/car-adapter/v1/cars/test-vin/cockpit",
+        "/car-adapter/v1/cars/test-vin/cockpit",
+    ]
+
+
+def test_car_command_is_not_resent_after_a_timeout(requests_mock):
+    """The horn may already be sounding; a retry would sound it again."""
+    vehicle = _vehicle(requests_mock, model="LEAF")
+    vehicle.features.append(Feature.HORN_AND_LIGHTS)
+    requests_mock.post(f"{CAR_BASE_URL}v1/cars/TEST-VIN/actions/horn-lights",
+                       exc=requests.Timeout("read timed out"))
+
+    with patch("custom_components.nissan_connect.kamereon.kamereon.time.sleep"):
+        with pytest.raises(requests.Timeout):
+            vehicle.control_horn_lights("start", "horn_lights")
+
+    assert [r.path for r in requests_mock.request_history if "horn-lights" in r.path] == [
+        "/car-adapter/v1/cars/test-vin/actions/horn-lights",
+    ]
+
+
+def test_persistent_401_is_not_retried(requests_mock):
+    """Each retry would cost another full login, so give up after one."""
+    vehicle = _vehicle(requests_mock, model="LEAF")
+
+    with patch.object(
+        vehicle.session, "request", side_effect=TokenExpiredError()
+    ) as mock_request:
+        with pytest.raises(TokenExpiredError):
+            vehicle._get("https://example.invalid/anything")
+
+    assert mock_request.call_count == 1

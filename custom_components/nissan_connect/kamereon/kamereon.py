@@ -540,9 +540,10 @@ class Vehicle:
             try:
                 return self.session.request(
                     method, url, headers=headers, params=params, data=data)
-            except NissanAuthError:
-                raise
-            except Exception as e:
+            except requests.RequestException as e:
+                # Only transport errors are worth another go. Anything else -
+                # bad credentials, a 401 that survived a fresh login - would
+                # fail the same way again, and each retry costs a full login.
                 _LOGGER.debug(f"Request failed on attempt {attempt + 1} of {max_retries}: {e}")
                 if attempt == max_retries - 1:  # Exhausted retries
                     raise
@@ -554,7 +555,9 @@ class Vehicle:
         return self._request('GET', url, headers=headers, params=params)
 
     def _post(self, url, data=None, headers=None):
-        return self._request('POST', url, headers=headers, data=data)
+        # POSTs act on the car (horn, climate, charging, wake-ups). A timeout
+        # does not mean the command was not delivered, so never resend it.
+        return self._request('POST', url, headers=headers, data=data, max_retries=1)
 
     def refresh(self):
         self.refresh_location()
