@@ -164,16 +164,16 @@ class NissanOptionsFlow(OptionsFlow):
                 vol.Optional("password"): cv.string,
                 vol.Required(
                     "interval", default=self._config_entry.data.get("interval", DEFAULT_INTERVAL_POLL)
-                ): int,
+                ): vol.All(int, vol.Range(min=0)),
                 vol.Required(
                     "interval_charging", default=self._config_entry.data.get("interval_charging", DEFAULT_INTERVAL_CHARGING)
-                ): int,
+                ): vol.All(int, vol.Range(min=0)),
                 vol.Required(
                     "interval_fetch", default=self._config_entry.data.get("interval_fetch", DEFAULT_INTERVAL_FETCH)
-                ): int,
+                ): vol.All(int, vol.Range(min=1)),
                 vol.Required(
                     "interval_statistics", default=self._config_entry.data.get("interval_statistics", DEFAULT_INTERVAL_STATISTICS)
-                ): int,
+                ): vol.All(int, vol.Range(min=1)),
                 # Excluded from config flow under #61
                 # vol.Required(
                 #     "imperial_distance", default=self._config_entry.data.get("imperial_distance", False)): bool

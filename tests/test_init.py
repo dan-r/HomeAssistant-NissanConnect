@@ -14,6 +14,7 @@ from custom_components.nissan_connect import (
 from custom_components.nissan_connect.const import (
     CONFIG_VERSION,
     DATA_COORDINATOR_FETCH,
+    DATA_COORDINATOR_POLL,
     DATA_COORDINATOR_STATISTICS,
     DATA_VEHICLES,
     DOMAIN,
@@ -70,6 +71,7 @@ async def test_update_listener_logs_in_shared_session_once():
     fetch_coordinator = MagicMock()
     fetch_coordinator.async_refresh = AsyncMock()
     statistics_coordinator = MagicMock()
+    poll_coordinator = MagicMock()
     hass = MagicMock()
     hass.async_add_executor_job = AsyncMock()
     hass.data = {
@@ -81,6 +83,7 @@ async def test_update_listener_logs_in_shared_session_once():
                 },
                 DATA_COORDINATOR_FETCH: fetch_coordinator,
                 DATA_COORDINATOR_STATISTICS: statistics_coordinator,
+                DATA_COORDINATOR_POLL: poll_coordinator,
             }
         }
     }
@@ -101,6 +104,7 @@ async def test_update_listener_logs_in_shared_session_once():
     assert fetch_coordinator.update_interval == timedelta(minutes=10)
     assert statistics_coordinator.update_interval == timedelta(minutes=60)
     fetch_coordinator.async_refresh.assert_awaited_once_with()
+    poll_coordinator.update_config.assert_called_once_with(entry.data)
 
 
 async def test_migrate_entry_leaves_current_version_alone(hass):

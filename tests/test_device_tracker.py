@@ -1,9 +1,8 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 from homeassistant.components.device_tracker.const import SourceType
 
 from custom_components.nissan_connect.device_tracker import (
-    async_setup_entry,
     KamereonDeviceTracker,
 )
 

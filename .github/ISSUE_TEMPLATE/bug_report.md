@@ -19,6 +19,9 @@ A clear and concise description of what you expected to happen.
 **Log Output**
 Any relevant logs from Home Assistant.
 
+**Diagnostics**
+Attach the file from Settings > Devices & services > NissanConnect > ⋮ > Download diagnostics.
+
 **Home Assistant Version**
 Find this in Settings > About.
 

@@ -116,11 +116,23 @@
         "odometer": {
           "name": "Kilometerstand"
         },
+        "fuel_range": {
+          "name": "Rækkevidde (brændstof)"
+        },
+        "fuel_quantity": {
+          "name": "Brændstofmængde"
+        },
+        "fuel_level": {
+          "name": "Brændstofniveau"
+        },
         "charge_time_3kw": {
           "name": "Ladetid (3kW)"
         },
         "charge_time_6kw": {
           "name": "Ladetid (6kW)"
+        },
+        "charge_time_adaptive": {
+          "name": "Ladetid (adaptiv)"
         },
         "last_updated": {
           "name": "Sidst opdateret"

@@ -1,6 +1,5 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from homeassistant.helpers import entity_registry as er
 from custom_components.nissan_connect.const import DOMAIN, DATA_VEHICLES, DATA_COORDINATOR_POLL, DATA_COORDINATOR_FETCH, DATA_COORDINATOR_STATISTICS
 from custom_components.nissan_connect.kamereon.kamereon_const import Feature
 

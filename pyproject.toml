@@ -3,3 +3,8 @@ asyncio_mode = "auto"
 filterwarnings = [
   "ignore::RuntimeWarning"
 ]
+[tool.ruff.lint]
+# Pyflakes and syntax errors. The star imports of const and kamereon_const are
+# left alone for now.
+select = ["F", "E9"]
+ignore = ["F403", "F405"]

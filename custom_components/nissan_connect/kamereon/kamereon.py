@@ -20,6 +20,13 @@ from .kamereon_const import *
 
 _LOGGER = logging.getLogger(__name__)
 
+# Cockpit API versions to try, in order. Renault-derived gateways (the RVG
+# fitted to the Townstar and the new Micra) only implement v2 and answer v1
+# with "Not supported Feature"; every other car is still served by v1.
+COCKPIT_VERSIONS = ('v1', 'v2')
+
+REQUEST_TIMEOUT = 30
+
 _registry = {
     USERS: {},
     VEHICLES: {},
@@ -191,7 +198,7 @@ class KamereonSession:
                     'client': self.settings['auth_client'],
                 },
                 allow_redirects=False,
-                timeout=30,
+                timeout=REQUEST_TIMEOUT,
             )
         except requests.RequestException:
             raise RuntimeError("Unable to contact Nissan login") from None
@@ -225,7 +232,7 @@ class KamereonSession:
                     'Referer': response.url,
                 },
                 allow_redirects=False,
-                timeout=30,
+                timeout=REQUEST_TIMEOUT,
             )
         except requests.RequestException:
             raise RuntimeError("Unable to submit Nissan login") from None
@@ -256,7 +263,7 @@ class KamereonSession:
                     raise RuntimeError("Unexpected Nissan login redirect")
                 try:
                     response = self.session.get(
-                        target, allow_redirects=False, timeout=30)
+                        target, allow_redirects=False, timeout=REQUEST_TIMEOUT)
                 except requests.RequestException:
                     raise RuntimeError("Unable to load Nissan login") from None
                 continue
@@ -281,7 +288,7 @@ class KamereonSession:
                     raise RuntimeError("Unexpected Nissan authorization redirect")
                 try:
                     response = self.session.get(
-                        target, allow_redirects=False, timeout=30)
+                        target, allow_redirects=False, timeout=REQUEST_TIMEOUT)
                 except requests.RequestException:
                     raise RuntimeError(
                         "Unable to complete Nissan login") from None
@@ -308,7 +315,7 @@ class KamereonSession:
                 'scope': self.settings['scope'],
             },
             allow_redirects=False,
-            timeout=30,
+            timeout=REQUEST_TIMEOUT,
         )
         return self._parse_token_response(
             response, 'Nissan OneID token', require_id_token=True)
@@ -322,7 +329,7 @@ class KamereonSession:
                 'Content-Type': 'application/vnd.api+json',
             },
             allow_redirects=False,
-            timeout=30,
+            timeout=REQUEST_TIMEOUT,
         )
         return self._parse_token_response(response, 'Kamereon token')
 
@@ -355,7 +362,7 @@ class KamereonSession:
             },
             data=json.dumps({'scope': self.settings['kamereon_scope']}),
             allow_redirects=False,
-            timeout=30,
+            timeout=REQUEST_TIMEOUT,
         )
         self._install_kamereon_token(
             self._parse_token_response(response, 'Kamereon refresh token'))
@@ -385,6 +392,7 @@ class KamereonSession:
             self._exchange_kamereon_token(wso2_token['id_token']))
 
     def request(self, method, url, **kwargs):
+        kwargs.setdefault('timeout', REQUEST_TIMEOUT)
         for attempt in range(2):
             try:
                 response = self.oauth.request(method, url, **kwargs)
@@ -449,6 +457,7 @@ class Vehicle:
 
     def __init__(self, data, user_id):
         self._refresh_fetch_lock = threading.Lock()
+        self._cockpit_version = None
         
         self.user_id = user_id
         self.vin = data['vin'].upper()
@@ -596,14 +605,18 @@ class Vehicle:
 
     def fetch_all(self):
         self.fetch_battery_status()
-        
-        if (self.model_name or "").upper() == "MICRA":
-            return
-        
-        self.fetch_cockpit()
-        self.fetch_location()
-        self.fetch_hvac_status()
-        self.fetch_lock_status()
+        # The battery is the one the integration cannot do without. The rest
+        # is optional: a car with its privacy mode on answers 403 for the
+        # location, and that must not stop the other data from loading.
+        for fetch in (self.fetch_cockpit, self.fetch_location,
+                      self.fetch_hvac_status, self.fetch_lock_status):
+            try:
+                fetch()
+            except NissanAuthError:
+                raise
+            except Exception as error:
+                _LOGGER.warning("%s failed for #%s, keeping the other data: %s",
+                              fetch.__name__, self.vin[-3:], error)
 
     def refresh_fetch(self, check_interval=10, max_attempts=5):
         """Wake the vehicle and update data repeatedly until new data is fetched or timeout is reached."""
@@ -614,7 +627,7 @@ class Vehicle:
 
         if not self._refresh_fetch_lock.acquire(blocking=False):
             raise RefreshInProgressError(
-                f"An update is already in progress for this vehicle"
+                "An update is already in progress for this vehicle"
             )
 
         try:
@@ -999,6 +1012,11 @@ class Vehicle:
 
     def fetch_hvac_status(self):
         if Feature.INTERIOR_TEMP_SETTINGS not in self.features and Feature.TEMPERATURE not in self.features and self.features:
+        # The new Micra only lists CLIMATE_ON_OFF, not the two temperature
+        # services, yet its hvac-status endpoint answers.
+        if (Feature.INTERIOR_TEMP_SETTINGS not in self.features
+                and Feature.TEMPERATURE not in self.features
+                and Feature.CLIMATE_ON_OFF not in self.features):
             return
 
         headers = self._y63_headers() if self._is_y63 else {'Content-Type': 'application/vnd.api+json'}
@@ -1207,10 +1225,10 @@ class Vehicle:
         if period is None:
             period = Period.DAILY
         if start is None and end is None and period == Period.MONTHLY:
-            end = datetime.datetime.utcnow().date()
+            end = datetime.datetime.now(datetime.UTC).date()
             start = end.replace(day=1)
         elif start is None:
-            start = datetime.datetime.utcnow().date()
+            start = datetime.datetime.now(datetime.UTC).date()
         if end is None:
             end = start
         # Monthly period requires YYYYMM format; daily uses ISO date (YYYY-MM-DD)
@@ -1328,9 +1346,66 @@ class Vehicle:
             )
             body = resp.json()
         if 'errors' in body:
-            raise ValueError(body['errors'])
+    @staticmethod
+    def _cockpit_payload(body):
+        """Return data.attributes if this is a usable cockpit response."""
+        if not isinstance(body, dict) or body.get('errors'):
+            return None
+        data = body.get('data')
+        if isinstance(data, dict) and isinstance(data.get('attributes'), dict):
+            return data['attributes']
+        return None
 
-        cockpit_data = body['data']['attributes']
+    @staticmethod
+    def _version_unavailable(response, body):
+        """True if the response means this API version is not served here.
+
+        Only 404 and 501 qualify. A 403 or a 500 is a real failure and must
+        surface instead of sending us on to try another version.
+        """
+        if response.status_code in (404, 501):
+            return True
+        errors = body.get('errors') if isinstance(body, dict) else None
+        if not isinstance(errors, list):
+            return False
+        return any(
+            str(error.get('code')) in ('404', '501')
+            for error in errors if isinstance(error, dict)
+        )
+
+    def _fetch_cockpit_attributes(self):
+        """Fetch cockpit data, resolving which API version this car serves."""
+        # Try the version we already know works, but keep the others as a
+        # fallback in case the gateway starts serving a different one.
+        candidates = [v for v in COCKPIT_VERSIONS if v != self._cockpit_version]
+        if self._cockpit_version is not None:
+            candidates.insert(0, self._cockpit_version)
+
+        body = None
+        for version in candidates:
+            resp = self._get("{}{}/cars/{}/cockpit".format(
+                self.session.settings['car_adapter_base_url'], version, self.vin))
+            body = resp.json()
+
+            attributes = self._cockpit_payload(body)
+            if attributes is not None:
+                if self._cockpit_version != version:
+                    _LOGGER.debug("Using the %s cockpit endpoint for #%s",
+                                  version, self.vin[-3:])
+                    self._cockpit_version = version
+                return attributes
+
+            # Anything other than "this version is not served here" is a real
+            # error, so stop rather than probing the remaining versions.
+            if not self._version_unavailable(resp, body):
+                break
+
+        if isinstance(body, dict) and body.get('errors'):
+            raise ValueError(body['errors'])
+        raise ValueError(body)
+
+    def fetch_cockpit(self):
+        cockpit_data = self._fetch_cockpit_attributes()
         self.eco_score = cockpit_data.get('ecoScore')
         self.fuel_autonomy = cockpit_data.get('fuelAutonomy')
         self.fuel_consumption = cockpit_data.get('fuelConsumption')
