@@ -1,3 +1,4 @@
+import asyncio
 from datetime import timedelta
 from unittest.mock import MagicMock
 
@@ -5,6 +6,8 @@ import pytest
 from homeassistant import config_entries
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from pytest_homeassistant_custom_component.common import MockConfigEntry
+from homeassistant.helpers.update_coordinator import UpdateFailed
+from requests.exceptions import ConnectionError
 
 # Importing the config flow registers the handler, which is what
 # async_start_reauth_if_available checks before starting a reauth flow.
@@ -18,12 +21,14 @@ from custom_components.nissan_connect.const import (
 from custom_components.nissan_connect.coordinator import (
     KamereonFetchCoordinator,
     KamereonPollCoordinator,
+    StatisticsCoordinator,
 )
 from custom_components.nissan_connect.kamereon import (
     ChargingStatus,
     Feature,
     NissanAuthError,
     PluggedStatus,
+    RefreshInProgressError,
 )
 
 
@@ -49,13 +54,95 @@ async def test_auth_failure_triggers_reauth(coordinator):
         await fetch_coordinator._async_update_data()
 
 
-async def test_transient_failure_is_swallowed(coordinator, caplog):
-    """Network errors keep the old behaviour: log and carry on."""
-    fetch_coordinator, vehicle = coordinator
-    vehicle.fetch_all.side_effect = RuntimeError("Connection reset")
+@pytest.fixture(
+    params=[
+        (KamereonFetchCoordinator, "fetch_all"),
+        (KamereonPollCoordinator, "refresh"),
+        (StatisticsCoordinator, "fetch_trip_histories"),
+    ]
+)
+def update_coordinator(hass, request):
+    """Exercise each coordinator through its own provider operation."""
+    vehicle = MagicMock(features=[Feature.DRIVING_JOURNEY_HISTORY])
+    vehicle.fetch_trip_histories.return_value = {"distance": 1}
+    hass.data[DOMAIN] = {
+        "test@example.com": {
+            DATA_VEHICLES: {"test-vin": vehicle},
+            DATA_COORDINATOR_FETCH: MagicMock(),
+            DATA_COORDINATOR_POLL: MagicMock(),
+        }
+    }
+    coordinator_class, method = request.param
+    coordinator = coordinator_class(hass, {"email": "test@example.com"})
+    if isinstance(coordinator, KamereonPollCoordinator):
+        coordinator._intervals["test-vin"] = 1
+        coordinator._force_update["test-vin"] = True
+    return coordinator, vehicle, method
 
-    assert await fetch_coordinator._async_update_data() is False
-    assert "Error communicating with API" in caplog.text
+
+@pytest.mark.parametrize(
+    "error", [ConnectionError("offline"), OSError("offline"), RefreshInProgressError()]
+)
+async def test_expected_failure_raises_update_failed(update_coordinator, error):
+    coordinator, vehicle, method = update_coordinator
+    getattr(vehicle, method).side_effect = error
+    with pytest.raises(UpdateFailed) as raised:
+        await coordinator._async_update_data()
+    assert raised.value.__cause__ is error
+
+
+async def test_auth_failure_still_reaches_home_assistant(update_coordinator):
+    coordinator, vehicle, method = update_coordinator
+    getattr(vehicle, method).side_effect = NissanAuthError("Invalid credentials")
+    with pytest.raises(ConfigEntryAuthFailed):
+        await coordinator._async_update_data()
+
+
+@pytest.mark.parametrize(
+    "error", [asyncio.CancelledError(), TypeError("bug"), ValueError("bug")]
+)
+async def test_cancellation_and_programming_errors_propagate(update_coordinator, error):
+    coordinator, vehicle, method = update_coordinator
+    getattr(vehicle, method).side_effect = error
+    with pytest.raises(type(error)):
+        await coordinator._async_update_data()
+
+
+async def test_failure_and_recovery_update_entity_availability(update_coordinator):
+    from custom_components.nissan_connect.base import KamereonEntity
+
+    coordinator, vehicle, method = update_coordinator
+    entity = KamereonEntity(coordinator, vehicle)
+    await coordinator.async_refresh()
+    assert entity.available
+    previous = coordinator.data
+    getattr(vehicle, method).side_effect = ConnectionError("offline")
+    if isinstance(coordinator, KamereonPollCoordinator):
+        coordinator._intervals["test-vin"] = 1
+        coordinator._force_update["test-vin"] = True
+    await coordinator.async_refresh()
+    assert not coordinator.last_update_success
+    assert not entity.available
+    assert coordinator.data is previous
+    getattr(vehicle, method).side_effect = None
+    if isinstance(coordinator, KamereonPollCoordinator):
+        coordinator._intervals["test-vin"] = 1
+        coordinator._force_update["test-vin"] = True
+    await coordinator.async_refresh()
+    assert coordinator.last_update_success
+    assert entity.available
+
+
+async def test_statistics_does_not_return_partial_success(hass):
+    vehicle = MagicMock(features=[Feature.DRIVING_JOURNEY_HISTORY])
+    vehicle.fetch_trip_histories.side_effect = [
+        {"distance": 1},
+        ConnectionError("offline"),
+    ]
+    hass.data[DOMAIN] = {"test@example.com": {DATA_VEHICLES: {"test-vin": vehicle}}}
+    coordinator = StatisticsCoordinator(hass, {"email": "test@example.com"})
+    with pytest.raises(UpdateFailed):
+        await coordinator._async_update_data()
 
 
 async def test_auth_failure_actually_starts_a_reauth_flow(hass):

@@ -34,7 +34,15 @@ async def async_setup_entry(hass, config, async_add_entities):
     async_add_entities(entities, update_before_add=True)
 
 
-class ForceUpdateButton(KamereonEntity, ButtonEntity):
+class KamereonButton(KamereonEntity, ButtonEntity):
+    """Commands remain available when a coordinator update fails."""
+
+    @property
+    def available(self):
+        return True
+
+
+class ForceUpdateButton(KamereonButton):
     _attr_translation_key = "update_data"
 
     def __init__(self, coordinator, vehicle, hass, stats_coordinator):
@@ -54,7 +62,7 @@ class ForceUpdateButton(KamereonEntity, ButtonEntity):
         if updated:
             self.coordinator.async_set_updated_data(True)
 
-class HornLightsButtons(KamereonEntity, ButtonEntity):
+class HornLightsButtons(KamereonButton):
     def __init__(self, coordinator, vehicle, translation_key, icon, action):
         self._attr_translation_key = translation_key
         self._icon = icon
@@ -68,7 +76,7 @@ class HornLightsButtons(KamereonEntity, ButtonEntity):
     def press(self):
         self.vehicle.control_horn_lights('start', self._action)
 
-class ChargeControlButtons(KamereonEntity, ButtonEntity):
+class ChargeControlButtons(KamereonButton):
     def __init__(self, coordinator, vehicle, translation_key, icon, action):
         self._attr_translation_key = translation_key
         self._icon = icon
