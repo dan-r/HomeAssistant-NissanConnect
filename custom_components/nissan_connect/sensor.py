@@ -4,10 +4,9 @@ import math
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
-    UnitOfTemperature
 )
 from homeassistant.core import callback
-from homeassistant.const import PERCENTAGE, UnitOfLength, UnitOfTime, UnitOfVolume
+from homeassistant.const import PERCENTAGE, UnitOfLength, UnitOfTemperature, UnitOfTime, UnitOfVolume
 from homeassistant.components.sensor import SensorStateClass
 from .base import KamereonEntity
 from .kamereon import ChargingSpeed, Feature
