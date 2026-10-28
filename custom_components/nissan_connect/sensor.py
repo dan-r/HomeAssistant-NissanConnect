@@ -272,7 +272,7 @@ class OdometerSensor(KamereonEntity, SensorEntity):
         # This sometimes goes backwards? So only accept a positive odometer delta
         if new_state is not None and new_state > (self._state or 0):
             self._state = new_state
-            self.async_write_ha_state()
+        self.async_write_ha_state()
 
     @property
     def native_value(self):
@@ -313,6 +313,7 @@ class StatisticSensor(KamereonEntity, SensorEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         if self.coordinator.data is None or self.vehicle.vin not in self.coordinator.data:
+            self.async_write_ha_state()
             return
 
         summary = self.coordinator.data[self.vehicle.vin][self._key]

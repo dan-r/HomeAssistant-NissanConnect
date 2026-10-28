@@ -26,6 +26,11 @@ class KamereonEntity(Entity):
         self.async_write_ha_state()
 
     @property
+    def available(self):
+        """Return whether the coordinator last updated successfully."""
+        return self.coordinator.last_update_success
+
+    @property
     def icon(self):
         """Return the icon."""
         return 'mdi:car'

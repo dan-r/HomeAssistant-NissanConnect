@@ -103,8 +103,8 @@ async def async_setup_entry(hass, entry):
     await hass.config_entries.async_forward_entry_setups(entry, ENTITY_TYPES)
 
     # Init fetch and state coordinators
-    await coordinator.async_config_entry_first_refresh()
-    await stats_coordinator.async_config_entry_first_refresh()
+    await coordinator.async_refresh()
+    await stats_coordinator.async_refresh()
 
     # Init poll coordinator and ensure it runs
     entry.async_on_unload(
@@ -112,7 +112,7 @@ async def async_setup_entry(hass, entry):
                 lambda *args: None, None
             )
     )
-    await poll_coordinator.async_config_entry_first_refresh()
+    await poll_coordinator.async_refresh()
 
     entry.async_on_unload(entry.add_update_listener(async_update_listener))
 

@@ -1,10 +1,12 @@
 import pytest
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 from homeassistant.components.sensor import SensorDeviceClass
 from homeassistant.const import (
     PERCENTAGE, UnitOfLength, UnitOfVolume)
 from custom_components.nissan_connect.kamereon import ChargingSpeed, Feature
+from custom_components.nissan_connect.const import DOMAIN
 
 from custom_components.nissan_connect.sensor import (
     BatteryLevelSensor,
@@ -201,3 +203,82 @@ async def test_ev_does_not_gain_fuel_sensors(mock_hass, mock_config,
 
     keys = {e._attr_translation_key for e in mock_async_add_entities.call_args[0][0]}
     assert not {'fuel_range', 'fuel_quantity', 'fuel_level'} & keys
+
+
+@pytest.fixture
+async def sensor_component(hass):
+    import logging
+    from homeassistant.helpers.entity_component import EntityComponent
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    entry = MockConfigEntry(domain=DOMAIN, data={})
+    entry.add_to_hass(hass)
+    component = EntityComponent(logging.getLogger(__name__), "sensor", hass)
+    component._platforms["sensor"].config_entry = entry
+    yield component
+    await component._async_reset()
+
+
+async def test_odometer_availability_updates_without_mileage_change(
+    hass, sensor_component
+):
+    """Failure and recovery must reach HA even while the car is parked."""
+    coordinator = MagicMock(last_update_success=True)
+    vehicle = SimpleNamespace(
+        vin="test-vin",
+        total_mileage=5000,
+        nickname="Test car",
+        model_name="Leaf",
+        model_year=2025,
+        model_code="TEST",
+        session=SimpleNamespace(unique_id="test-only", tenant="nissan"),
+    )
+    sensor = OdometerSensor(coordinator, vehicle, False)
+    sensor.entity_id = "sensor.test_odometer"
+    await sensor_component.async_add_entities([sensor])
+    sensor._handle_coordinator_update()
+    assert hass.states.get(sensor.entity_id).state == "5000"
+    for success, state in ((False, "unavailable"), (True, "5000")):
+        coordinator.last_update_success = success
+        sensor._handle_coordinator_update()
+        assert hass.states.get(sensor.entity_id).state == state
+    vehicle.total_mileage = 4999
+    sensor._handle_coordinator_update()
+    assert hass.states.get(sensor.entity_id).state == "5000"
+
+
+async def test_statistics_availability_updates_before_first_data(
+    hass, sensor_component
+):
+    """A failed first refresh must publish unavailable with no cached summary."""
+    from custom_components.nissan_connect.sensor import StatisticSensor
+
+    coordinator = MagicMock(last_update_success=True, data=None)
+    vehicle = SimpleNamespace(
+        vin="test-vin",
+        nickname="Test car",
+        model_name="Leaf",
+        model_year=2025,
+        model_code="TEST",
+        session=SimpleNamespace(unique_id="test-only", tenant="nissan"),
+    )
+    sensor = StatisticSensor(
+        coordinator,
+        vehicle,
+        "daily",
+        lambda row: row["distance"],
+        "distance",
+        "mdi:map-marker-distance",
+        None,
+        None,
+        0,
+    )
+    sensor.entity_id = "sensor.test_statistics"
+    await sensor_component.async_add_entities([sensor])
+    coordinator.last_update_success = False
+    sensor._handle_coordinator_update()
+    assert hass.states.get(sensor.entity_id).state == "unavailable"
+    coordinator.data = {"test-vin": {"daily": [{"distance": 12}]}}
+    coordinator.last_update_success = True
+    sensor._handle_coordinator_update()
+    assert hass.states.get(sensor.entity_id).state == "12"

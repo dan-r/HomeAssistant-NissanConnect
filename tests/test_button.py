@@ -84,3 +84,20 @@ def test_charge_control_buttons():
 
     button.press()
     vehicle.control_charging.assert_called_once_with("start")
+
+
+@pytest.mark.parametrize(
+    "button_type", [ForceUpdateButton, HornLightsButtons, ChargeControlButtons]
+)
+def test_buttons_remain_available_after_update_failure(button_type):
+    coordinator = MagicMock(last_update_success=False)
+    vehicle = MagicMock()
+    if button_type is ForceUpdateButton:
+        button = button_type(coordinator, vehicle, MagicMock(), MagicMock())
+    elif button_type is HornLightsButtons:
+        button = button_type(
+            coordinator, vehicle, "flash_lights", "mdi:car-light-high", "lights"
+        )
+    else:
+        button = button_type(coordinator, vehicle, "charge_start", "mdi:play", "start")
+    assert button.available

@@ -3,9 +3,9 @@ import logging
 from datetime import timedelta
 from time import time
 from homeassistant.exceptions import ConfigEntryAuthFailed
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from .const import DOMAIN, DATA_VEHICLES, DEFAULT_INTERVAL_POLL, DEFAULT_INTERVAL_CHARGING, DEFAULT_INTERVAL_STATISTICS, DEFAULT_INTERVAL_FETCH, DATA_COORDINATOR_FETCH, DATA_COORDINATOR_POLL
-from .kamereon import Feature, PluggedStatus, ChargingStatus, Period, NissanAuthError
+from .kamereon import Feature, PluggedStatus, ChargingStatus, Period, NissanAuthError, RefreshInProgressError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -30,9 +30,8 @@ class KamereonFetchCoordinator(DataUpdateCoordinator):
                 await self._hass.async_add_executor_job(self._vehicles[vehicle].fetch_all)
         except NissanAuthError as error:
             raise ConfigEntryAuthFailed("Nissan authentication failed") from error
-        except BaseException:
-            _LOGGER.warning("Error communicating with API")
-            return False
+        except (OSError, RefreshInProgressError) as error:
+            raise UpdateFailed("Error communicating with API") from error
         
         # Set interval for polling (the other coordinator)
         self._hass.data[DOMAIN][self._account_id][DATA_COORDINATOR_POLL].set_next_interval()
@@ -131,9 +130,8 @@ class KamereonPollCoordinator(DataUpdateCoordinator):
                     _LOGGER.debug("NOT polling #%s. %d mins have elapsed (interval %d)", vehicle[-3:], time_since_updated, self._intervals[vehicle])                   
         except NissanAuthError as error:
             raise ConfigEntryAuthFailed("Nissan authentication failed") from error
-        except BaseException:
-            _LOGGER.warning("Error communicating with API")
-            return False
+        except (OSError, RefreshInProgressError) as error:
+            raise UpdateFailed("Error communicating with API") from error
         
         self._hass.async_create_task(self._hass.data[DOMAIN][self._account_id][DATA_COORDINATOR_FETCH].async_refresh())
         return True
@@ -166,7 +164,7 @@ class StatisticsCoordinator(DataUpdateCoordinator):
                 }
         except NissanAuthError as error:
             raise ConfigEntryAuthFailed("Nissan authentication failed") from error
-        except BaseException:
-            _LOGGER.warning("Error communicating with statistics API")
+        except (OSError, RefreshInProgressError) as error:
+            raise UpdateFailed("Error communicating with statistics API") from error
         
         return output

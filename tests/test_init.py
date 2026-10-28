@@ -164,7 +164,7 @@ async def test_setup_rewrites_legacy_device_identifiers(hass):
     )
 
     coordinator = MagicMock()
-    coordinator.async_config_entry_first_refresh = AsyncMock()
+    coordinator.async_refresh = AsyncMock()
     with (
         patch("custom_components.nissan_connect.NCISession") as mock_session,
         patch(
@@ -181,6 +181,7 @@ async def test_setup_rewrites_legacy_device_identifiers(hass):
             MagicMock(vin="TEST-VIN")
         ]
         assert await async_setup_entry(hass, entry) is True
+        assert coordinator.async_refresh.await_count == 3
 
     migrated_device = device_registry.async_get(device.id)
     assert migrated_device.id == device.id, "updated, not replaced"
@@ -191,3 +192,52 @@ async def test_setup_rewrites_legacy_device_identifiers(hass):
     assert migrated_entity is not None
     assert migrated_entity.device_id == device.id
     assert migrated_entity.entity_id == "sensor.my_leaf_battery_level"
+
+
+async def test_setup_tolerates_refresh_failure_after_platform_forwarding(hass):
+    """A coordinator failure after platform setup must not abort the entry."""
+    from homeassistant.helpers.update_coordinator import UpdateFailed
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="test@example.com",
+        data={"email": "test@example.com", "password": "p", "region": "EU"},
+    )
+    entry.add_to_hass(hass)
+    with (
+        patch("custom_components.nissan_connect.NCISession") as session,
+        patch(
+            "homeassistant.config_entries.ConfigEntries.async_forward_entry_setups"
+        ) as forward,
+        patch(
+            "custom_components.nissan_connect.KamereonFetchCoordinator._async_update_data",
+            side_effect=UpdateFailed("offline"),
+        ),
+        patch(
+            "custom_components.nissan_connect.KamereonPollCoordinator._async_update_data",
+            side_effect=UpdateFailed("offline"),
+        ),
+        patch(
+            "custom_components.nissan_connect.StatisticsCoordinator._async_update_data",
+            side_effect=UpdateFailed("offline"),
+        ),
+    ):
+        session.return_value.fetch_vehicles.return_value = [MagicMock(vin="test-vin")]
+        assert await hass.config_entries.async_setup(entry.entry_id) is True
+        forward.assert_awaited_once()
+        data = hass.data[DOMAIN]["test@example.com"]
+        coordinators = [
+            data[key]
+            for key in (
+                DATA_COORDINATOR_FETCH,
+                DATA_COORDINATOR_POLL,
+                DATA_COORDINATOR_STATISTICS,
+            )
+        ]
+        try:
+            assert all(
+                not coordinator.last_update_success for coordinator in coordinators
+            )
+        finally:
+            for coordinator in coordinators:
+                coordinator._async_unsub_refresh()
