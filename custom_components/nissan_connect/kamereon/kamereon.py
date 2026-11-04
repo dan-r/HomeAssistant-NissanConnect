@@ -494,6 +494,22 @@ class Vehicle:
         self.model_code = data.get('modelCode')
         self.model_year = data.get('modelYear')
         self.nickname = data.get('nickname')
+        self._vehicle_information = {key: data[key] for key in (
+            'modelName', 'modelCode', 'modelYear', 'vehicleNickName',
+            'color', 'energy', 'pictureURL',
+        ) if key in data}
+        ivc = data.get('ivc')
+        ivi = data.get('ivi')
+        for name, module, keys in (
+            ('ivc', ivc, ('version',)),
+            ('ivi', ivi, ('version', 'type')),
+        ):
+            if isinstance(module, dict):
+                values = {key: module[key] for key in keys if key in module}
+                if values:
+                    self._vehicle_information[name] = values
+        self._ivc_software_version = ivc.get('swVersion') if isinstance(ivc, dict) else None
+        self._ivi_supplier_software_version = ivi.get('supplierSwVersion') if isinstance(ivi, dict) else None
         self.phase = data.get('phase')
         self.picture_url = data.get('pictureURL')
         self.privacy_mode = data.get('privacyMode')
@@ -518,6 +534,7 @@ class Vehicle:
         self.unplugged_time = None
         self.battery_status_last_updated = None
         self.location = None
+        self.gps_direction = None
         self.location_last_updated = None
         self.combustion_fuel_unit_cost = None
         self.electricity_unit_cost = None
@@ -545,6 +562,7 @@ class Vehicle:
         self.fuel_quantity = None
         self.mileage = None
         self.total_mileage = None
+        self.due_mileage = None
 
     def _request(self, method, url, headers=None, params=None, data=None, max_retries=3):
         for attempt in range(max_retries):
@@ -660,6 +678,7 @@ class Vehicle:
         if 'errors' in body:
             raise ValueError(body['errors'])
         location_data = body['data']['attributes']
+        self.gps_direction = location_data.get('gpsDirection')
         self.location = (location_data['gpsLatitude'], location_data['gpsLongitude'])
         self.location_last_updated = datetime.datetime.fromisoformat(location_data['lastUpdateTime'].replace('Z','+00:00'))
 
@@ -1279,6 +1298,7 @@ class Vehicle:
         self.fuel_quantity = cockpit_data.get('fuelQuantity')  # litres
         self.mileage = cockpit_data.get('mileage')
         self.total_mileage = cockpit_data.get('totalMileage')
+        self.due_mileage = cockpit_data.get('dueMileage')
 
 
 class TripSummary:

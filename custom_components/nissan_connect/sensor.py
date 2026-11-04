@@ -1,11 +1,13 @@
 import logging
 import math
+from datetime import date, datetime, timezone
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
 )
 from homeassistant.core import callback
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.const import PERCENTAGE, UnitOfLength, UnitOfTemperature, UnitOfTime, UnitOfVolume
 from homeassistant.components.sensor import SensorStateClass
 from .base import KamereonEntity
@@ -33,6 +35,9 @@ async def async_setup_entry(hass, config, async_add_entities):
             entities.append(RangeSensor(coordinator, data[vehicle], True, imperial_distance))
         if Feature.BATTERY_STATUS in data[vehicle].features:
             entities.append(BatteryLevelSensor(coordinator, data[vehicle]))
+        elif _is_number(getattr(data[vehicle], 'battery_level', None)):
+            entities.append(VehicleTelemetrySensor(coordinator, data[vehicle],
+                'api_battery_level', 'battery_level', 'mdi:battery', SensorDeviceClass.BATTERY, PERCENTAGE))
         if data[vehicle].charge_time_required_to_full[ChargingSpeed.NORMAL] is not None:
             entities += [ChargeTimeRequiredSensor(coordinator, data[vehicle], ChargingSpeed.NORMAL),
                          ChargeTimeRequiredSensor(coordinator, data[vehicle], ChargingSpeed.FAST)]
@@ -50,6 +55,23 @@ async def async_setup_entry(hass, config, async_add_entities):
             entities.append(InternalTemperatureSensor(coordinator, data[vehicle]))
         if data[vehicle].external_temperature is not None:
             entities.append(ExternalTemperatureSensor(coordinator, data[vehicle]))
+        for key, attribute, icon, device_class, unit in (
+            ('api_gps_direction', 'gps_direction', 'mdi:compass-outline', None, None),
+            ('service_due_mileage', 'due_mileage', 'mdi:car-wrench', SensorDeviceClass.DISTANCE, UnitOfLength.KILOMETERS),
+        ):
+            if _is_number(getattr(data[vehicle], attribute, None)):
+                entities.append(VehicleTelemetrySensor(coordinator, data[vehicle], key, attribute, icon,
+                    device_class, unit, imperial_distance=imperial_distance))
+        for key, attribute in (
+            ('ivc_software_version', '_ivc_software_version'),
+            ('ivi_supplier_software_version', '_ivi_supplier_software_version'),
+        ):
+            value = getattr(data[vehicle], attribute, None)
+            if isinstance(value, str) and value.strip():
+                entities.append(VehicleTelemetrySensor(coordinator, data[vehicle], key, attribute, 'mdi:chip'))
+        if isinstance(getattr(data[vehicle], '_vehicle_information', None), dict) and data[vehicle].model_name:
+            entities.append(VehicleTelemetrySensor(coordinator, data[vehicle],
+                'vehicle_information', '_vehicle_information', 'mdi:car-info'))
         if Feature.DRIVING_JOURNEY_HISTORY in data[vehicle].features:
             entities += [
                 StatisticSensor(coordinator_stats, data[vehicle], 'daily', lambda x: x.total_distance, 'daily_distance', 'mdi:map-marker-distance', SensorDeviceClass.DISTANCE, UnitOfLength.KILOMETERS, 0, imperial_distance),
@@ -62,10 +84,83 @@ async def async_setup_entry(hass, config, async_add_entities):
                     StatisticSensor(coordinator_stats, data[vehicle], 'daily', lambda x: x.total_distance / x.consumed_electricity, 'daily_efficiency', 'mdi:ev-station', SensorDeviceClass.DISTANCE, UnitOfLength.KILOMETERS, 2, imperial_distance),
                     StatisticSensor(coordinator_stats, data[vehicle], 'monthly', lambda x: x.total_distance / x.consumed_electricity, 'monthly_efficiency', 'mdi:ev-station', SensorDeviceClass.DISTANCE, UnitOfLength.KILOMETERS, 2, imperial_distance),
                 ]
+            for period in ('daily', 'monthly'):
+                entities.append(TripTelemetrySensor(coordinator_stats, data[vehicle], period,
+                    lambda summary: summary.total_duration, f'{period}_driving_duration', 'mdi:timer-outline',
+                    SensorDeviceClass.DURATION, UnitOfTime.MINUTES, 0))
+                if Feature.BATTERY_STATUS not in data[vehicle].features:
+                    entities.append(TripTelemetrySensor(coordinator_stats, data[vehicle], period,
+                        lambda summary: summary.consumed_fuel, f'{period}_consumed_fuel', 'mdi:gas-station',
+                        SensorDeviceClass.VOLUME, UnitOfVolume.LITERS, 2))
 
         entities.append(OdometerSensor(coordinator, data[vehicle], imperial_distance))
 
     async_add_entities(entities, update_before_add=True)
+
+
+def _is_number(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+
+
+def _telemetry_unique_id(vehicle, key):
+    account = vehicle.session.unique_id
+    return f'{account}_{vehicle.vin}_{key}' if account else f'{vehicle.vin}_{key}'
+
+
+class VehicleTelemetrySensor(KamereonEntity, SensorEntity):
+    """Expose a value from a response that has already been fetched."""
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator, vehicle, key, attribute, icon, device_class=None, unit=None, imperial_distance=False):
+        super().__init__(coordinator, vehicle)
+        self._attr_translation_key = key
+        self._attribute = attribute
+        self._attr_icon = icon
+        self._attr_device_class = device_class
+        self._attr_native_unit_of_measurement = unit
+        if unit == UnitOfLength.KILOMETERS and imperial_distance:
+            self._attr_suggested_unit_of_measurement = UnitOfLength.MILES
+
+    @property
+    def suggested_object_id(self):
+        return self._attr_translation_key
+
+    @property
+    def unique_id(self):
+        return _telemetry_unique_id(self.vehicle, self._attr_translation_key)
+
+    @property
+    def icon(self):
+        return self._attr_icon
+
+    @property
+    def native_value(self):
+        value = getattr(self.vehicle, self._attribute, None)
+        if self._attribute == '_vehicle_information':
+            return self.vehicle.model_name
+        if self._attribute in ('_ivc_software_version', '_ivi_supplier_software_version'):
+            return value.strip() if isinstance(value, str) and value.strip() else None
+        if not _is_number(value):
+            return None
+        return round(value) if self._attribute == 'battery_level' else value
+
+    @property
+    def available(self):
+        return super().available and self.coordinator.last_update_success and self.native_value is not None
+
+    @property
+    def extra_state_attributes(self):
+        if self._attribute == '_vehicle_information':
+            return {'api_key': 'vehicleInformation', **self.vehicle._vehicle_information}
+        if self._attribute == 'gps_direction':
+            return {'api_key': 'gpsDirection', 'interpretation': 'Raw API value; unit is unverified.'}
+        return {'api_key': {
+            'battery_level': 'batteryLevel',
+            'due_mileage': 'dueMileage',
+            '_ivc_software_version': 'ivc.swVersion',
+            '_ivi_supplier_software_version': 'ivi.supplierSwVersion',
+        }[self._attribute]}
 
 
 class BatteryLevelSensor(KamereonEntity, SensorEntity):
@@ -335,6 +430,47 @@ class StatisticSensor(KamereonEntity, SensorEntity):
     def icon(self):
         """Icon of the sensor."""
         return self._icon
+
+
+class TripTelemetrySensor(StatisticSensor):
+    """Expose a current daily or monthly total from trip summaries."""
+
+    @property
+    def suggested_object_id(self):
+        return self._attr_translation_key
+
+    @property
+    def unique_id(self):
+        return _telemetry_unique_id(self.vehicle, self._attr_translation_key)
+
+    @property
+    def available(self):
+        return super().available and self.coordinator.last_update_success and self._state is not None
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        data = (self.coordinator.data or {}).get(self.vehicle.vin, {})
+        summaries = data.get(self._key)
+        self._state = None
+        self._attributes = {'api_key': 'consumedFuel' if 'consumed_fuel' in self._attr_translation_key else 'duration'}
+        if isinstance(summaries, list) and not summaries:
+            self._state = 0
+        elif isinstance(summaries, list):
+            today = datetime.now(timezone.utc).date()
+            start = today if self._key == 'daily' else today.replace(day=1)
+            summary = next((item for item in summaries if getattr(item, 'start', None) == start
+                and isinstance(getattr(item, 'end', None), date) and not isinstance(item.end, datetime)
+                and item.start <= today <= item.end
+                and (self._key != 'daily' or item.end == today)), None)
+            if summary is not None:
+                try:
+                    value = self._lambda(summary)
+                    if _is_number(value) and value >= 0:
+                        self._state = value
+                        self._attributes.update(period_start=summary.start.isoformat(), period_end=summary.end.isoformat())
+                except (ArithmeticError, AttributeError, TypeError, ValueError):
+                    pass
+        self.async_write_ha_state()
 
 
 class ChargeTimeRequiredSensor(KamereonEntity, SensorEntity):

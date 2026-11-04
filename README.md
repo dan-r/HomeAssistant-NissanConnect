@@ -77,7 +77,7 @@ This integration exposes the following entities. Please note that entities will 
     * Car Charging (EV Only)
     * Doors Locked
 * Sensors
-    * Battery Level (EV Only)
+    * Battery Level (when reported by the car)
     * Charge Time (3kW, 6kW or adaptive, EV Only)
     * Internal Temperature
     * External Temperature
@@ -86,12 +86,20 @@ This integration exposes the following entities. Please note that entities will 
     * Fuel Quantity (Combustion Only)
     * Fuel Level
     * Odometer
+    * Service Target Odometer
+    * Raw GPS Direction (unit unverified)
+    * Vehicle Information (model, nickname, colour, energy and image URL)
+    * Connectivity and Infotainment Software Versions
     * Last Updated
     * Daily Distance
     * Daily Trips
+    * Daily Driving Duration
+    * Daily Fuel Consumed (non-EV)
     * Daily Efficiency (EV Only)
     * Monthly Distance
     * Monthly Trips
+    * Monthly Driving Duration
+    * Monthly Fuel Consumed (non-EV)
     * Monthly Efficiency (EV Only)
 * Climate
 * Device Tracker
