@@ -101,6 +101,36 @@
             "battery_level": {
                 "name": "Livello della batteria"
             },
+            "api_battery_level": {
+                "name": "Livello batteria (dato API)"
+            },
+            "api_gps_direction": {
+                "name": "Direzione GPS (dato grezzo)"
+            },
+            "service_due_mileage": {
+                "name": "Chilometraggio previsto per il tagliando"
+            },
+            "vehicle_information": {
+                "name": "Informazioni veicolo"
+            },
+            "ivc_software_version": {
+                "name": "Versione software IVC (connettività)"
+            },
+            "ivi_supplier_software_version": {
+                "name": "Versione software del fornitore IVI (infotainment)"
+            },
+            "daily_consumed_fuel": {
+                "name": "Carburante consumato giornaliero"
+            },
+            "monthly_consumed_fuel": {
+                "name": "Carburante consumato mensile"
+            },
+            "daily_driving_duration": {
+                "name": "Durata guida giornaliera"
+            },
+            "monthly_driving_duration": {
+                "name": "Durata guida mensile"
+            },
             "internal_temperature": {
                 "name": "Temperatura interna"
             },
