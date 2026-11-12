@@ -1,12 +1,14 @@
 import base64
 import hashlib
 from urllib.parse import parse_qs, urlparse
+from oauthlib.oauth2 import TokenExpiredError
 from unittest.mock import patch
 
 import pytest
 import requests
 
-from custom_components.nissan_connect.kamereon import NCISession, NissanAuthError
+from custom_components.nissan_connect.kamereon import Feature, NCISession, NissanAuthError
+from custom_components.nissan_connect.kamereon.kamereon import REQUEST_TIMEOUT
 
 
 AUTH_BASE_URL = "https://login.mynissan-account.com/"
@@ -362,3 +364,248 @@ def test_vehicle_request_does_not_retry_auth_failures(requests_mock):
             vehicle._get("https://example.invalid/anything")
 
     assert mock_request.call_count == 1
+
+
+def _vehicle(requests_mock, model="TOWNSTAR"):
+    """A vehicle whose session is already authenticated."""
+    user_url = (
+        "https://alliance-platform-usersadapter-prod.apps.eu2.kamereon.io/"
+        "user-adapter/v1/users/current"
+    )
+    requests_mock.get(user_url, json={"userId": "test-user"})
+    requests_mock.get(f"{BFF_BASE_URL}v5/users/test-user/cars", json={"data": [
+        {"vin": "test-vin", "modelName": model}]})
+    session = NCISession(region="EU")
+    session._install_kamereon_token({
+        "access_token": "kamereon-access-token",
+        "token_type": "Bearer",
+        "expires_in": 1800,
+    })
+    return session.fetch_vehicles()[0]
+
+
+CAR_BASE_URL = (
+    "https://alliance-platform-caradapter-prod.apps.eu2.kamereon.io/car-adapter/"
+)
+# Verbatim from a Townstar (dan-r/HomeAssistant-NissanConnect#109)
+GATEWAY_NOT_IMPLEMENTED = {"errors": [{
+    "status": "Not Implemented", "code": "501", "title": "Not supported Feature",
+    "detail": "This feature is not technically supported by this gateway"}]}
+
+
+def _cockpit_requests(requests_mock):
+    return [r.path for r in requests_mock.request_history if "cockpit" in r.path]
+
+
+def test_cockpit_still_uses_v1_when_it_works(requests_mock):
+    """Cars that work today must not gain an extra request."""
+    vehicle = _vehicle(requests_mock, model="LEAF")
+    requests_mock.get(f"{CAR_BASE_URL}v1/cars/TEST-VIN/cockpit", json={"data": {
+        "attributes": {"totalMileage": 1000.0, "fuelLevel": 50}}})
+
+    vehicle.fetch_cockpit()
+
+    assert vehicle.total_mileage == 1000.0
+    assert _cockpit_requests(requests_mock) == ["/car-adapter/v1/cars/test-vin/cockpit"]
+
+
+def test_cockpit_falls_back_to_v2_when_gateway_does_not_implement_v1(requests_mock):
+    """The Townstar's RVG gateway answers v1 with 501 but serves v2."""
+    vehicle = _vehicle(requests_mock)
+    requests_mock.get(f"{CAR_BASE_URL}v1/cars/TEST-VIN/cockpit",
+                      json=GATEWAY_NOT_IMPLEMENTED, status_code=501)
+    requests_mock.get(f"{CAR_BASE_URL}v2/cars/TEST-VIN/cockpit", json={"data": {
+        "attributes": {"fuelAutonomy": 671.0, "fuelQuantity": 52.0,
+                       "totalMileage": 2580.0}}})
+
+    vehicle.fetch_cockpit()
+
+    assert vehicle.total_mileage == 2580.0
+    assert vehicle.fuel_autonomy == 671.0
+    assert vehicle.fuel_quantity == 52.0
+    assert _cockpit_requests(requests_mock) == [
+        "/car-adapter/v1/cars/test-vin/cockpit",
+        "/car-adapter/v2/cars/test-vin/cockpit",
+    ]
+
+
+def test_cockpit_version_is_resolved_only_once(requests_mock):
+    """After the first fetch we must stop calling the unsupported version."""
+    vehicle = _vehicle(requests_mock)
+    requests_mock.get(f"{CAR_BASE_URL}v1/cars/TEST-VIN/cockpit",
+                      json=GATEWAY_NOT_IMPLEMENTED, status_code=501)
+    requests_mock.get(f"{CAR_BASE_URL}v2/cars/TEST-VIN/cockpit", json={"data": {
+        "attributes": {"totalMileage": 2580.0}}})
+
+    vehicle.fetch_cockpit()
+    vehicle.fetch_cockpit()
+    vehicle.fetch_cockpit()
+
+    assert _cockpit_requests(requests_mock) == [
+        "/car-adapter/v1/cars/test-vin/cockpit",
+        "/car-adapter/v2/cars/test-vin/cockpit",
+        "/car-adapter/v2/cars/test-vin/cockpit",
+        "/car-adapter/v2/cars/test-vin/cockpit",
+    ]
+
+
+def test_cockpit_does_not_probe_other_versions_on_a_real_error(requests_mock):
+    """A 403 is a real failure, not 'try another version'."""
+    vehicle = _vehicle(requests_mock)
+    requests_mock.get(f"{CAR_BASE_URL}v1/cars/TEST-VIN/cockpit", status_code=403, json={
+        "errors": [{"status": "Forbidden", "code": "403", "title": "security.access"}]})
+
+    with pytest.raises(ValueError):
+        vehicle.fetch_cockpit()
+
+    assert _cockpit_requests(requests_mock) == ["/car-adapter/v1/cars/test-vin/cockpit"]
+
+
+def test_cockpit_raises_when_no_version_is_served(requests_mock):
+    vehicle = _vehicle(requests_mock)
+    for version in ("v1", "v2"):
+        requests_mock.get(f"{CAR_BASE_URL}{version}/cars/TEST-VIN/cockpit",
+                          json=GATEWAY_NOT_IMPLEMENTED, status_code=501)
+
+    with pytest.raises(ValueError):
+        vehicle.fetch_cockpit()
+
+
+def test_api_requests_time_out(requests_mock):
+    """A stalled connection must not block the executor thread forever."""
+    vehicle = _vehicle(requests_mock, model="LEAF")
+    requests_mock.get(f"{CAR_BASE_URL}v1/cars/TEST-VIN/cockpit", json={"data": {
+        "attributes": {"totalMileage": 1000.0}}})
+
+    vehicle.fetch_cockpit()
+
+    assert requests_mock.request_history
+    assert all(r.timeout == REQUEST_TIMEOUT for r in requests_mock.request_history)
+
+
+def test_get_is_retried_after_a_transport_error(requests_mock):
+    vehicle = _vehicle(requests_mock, model="LEAF")
+    url = f"{CAR_BASE_URL}v1/cars/TEST-VIN/cockpit"
+    requests_mock.get(url, [
+        {"exc": requests.ConnectionError("reset")},
+        {"json": {"data": {"attributes": {"totalMileage": 1000.0}}}},
+    ])
+
+    with patch("custom_components.nissan_connect.kamereon.kamereon.time.sleep"):
+        vehicle.fetch_cockpit()
+
+    assert vehicle.total_mileage == 1000.0
+    assert _cockpit_requests(requests_mock) == [
+        "/car-adapter/v1/cars/test-vin/cockpit",
+        "/car-adapter/v1/cars/test-vin/cockpit",
+    ]
+
+
+def test_car_command_is_not_resent_after_a_timeout(requests_mock):
+    """The horn may already be sounding; a retry would sound it again."""
+    vehicle = _vehicle(requests_mock, model="LEAF")
+    vehicle.features.append(Feature.HORN_AND_LIGHTS)
+    requests_mock.post(f"{CAR_BASE_URL}v1/cars/TEST-VIN/actions/horn-lights",
+                       exc=requests.Timeout("read timed out"))
+
+    with patch("custom_components.nissan_connect.kamereon.kamereon.time.sleep"):
+        with pytest.raises(requests.Timeout):
+            vehicle.control_horn_lights("start", "horn_lights")
+
+    assert [r.path for r in requests_mock.request_history if "horn-lights" in r.path] == [
+        "/car-adapter/v1/cars/test-vin/actions/horn-lights",
+    ]
+
+
+def test_persistent_401_is_not_retried(requests_mock):
+    """Each retry would cost another full login, so give up after one."""
+    vehicle = _vehicle(requests_mock, model="LEAF")
+
+    with patch.object(
+        vehicle.session, "request", side_effect=TokenExpiredError()
+    ) as mock_request:
+        with pytest.raises(TokenExpiredError):
+            vehicle._get("https://example.invalid/anything")
+
+    assert mock_request.call_count == 1
+
+
+# Verbatim from a petrol Townstar (dan-r/HomeAssistant-NissanConnect#109)
+BATTERY_ADAPTER_500 = {"errors": [{
+    "code": "500", "status": "Internal Server Error",
+    "title": "BatteryAdapter.getBatteryStatus()"}]}
+
+
+def _ice_vehicle(requests_mock):
+    """A vehicle that does not advertise BATTERY_STATUS."""
+    user_url = (
+        "https://alliance-platform-usersadapter-prod.apps.eu2.kamereon.io/"
+        "user-adapter/v1/users/current"
+    )
+    requests_mock.get(user_url, json={"userId": "test-user"})
+    requests_mock.get(f"{BFF_BASE_URL}v5/users/test-user/cars", json={"data": [{
+        "vin": "test-vin", "modelName": "TOWNSTAR",
+        "services": [{"id": "12", "activationState": "ACTIVATED"}]}]})
+    session = NCISession(region="EU")
+    session._install_kamereon_token({
+        "access_token": "kamereon-access-token",
+        "token_type": "Bearer", "expires_in": 1800})
+    return session.fetch_vehicles()[0]
+
+
+def _battery_requests(requests_mock):
+    return [r.path for r in requests_mock.request_history if "battery-status" in r.path]
+
+
+def test_battery_status_is_probed_then_abandoned(requests_mock):
+    """A car whose gateway 500s here must not be asked forever."""
+    vehicle = _ice_vehicle(requests_mock)
+    requests_mock.get(f"{CAR_BASE_URL}v1/cars/TEST-VIN/battery-status",
+                      json=BATTERY_ADAPTER_500, status_code=500)
+
+    for _ in range(10):
+        vehicle.fetch_battery_status()
+
+    assert len(_battery_requests(requests_mock)) == 3
+    assert vehicle._battery_status_supported is False
+
+
+def test_a_transient_error_does_not_abandon_the_endpoint(requests_mock):
+    """An ICE vehicle that does publish its range here must keep it."""
+    vehicle = _ice_vehicle(requests_mock)
+    requests_mock.get(f"{CAR_BASE_URL}v1/cars/TEST-VIN/battery-status", [
+        {"json": BATTERY_ADAPTER_500, "status_code": 500},
+        {"json": BATTERY_ADAPTER_500, "status_code": 500},
+        {"json": {"data": {"attributes": {"rangeHvacOn": 480}}}, "status_code": 200},
+        {"json": BATTERY_ADAPTER_500, "status_code": 500},
+    ])
+
+    for _ in range(4):
+        vehicle.fetch_battery_status()
+
+    assert vehicle.range_hvac_on == 480
+    assert vehicle._battery_status_supported is True
+    assert len(_battery_requests(requests_mock)) == 4
+
+
+def test_an_ev_still_raises_immediately(requests_mock):
+    """With BATTERY_STATUS active an error is a real failure, not a probe."""
+    user_url = (
+        "https://alliance-platform-usersadapter-prod.apps.eu2.kamereon.io/"
+        "user-adapter/v1/users/current"
+    )
+    requests_mock.get(user_url, json={"userId": "test-user"})
+    requests_mock.get(f"{BFF_BASE_URL}v5/users/test-user/cars", json={"data": [{
+        "vin": "test-vin", "modelName": "LEAF",
+        "services": [{"id": "319", "activationState": "ACTIVATED"}]}]})
+    session = NCISession(region="EU")
+    session._install_kamereon_token({
+        "access_token": "kamereon-access-token",
+        "token_type": "Bearer", "expires_in": 1800})
+    vehicle = session.fetch_vehicles()[0]
+    requests_mock.get(f"{CAR_BASE_URL}v1/cars/TEST-VIN/battery-status",
+                      json=BATTERY_ADAPTER_500, status_code=500)
+
+    with pytest.raises(ValueError):
+        vehicle.fetch_battery_status()
+    assert vehicle._battery_status_supported is True

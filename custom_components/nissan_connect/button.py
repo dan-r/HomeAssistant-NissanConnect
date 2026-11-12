@@ -5,7 +5,7 @@ import asyncio
 from homeassistant.components.button import ButtonEntity
 
 from .base import KamereonEntity
-from .kamereon import ChargingStatus, PluggedStatus, Feature
+from .kamereon import Feature
 from .const import DOMAIN, DATA_VEHICLES, DATA_COORDINATOR_POLL, DATA_COORDINATOR_FETCH, DATA_COORDINATOR_STATISTICS
 
 _LOGGER = logging.getLogger(__name__)

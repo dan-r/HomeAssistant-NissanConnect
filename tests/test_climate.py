@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 from homeassistant.components.climate.const import HVACMode, HVACAction as HASSHVACAction
-from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
+from homeassistant.const import ATTR_TEMPERATURE
 from custom_components.nissan_connect.climate import KamereonClimate
 from custom_components.nissan_connect.kamereon.kamereon_const import Feature, HVACAction
 
@@ -52,6 +52,13 @@ def test_hvac_action(climate_entity, mock_vehicle):
     assert climate_entity.hvac_action == HASSHVACAction.HEATING
     mock_vehicle.internal_temperature = 22
     assert climate_entity.hvac_action == HASSHVACAction.COOLING
+    mock_vehicle.hvac_status = False
+    assert climate_entity.hvac_action == HASSHVACAction.OFF
+
+def test_hvac_action_without_interior_temperature(climate_entity, mock_vehicle):
+    mock_vehicle.hvac_status = True
+    mock_vehicle.internal_temperature = None
+    assert climate_entity.hvac_action is None
     mock_vehicle.hvac_status = False
     assert climate_entity.hvac_action == HASSHVACAction.OFF
 

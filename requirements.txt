@@ -1,2 +1,2 @@
 requests
-requests_oauthlib
+requests-oauthlib>=2.0.0,<3

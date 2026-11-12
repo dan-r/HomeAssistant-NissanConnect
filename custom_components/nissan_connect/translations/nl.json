@@ -116,11 +116,23 @@
             "odometer": {
                 "name": "Kilometerstand"
             },
+            "fuel_range": {
+                "name": "Bereik (brandstof)"
+            },
+            "fuel_quantity": {
+                "name": "Brandstofhoeveelheid"
+            },
+            "fuel_level": {
+                "name": "Brandstofniveau"
+            },
             "charge_time_3kw": {
                 "name": "Oplaadtijd (3 kW)"
             },
             "charge_time_6kw": {
                 "name": "Oplaadtijd (6 kW)"
+            },
+            "charge_time_adaptive": {
+                "name": "Oplaadtijd (adaptief)"
             },
             "last_updated": {
                 "name": "Laatst bijgewerkt"

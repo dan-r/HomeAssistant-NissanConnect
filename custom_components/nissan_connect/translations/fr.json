@@ -116,11 +116,23 @@
             "odometer": {
                 "name": "Compteur kilométrique"
             },
+            "fuel_range": {
+                "name": "Autonomie (carburant)"
+            },
+            "fuel_quantity": {
+                "name": "Quantité de carburant"
+            },
+            "fuel_level": {
+                "name": "Niveau de carburant"
+            },
             "charge_time_3kw": {
                 "name": "Temps de charge (3 kW)"
             },
             "charge_time_6kw": {
                 "name": "Temps de charge (6 kW)"
+            },
+            "charge_time_adaptive": {
+                "name": "Temps de charge (adaptatif)"
             },
             "last_updated": {
                 "name": "Dernière mise à jour"

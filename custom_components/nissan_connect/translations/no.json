@@ -116,11 +116,23 @@
         "odometer": {
           "name": "Odometer"
         },
+        "fuel_range": {
+          "name": "Rekkevidde (drivstoff)"
+        },
+        "fuel_quantity": {
+          "name": "Drivstoffmengde"
+        },
+        "fuel_level": {
+          "name": "Drivstoffnivå"
+        },
         "charge_time_3kw": {
           "name": "Ladetid (3kW)"
         },
         "charge_time_6kw": {
           "name": "Ladetid (6kW)"
+        },
+        "charge_time_adaptive": {
+          "name": "Ladetid (adaptiv)"
         },
         "last_updated": {
           "name": "Sist oppdatert"

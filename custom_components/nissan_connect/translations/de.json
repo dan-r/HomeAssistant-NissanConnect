@@ -116,11 +116,23 @@
         "odometer": {
           "name": "Kilometerzähler"
         },
+        "fuel_range": {
+          "name": "Reichweite (Kraftstoff)"
+        },
+        "fuel_quantity": {
+          "name": "Kraftstoffmenge"
+        },
+        "fuel_level": {
+          "name": "Tankfüllstand"
+        },
         "charge_time_3kw": {
           "name": "Ladezeit (bei 3kW)"
         },
         "charge_time_6kw": {
           "name": "Ladezeit (bei 6kW)"
+        },
+        "charge_time_adaptive": {
+          "name": "Ladezeit (adaptiv)"
         },
         "last_updated": {
           "name": "zuletzt aktualisiert"
