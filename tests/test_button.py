@@ -1,5 +1,7 @@
 import pytest
+import requests
 from unittest.mock import AsyncMock, MagicMock
+from homeassistant.exceptions import HomeAssistantError
 from custom_components.nissan_connect.const import DOMAIN, DATA_VEHICLES, DATA_COORDINATOR_POLL, DATA_COORDINATOR_FETCH, DATA_COORDINATOR_STATISTICS
 from custom_components.nissan_connect.kamereon.kamereon_const import Feature
 
@@ -84,3 +86,36 @@ def test_charge_control_buttons():
 
     button.press()
     vehicle.control_charging.assert_called_once_with("start")
+
+
+def test_charge_control_button_reports_request_failures():
+    """Automations need HomeAssistantError so continue_on_error can catch it."""
+    vehicle = MagicMock()
+    vehicle.control_charging.side_effect = requests.ConnectionError(
+        "('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))"
+    )
+    button = ChargeControlButtons(
+        MagicMock(), vehicle, "charge_start", "mdi:play", "start")
+
+    with pytest.raises(HomeAssistantError, match="Unable to start charging"):
+        button.press()
+
+
+def test_horn_button_reports_request_failures():
+    vehicle = MagicMock()
+    vehicle.control_horn_lights.side_effect = requests.ConnectionError("aborted")
+    button = HornLightsButtons(
+        MagicMock(), vehicle, "flash_lights", "mdi:car-light-high", "lights")
+
+    with pytest.raises(HomeAssistantError, match="Unable to flash the lights"):
+        button.press()
+
+
+@pytest.mark.asyncio
+async def test_force_update_button_reports_request_failures():
+    vehicle = MagicMock()
+    vehicle.refresh_fetch.side_effect = requests.Timeout("read timed out")
+    button = ForceUpdateButton(AsyncMock(), vehicle, AsyncMock(), MagicMock())
+
+    with pytest.raises(HomeAssistantError, match="Unable to update vehicle data"):
+        await button.async_press()

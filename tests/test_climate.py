@@ -1,7 +1,9 @@
 import pytest
+import requests
 from unittest.mock import AsyncMock, MagicMock
 from homeassistant.components.climate.const import HVACMode, HVACAction as HASSHVACAction
 from homeassistant.const import ATTR_TEMPERATURE
+from homeassistant.exceptions import HomeAssistantError
 from custom_components.nissan_connect.climate import KamereonClimate
 from custom_components.nissan_connect.kamereon.kamereon_const import Feature, HVACAction
 
@@ -76,3 +78,24 @@ async def test_async_set_hvac_mode(climate_entity, mock_hass, mock_vehicle):
 async def test_async_turn_off(climate_entity):
     await climate_entity.async_turn_off()
     assert climate_entity.hvac_mode == HVACMode.OFF
+
+
+@pytest.mark.asyncio
+async def test_set_hvac_mode_reports_request_failures(climate_entity, mock_hass):
+    """A failed start must not look successful or begin the follow-up fetch."""
+    mock_hass.async_add_executor_job.side_effect = requests.ConnectionError(
+        "('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))"
+    )
+
+    with pytest.raises(HomeAssistantError, match="Unable to start climate control"):
+        await climate_entity.async_set_hvac_mode(HVACMode.HEAT_COOL)
+
+    mock_hass.async_create_task.assert_not_called()
+
+
+def test_set_temperature_reports_request_failures(climate_entity, mock_vehicle):
+    mock_vehicle.hvac_status = True
+    mock_vehicle.set_hvac_status.side_effect = requests.ConnectionError("aborted")
+
+    with pytest.raises(HomeAssistantError, match="Unable to set the climate temperature"):
+        climate_entity.set_temperature(**{ATTR_TEMPERATURE: 21})

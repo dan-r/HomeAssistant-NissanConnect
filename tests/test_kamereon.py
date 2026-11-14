@@ -1,14 +1,26 @@
 import base64
 import hashlib
+import http.client
+import socket
 from urllib.parse import parse_qs, urlparse
 from oauthlib.oauth2 import TokenExpiredError
 from unittest.mock import patch
+from urllib3.exceptions import MaxRetryError, ProtocolError
 
 import pytest
 import requests
 
-from custom_components.nissan_connect.kamereon import Feature, NCISession, NissanAuthError
-from custom_components.nissan_connect.kamereon.kamereon import REQUEST_TIMEOUT
+from custom_components.nissan_connect.kamereon import (
+    Feature,
+    HVACAction,
+    NCISession,
+    NissanAuthError,
+)
+from custom_components.nissan_connect.kamereon.kamereon import (
+    REQUEST_TIMEOUT,
+    TCP_KEEPALIVE_IDLE,
+    _is_pre_response_disconnect,
+)
 
 
 AUTH_BASE_URL = "https://login.mynissan-account.com/"
@@ -491,9 +503,10 @@ def test_get_is_retried_after_a_transport_error(requests_mock):
         {"json": {"data": {"attributes": {"totalMileage": 1000.0}}}},
     ])
 
-    with patch("custom_components.nissan_connect.kamereon.kamereon.time.sleep"):
+    with patch("custom_components.nissan_connect.kamereon.kamereon.time.sleep") as sleep:
         vehicle.fetch_cockpit()
 
+    sleep.assert_called_once_with(1)
     assert vehicle.total_mileage == 1000.0
     assert _cockpit_requests(requests_mock) == [
         "/car-adapter/v1/cars/test-vin/cockpit",
@@ -560,7 +573,7 @@ def _battery_requests(requests_mock):
 def test_battery_status_is_probed_then_abandoned(requests_mock):
     """A car whose gateway 500s here must not be asked forever."""
     vehicle = _ice_vehicle(requests_mock)
-    requests_mock.get(f"{CAR_BASE_URL}v1/cars/TEST-VIN/battery-status",
+    requests_mock.get(f"{CAR_BASE_URL}v2/cars/TEST-VIN/battery-status",
                       json=BATTERY_ADAPTER_500, status_code=500)
 
     for _ in range(10):
@@ -573,10 +586,11 @@ def test_battery_status_is_probed_then_abandoned(requests_mock):
 def test_a_transient_error_does_not_abandon_the_endpoint(requests_mock):
     """An ICE vehicle that does publish its range here must keep it."""
     vehicle = _ice_vehicle(requests_mock)
-    requests_mock.get(f"{CAR_BASE_URL}v1/cars/TEST-VIN/battery-status", [
+    # Townstar battery-status is the v2 endpoint and reports batteryAutonomy.
+    requests_mock.get(f"{CAR_BASE_URL}v2/cars/TEST-VIN/battery-status", [
         {"json": BATTERY_ADAPTER_500, "status_code": 500},
         {"json": BATTERY_ADAPTER_500, "status_code": 500},
-        {"json": {"data": {"attributes": {"rangeHvacOn": 480}}}, "status_code": 200},
+        {"json": {"data": {"attributes": {"batteryAutonomy": 480}}}, "status_code": 200},
         {"json": BATTERY_ADAPTER_500, "status_code": 500},
     ])
 
@@ -609,3 +623,237 @@ def test_an_ev_still_raises_immediately(requests_mock):
     with pytest.raises(ValueError):
         vehicle.fetch_battery_status()
     assert vehicle._battery_status_supported is True
+
+
+def _connection_reset():
+    """The exception requests raises when a keep-alive read dies at the status line."""
+    reset = ConnectionResetError(104, "Connection reset by peer")
+    return requests.ConnectionError(ProtocolError("Connection aborted.", reset))
+
+
+def _remote_disconnected():
+    remote = http.client.RemoteDisconnected(
+        "Remote end closed connection without response")
+    return requests.ConnectionError(ProtocolError("Connection aborted.", remote))
+
+
+def _action_paths(requests_mock, action):
+    return [request.path for request in requests_mock.request_history if action in request.path]
+
+
+class _IdleConnection:
+    def __init__(self):
+        self.closed = False
+
+    def close(self):
+        self.closed = True
+
+
+def _plant_idle_connection(vehicle):
+    adapter = vehicle.session.oauth.get_adapter(CAR_BASE_URL)
+    pool = adapter.poolmanager.connection_from_url(CAR_BASE_URL)
+    pool.pool.get_nowait()
+    conn = _IdleConnection()
+    pool.pool.put(conn)
+    return conn
+
+
+def test_stale_reset_is_recognised_through_urllib3_wrappers():
+    assert _is_pre_response_disconnect(_connection_reset())
+    assert _is_pre_response_disconnect(_remote_disconnected())
+
+    reset = ConnectionResetError(104, "Connection reset by peer")
+    protocol = ProtocolError("Connection aborted.", reset)
+    try:
+        raise MaxRetryError(None, "/cmd", protocol) from protocol
+    except MaxRetryError as err:
+        wrapped = requests.ConnectionError(err)
+    assert _is_pre_response_disconnect(wrapped)
+
+    answered = _connection_reset()
+    answered.response = requests.Response()
+    assert not _is_pre_response_disconnect(answered)
+    assert not _is_pre_response_disconnect(requests.Timeout("read timed out"))
+    assert not _is_pre_response_disconnect(requests.ConnectionError("reset"))
+    assert not _is_pre_response_disconnect(
+        requests.exceptions.ChunkedEncodingError(protocol))
+
+
+def _command_vehicle(requests_mock, feature=None):
+    vehicle = _vehicle(requests_mock)
+    if feature is not None:
+        vehicle.features.append(feature)
+    return vehicle
+
+
+@pytest.mark.parametrize("failure", [_connection_reset, _remote_disconnected])
+def test_charging_is_retried_once_when_the_connection_closes_first(requests_mock, failure):
+    vehicle = _command_vehicle(requests_mock, Feature.CHARGING_START)
+    url = f"{CAR_BASE_URL}v1/cars/TEST-VIN/actions/charging-start"
+    requests_mock.post(url, [
+        {"exc": failure()},
+        {"json": {"data": {"type": "ChargingStart"}}},
+    ])
+
+    with patch("custom_components.nissan_connect.kamereon.kamereon.time.sleep") as sleep:
+        body = vehicle.control_charging("start")
+
+    assert body == {"data": {"type": "ChargingStart"}}
+    assert _action_paths(requests_mock, "charging-start") == [
+        "/car-adapter/v1/cars/test-vin/actions/charging-start",
+        "/car-adapter/v1/cars/test-vin/actions/charging-start",
+    ]
+    sleep.assert_not_called()
+
+
+def test_charging_is_not_sent_a_third_time(requests_mock):
+    vehicle = _command_vehicle(requests_mock, Feature.CHARGING_START)
+    url = f"{CAR_BASE_URL}v1/cars/TEST-VIN/actions/charging-start"
+    requests_mock.post(url, [
+        {"exc": _connection_reset()},
+        {"exc": _connection_reset()},
+    ])
+
+    with patch("custom_components.nissan_connect.kamereon.kamereon.time.sleep"):
+        with pytest.raises(requests.ConnectionError):
+            vehicle.control_charging("start")
+
+    assert len(_action_paths(requests_mock, "charging-start")) == 2
+
+
+@pytest.mark.parametrize("failure", [
+    lambda: requests.Timeout("read timed out"),
+    lambda: requests.ConnectionError("reset"),
+    lambda: requests.exceptions.ChunkedEncodingError(
+        ProtocolError("Connection aborted.", ConnectionResetError(104, "Connection reset by peer"))),
+])
+def test_charging_is_not_resent_once_a_response_or_timeout_happened(requests_mock, failure):
+    vehicle = _command_vehicle(requests_mock, Feature.CHARGING_START)
+    exc = failure()
+    requests_mock.post(
+        f"{CAR_BASE_URL}v1/cars/TEST-VIN/actions/charging-start", exc=exc)
+
+    with patch("custom_components.nissan_connect.kamereon.kamereon.time.sleep") as sleep:
+        with pytest.raises(type(exc)):
+            vehicle.control_charging("start")
+
+    assert len(_action_paths(requests_mock, "charging-start")) == 1
+    sleep.assert_not_called()
+
+
+def test_charging_is_not_resent_when_the_reset_carries_a_response(requests_mock):
+    vehicle = _command_vehicle(requests_mock, Feature.CHARGING_START)
+    err = _connection_reset()
+    err.response = requests.Response()
+    requests_mock.post(
+        f"{CAR_BASE_URL}v1/cars/TEST-VIN/actions/charging-start", exc=err)
+
+    with pytest.raises(requests.ConnectionError):
+        vehicle.control_charging("start")
+
+    assert len(_action_paths(requests_mock, "charging-start")) == 1
+
+
+@pytest.mark.parametrize("action", ["start", "stop"])
+def test_hvac_is_retried_once_after_a_connection_reset(requests_mock, action):
+    vehicle = _command_vehicle(requests_mock, Feature.CLIMATE_ON_OFF)
+    url = f"{CAR_BASE_URL}v1/cars/TEST-VIN/actions/hvac-start"
+    requests_mock.post(url, [
+        {"exc": _connection_reset()},
+        {"json": {"data": {"type": "HvacStart"}}},
+    ])
+    hvac_action = HVACAction.START if action == "start" else HVACAction.STOP
+
+    with patch("custom_components.nissan_connect.kamereon.kamereon.time.sleep") as sleep:
+        vehicle.set_hvac_status(hvac_action)
+
+    assert len(_action_paths(requests_mock, "hvac-start")) == 2
+    sleep.assert_not_called()
+
+
+@pytest.mark.parametrize("method,action,feature", [
+    ("refresh_battery_status", "refresh-battery-status", None),
+    ("refresh_hvac_status", "refresh-hvac-status", None),
+    ("refresh_lock_status", "refresh-lock-status", None),
+    ("refresh_location", "refresh-location", Feature.MY_CAR_FINDER),
+])
+def test_refresh_commands_are_retried_once_after_a_connection_reset(
+        requests_mock, method, action, feature):
+    vehicle = _command_vehicle(requests_mock, feature)
+    requests_mock.post(f"{CAR_BASE_URL}v1/cars/TEST-VIN/actions/{action}", [
+        {"exc": _connection_reset()},
+        {"json": {"data": {"type": "Refresh"}}},
+    ])
+
+    with patch("custom_components.nissan_connect.kamereon.kamereon.time.sleep"):
+        getattr(vehicle, method)()
+
+    assert len(_action_paths(requests_mock, action)) == 2
+
+
+def test_horn_is_not_resent_after_a_connection_reset(requests_mock):
+    vehicle = _command_vehicle(requests_mock, Feature.HORN_AND_LIGHTS)
+    requests_mock.post(
+        f"{CAR_BASE_URL}v1/cars/TEST-VIN/actions/horn-lights",
+        exc=_connection_reset(),
+    )
+
+    with pytest.raises(requests.ConnectionError):
+        vehicle.control_horn_lights("start", "horn_lights")
+
+    assert len(_action_paths(requests_mock, "horn-lights")) == 1
+
+
+def test_lock_is_not_resent_after_a_connection_reset(requests_mock):
+    vehicle = _command_vehicle(requests_mock, Feature.APP_DOOR_LOCKING)
+    # The lock URL is built with a trailing quote. Match that request as sent.
+    requests_mock.post(
+        f'{CAR_BASE_URL}v1/cars/TEST-VIN/actions/lock-unlock"',
+        exc=_connection_reset(),
+    )
+
+    with pytest.raises(requests.ConnectionError):
+        vehicle.lock_unlock("srp", "lock")
+
+    assert len(_action_paths(requests_mock, "lock-unlock")) == 1
+
+
+def test_commands_drop_idle_pooled_connections(requests_mock):
+    vehicle = _command_vehicle(requests_mock, Feature.CHARGING_START)
+    idle = _plant_idle_connection(vehicle)
+    requests_mock.post(
+        f"{CAR_BASE_URL}v1/cars/TEST-VIN/actions/charging-start",
+        json={"data": {"type": "ChargingStart"}},
+    )
+
+    vehicle.control_charging("start")
+
+    assert idle.closed
+    assert len(_action_paths(requests_mock, "charging-start")) == 1
+
+
+def test_reads_keep_idle_pooled_connections(requests_mock):
+    vehicle = _vehicle(requests_mock, model="LEAF")
+    idle = _plant_idle_connection(vehicle)
+    requests_mock.get(
+        f"{CAR_BASE_URL}v1/cars/TEST-VIN/cockpit",
+        json={"data": {"attributes": {"totalMileage": 10}}},
+    )
+
+    vehicle.fetch_cockpit()
+
+    assert idle.closed is False
+
+
+def test_api_session_enables_tcp_keepalive():
+    session = NCISession(region="EU")
+    session._install_kamereon_token({
+        "access_token": "kamereon-access-token",
+        "token_type": "Bearer",
+        "expires_in": 1800,
+    })
+    adapter = session.oauth.get_adapter("https://example.com/")
+    options = adapter.poolmanager.connection_pool_kw["socket_options"]
+    assert (socket.IPPROTO_TCP, socket.TCP_NODELAY, 1) in options
+    assert (socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1) in options
+    assert (socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, TCP_KEEPALIVE_IDLE) in options

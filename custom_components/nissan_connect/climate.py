@@ -10,7 +10,7 @@ from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 
 SUPPORT_HVAC = [HVACMode.HEAT_COOL, HVACMode.OFF]
 
-from .base import KamereonEntity
+from .base import CAR_COMMAND_ERRORS, KamereonEntity, car_command_error
 from .kamereon import Feature, HVACAction
 from .const import DOMAIN, DATA_VEHICLES, DATA_COORDINATOR_FETCH
 
@@ -86,7 +86,10 @@ class KamereonClimate(KamereonEntity, ClimateEntity):
         
         if self.vehicle.hvac_status:
             self._target = temperature
-            self.vehicle.set_hvac_status(HVACAction.START, temperature)
+            try:
+                self.vehicle.set_hvac_status(HVACAction.START, temperature)
+            except CAR_COMMAND_ERRORS as err:
+                raise car_command_error("set the climate temperature", err) from err
         else:
             self._target = temperature
 
@@ -95,11 +98,21 @@ class KamereonClimate(KamereonEntity, ClimateEntity):
         if Feature.CLIMATE_ON_OFF not in self.vehicle.features:
             raise NotImplementedError()
 
+        try:
+            if hvac_mode == HVACMode.OFF:
+                await self._hass.async_add_executor_job(self.vehicle.set_hvac_status, HVACAction.STOP)
+            elif hvac_mode == HVACMode.HEAT_COOL:
+                await self._hass.async_add_executor_job(
+                    self.vehicle.set_hvac_status, HVACAction.START, int(self._target))
+            else:
+                return
+        except CAR_COMMAND_ERRORS as err:
+            action = "stop" if hvac_mode == HVACMode.OFF else "start"
+            raise car_command_error(f"{action} climate control", err) from err
+
         if hvac_mode == HVACMode.OFF:
-            await self._hass.async_add_executor_job(self.vehicle.set_hvac_status, HVACAction.STOP)
             self._hass.async_create_task(self._async_fetch_loop(False))
         elif hvac_mode == HVACMode.HEAT_COOL:
-            await self._hass.async_add_executor_job(self.vehicle.set_hvac_status, HVACAction.START, int(self._target))
             self._hass.async_create_task(self._async_fetch_loop(True))
 
     async def async_turn_off(self) -> None:
