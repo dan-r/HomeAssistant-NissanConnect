@@ -4,7 +4,7 @@ import asyncio
 
 from homeassistant.components.button import ButtonEntity
 
-from .base import KamereonEntity
+from .base import CAR_COMMAND_ERRORS, KamereonEntity, car_command_error
 from .kamereon import Feature
 from .const import DOMAIN, DATA_VEHICLES, DATA_COORDINATOR_POLL, DATA_COORDINATOR_FETCH, DATA_COORDINATOR_STATISTICS
 
@@ -49,8 +49,11 @@ class ForceUpdateButton(KamereonEntity, ButtonEntity):
 
     async def async_press(self):
         loop = asyncio.get_running_loop()
-        
-        updated = await loop.run_in_executor(None, self.vehicle.refresh_fetch)
+
+        try:
+            updated = await loop.run_in_executor(None, self.vehicle.refresh_fetch)
+        except CAR_COMMAND_ERRORS as err:
+            raise car_command_error("update vehicle data", err) from err
         if updated:
             self.coordinator.async_set_updated_data(True)
 
@@ -66,7 +69,15 @@ class HornLightsButtons(KamereonEntity, ButtonEntity):
         return self._icon
 
     def press(self):
-        self.vehicle.control_horn_lights('start', self._action)
+        description = {
+            "lights": "flash the lights",
+            "horn": "sound the horn",
+            "horn_lights": "sound the horn and flash the lights",
+        }.get(self._action, "use the horn or lights")
+        try:
+            self.vehicle.control_horn_lights('start', self._action)
+        except CAR_COMMAND_ERRORS as err:
+            raise car_command_error(description, err) from err
 
 class ChargeControlButtons(KamereonEntity, ButtonEntity):
     def __init__(self, coordinator, vehicle, translation_key, icon, action):
@@ -80,5 +91,8 @@ class ChargeControlButtons(KamereonEntity, ButtonEntity):
         return self._icon
 
     def press(self):
-        self.vehicle.control_charging(self._action)
+        try:
+            self.vehicle.control_charging(self._action)
+        except CAR_COMMAND_ERRORS as err:
+            raise car_command_error(f"{self._action} charging", err) from err
 

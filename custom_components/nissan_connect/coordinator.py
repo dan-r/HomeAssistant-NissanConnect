@@ -30,8 +30,9 @@ class KamereonFetchCoordinator(DataUpdateCoordinator):
                 await self._hass.async_add_executor_job(self._vehicles[vehicle].fetch_all)
         except NissanAuthError as error:
             raise ConfigEntryAuthFailed("Nissan authentication failed") from error
-        except BaseException:
-            _LOGGER.warning("Error communicating with API")
+        except BaseException as err:
+            _LOGGER.warning(
+                "Error communicating with API: %s: %s", type(err).__name__, err)
             return False
         
         # Set interval for polling (the other coordinator)
@@ -131,8 +132,9 @@ class KamereonPollCoordinator(DataUpdateCoordinator):
                     _LOGGER.debug("NOT polling #%s. %d mins have elapsed (interval %d)", vehicle[-3:], time_since_updated, self._intervals[vehicle])                   
         except NissanAuthError as error:
             raise ConfigEntryAuthFailed("Nissan authentication failed") from error
-        except BaseException:
-            _LOGGER.warning("Error communicating with API")
+        except BaseException as err:
+            _LOGGER.warning(
+                "Error communicating with API: %s: %s", type(err).__name__, err)
             return False
         
         self._hass.async_create_task(self._hass.data[DOMAIN][self._account_id][DATA_COORDINATOR_FETCH].async_refresh())
@@ -166,7 +168,9 @@ class StatisticsCoordinator(DataUpdateCoordinator):
                 }
         except NissanAuthError as error:
             raise ConfigEntryAuthFailed("Nissan authentication failed") from error
-        except BaseException:
-            _LOGGER.warning("Error communicating with statistics API")
+        except BaseException as err:
+            _LOGGER.warning(
+                "Error communicating with statistics API: %s: %s",
+                type(err).__name__, err)
         
         return output
