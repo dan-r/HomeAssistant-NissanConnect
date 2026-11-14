@@ -2,6 +2,7 @@ from datetime import timedelta
 from unittest.mock import MagicMock
 
 import pytest
+import requests
 from homeassistant import config_entries
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -18,6 +19,7 @@ from custom_components.nissan_connect.const import (
 from custom_components.nissan_connect.coordinator import (
     KamereonFetchCoordinator,
     KamereonPollCoordinator,
+    StatisticsCoordinator,
 )
 from custom_components.nissan_connect.kamereon import (
     ChargingStatus,
@@ -55,7 +57,7 @@ async def test_transient_failure_is_swallowed(coordinator, caplog):
     vehicle.fetch_all.side_effect = RuntimeError("Connection reset")
 
     assert await fetch_coordinator._async_update_data() is False
-    assert "Error communicating with API" in caplog.text
+    assert "Error communicating with API: RuntimeError: Connection reset" in caplog.text
 
 
 async def test_auth_failure_actually_starts_a_reauth_flow(hass):
@@ -218,3 +220,36 @@ async def test_updated_options_change_the_poll_interval(hass, poll_coordinator):
         30 * 60, abs=2)
 
     coordinator._async_unsub_refresh()
+
+
+async def test_poll_failure_logs_the_exception(poll_coordinator, caplog):
+    """The poll path posts refresh commands; the warning must name the error."""
+    coordinator = poll_coordinator({"interval": 15})
+    coordinator._intervals["test-vin"] = 15
+    coordinator._force_update["test-vin"] = True
+    coordinator._vehicles["test-vin"].refresh.side_effect = requests.ConnectionError(
+        "('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))"
+    )
+
+    try:
+        assert await coordinator._async_update_data() is False
+        assert (
+            "Error communicating with API: ConnectionError: "
+            "('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))"
+            in caplog.text
+        )
+    finally:
+        coordinator._async_unsub_refresh()
+
+
+async def test_statistics_failure_logs_the_exception(hass, caplog):
+    vehicle = MagicMock()
+    vehicle.features = [Feature.DRIVING_JOURNEY_HISTORY]
+    vehicle.fetch_trip_histories.side_effect = RuntimeError("timed out")
+    hass.data[DOMAIN] = {
+        "test@example.com": {DATA_VEHICLES: {"test-vin": vehicle}},
+    }
+    coordinator = StatisticsCoordinator(hass, {"email": "test@example.com"})
+
+    assert await coordinator._async_update_data() == {}
+    assert "Error communicating with statistics API: RuntimeError: timed out" in caplog.text

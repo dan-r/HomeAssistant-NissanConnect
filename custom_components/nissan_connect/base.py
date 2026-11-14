@@ -1,6 +1,17 @@
+import requests
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity import Entity, DeviceInfo
 from homeassistant.core import callback
 from .const import DOMAIN
+
+# Request failures and the API's ``{"errors": ...}`` bodies. Auth failures
+# and programming errors are not included: those should still surface as-is.
+CAR_COMMAND_ERRORS = (requests.RequestException, ValueError)
+
+
+def car_command_error(action, err):
+    """An action failure automations can handle with continue_on_error."""
+    return HomeAssistantError(f"Unable to {action}: {err}")
 
 class KamereonEntity(Entity):
     """Base class for all Kamereon car entities."""

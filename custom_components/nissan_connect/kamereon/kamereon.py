@@ -8,14 +8,18 @@ import hashlib
 from html.parser import HTMLParser
 import json
 import logging
+import queue
 import secrets
+import socket
 import threading
 from typing import List
 from urllib.parse import parse_qs, urljoin, urlparse
 import requests
 import time
 from oauthlib.oauth2 import TokenExpiredError
+from requests.adapters import HTTPAdapter
 from requests_oauthlib import OAuth2Session
+from urllib3.connection import HTTPConnection
 from .kamereon_const import *
 
 _LOGGER = logging.getLogger(__name__)
@@ -26,6 +30,14 @@ _LOGGER = logging.getLogger(__name__)
 COCKPIT_VERSIONS = ('v1', 'v2')
 
 REQUEST_TIMEOUT = 30
+
+# Kernel default keep-alive is usually two hours. The NATs and load
+# balancers in front of Kamereon forget an idle TCP connection long before
+# that, and the socket still looks open until the next write. Probe early
+# enough that a dead connection is visible before the next command.
+TCP_KEEPALIVE_IDLE = 20
+TCP_KEEPALIVE_INTERVAL = 10
+TCP_KEEPALIVE_COUNT = 3
 
 # How many consecutive errored battery-status responses to tolerate from a
 # vehicle that does not advertise BATTERY_STATUS before giving up on the
@@ -44,6 +56,94 @@ _registry = {
 
 NotificationType = collections.namedtuple('NotificationType', ['key', 'title', 'message', 'category'])
 NotificationCategory = collections.namedtuple('Category', ['key', 'title'])
+
+
+def _keepalive_socket_options():
+    """Default urllib3 options plus TCP keep-alive.
+
+    ``is_connection_dropped`` only notices a socket the peer has already
+    written to. A middlebox that silently forgets the flow leaves the
+    socket looking open, and the next request dies while reading the
+    status line. Probes turn that into a visible reset first.
+    """
+    options = list(HTTPConnection.default_socket_options)
+    options.append((socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1))
+    if hasattr(socket, "TCP_KEEPIDLE"):
+        options.append((socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, TCP_KEEPALIVE_IDLE))
+    elif hasattr(socket, "TCP_KEEPALIVE"):
+        # macOS uses TCP_KEEPALIVE for the idle time.
+        options.append((socket.IPPROTO_TCP, socket.TCP_KEEPALIVE, TCP_KEEPALIVE_IDLE))
+    if hasattr(socket, "TCP_KEEPINTVL"):
+        options.append((socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, TCP_KEEPALIVE_INTERVAL))
+    if hasattr(socket, "TCP_KEEPCNT"):
+        options.append((socket.IPPROTO_TCP, socket.TCP_KEEPCNT, TCP_KEEPALIVE_COUNT))
+    return options
+
+
+class _TCPKeepAliveAdapter(HTTPAdapter):
+    def init_poolmanager(self, connections, maxsize, block=False, **pool_kwargs):
+        pool_kwargs["socket_options"] = _keepalive_socket_options()
+        super().init_poolmanager(connections, maxsize, block=block, **pool_kwargs)
+
+
+def _new_http_session():
+    session = requests.session()
+    _enable_tcp_keepalive(session)
+    return session
+
+
+def _enable_tcp_keepalive(session):
+    adapter = _TCPKeepAliveAdapter()
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+
+
+def _exception_chain(exc):
+    """Yield an exception and everything nested inside it.
+
+    requests wraps urllib3's ProtocolError, and that in turn wraps the
+    socket error as an argument rather than as ``__cause__``. MaxRetryError
+    keeps the same object on ``reason``.
+    """
+    stack = [exc]
+    seen = set()
+    while stack:
+        current = stack.pop()
+        if current is None or id(current) in seen:
+            continue
+        if isinstance(current, tuple):
+            stack.extend(current)
+            continue
+        if not isinstance(current, BaseException):
+            continue
+        seen.add(id(current))
+        yield current
+        stack.append(current.__cause__)
+        stack.append(current.__context__)
+        stack.extend(current.args)
+        reason = getattr(current, "reason", None)
+        if reason is not None and reason is not current:
+            stack.append(reason)
+
+
+def _is_pre_response_disconnect(exc):
+    """True when the peer reset the socket before sending a status line.
+
+    That is the stale keep-alive failure: ``Connection aborted`` /
+    ``Connection reset by peer``, or ``RemoteDisconnected`` ("closed
+    connection without response"). A timeout, or any error that already
+    carries a response, may mean the command was delivered.
+    """
+    if not isinstance(exc, requests.ConnectionError):
+        return False
+    # ConnectTimeout is a ConnectionError as well as a Timeout.
+    if isinstance(exc, requests.Timeout):
+        return False
+    if getattr(exc, "response", None) is not None:
+        return False
+    # RemoteDisconnected is a ConnectionResetError. Both are raised from
+    # http.client while reading the status line, before a response exists.
+    return any(isinstance(item, ConnectionResetError) for item in _exception_chain(exc))
 
 
 class _LoginFormParser(HTMLParser):
@@ -147,7 +247,7 @@ class KamereonSession:
 
     def __init__(self, region, unique_id=None):
         self.settings = SETTINGS_MAP[self.tenant][region]
-        self.session = requests.session()
+        self.session = _new_http_session()
         self._oauth = None
         self._user_id = None
         self._kamereon_refresh_token = None
@@ -355,6 +455,7 @@ class KamereonSession:
             client_id=self.settings['client_id'],
             token=oauth_token,
         )
+        _enable_tcp_keepalive(self._oauth)
 
     def _refresh_kamereon_token(self):
         if not self._kamereon_refresh_token:
@@ -391,7 +492,7 @@ class KamereonSession:
         except AttributeError as error:
             raise RuntimeError("Credentials are required") from error
 
-        self.session = requests.session()
+        self.session = _new_http_session()
         code, verifier = self._authorization_code(username, password)
         wso2_token = self._exchange_wso2_token(code, verifier)
         self._install_kamereon_token(
@@ -491,6 +592,10 @@ class Vehicle:
         self.first_registration_date = data.get('firstRegistrationDate')
         self.ice_or_ev = data.get('iceEvFlag')
         self.model_name = data.get('modelName')
+        # The comma makes this a tuple. Without it the test is the string
+        # "TOWNSTAR", and a car with no model name cannot be constructed.
+        if self.model_name in ("TOWNSTAR",):
+            self.features.append(Feature.INTERIOR_TEMP_SETTINGS)
         self.model_code = data.get('modelCode')
         self.model_year = data.get('modelYear')
         self.nickname = data.get('nickname')
@@ -546,29 +651,108 @@ class Vehicle:
         self.mileage = None
         self.total_mileage = None
 
-    def _request(self, method, url, headers=None, params=None, data=None, max_retries=3):
-        for attempt in range(max_retries):
+    def _discard_idle_connections(self):
+        """Close keep-alive sockets sitting idle in the API session.
+
+        A command then opens a new connection instead of writing the POST
+        onto a socket the server or a middlebox may already have dropped.
+        Connections checked out by an in-flight request are not in the
+        queue and are left alone. ``None`` placeholders that urllib3 uses
+        to size the pool are put back.
+        """
+        oauth = getattr(self.session, "oauth", None)
+        adapters = getattr(oauth, "adapters", None)
+        if not adapters:
+            return
+        seen = set()
+        for adapter in list(adapters.values()):
+            if adapter is None or id(adapter) in seen:
+                continue
+            seen.add(id(adapter))
+            manager = getattr(adapter, "poolmanager", None)
+            pools = getattr(manager, "pools", None)
+            container = getattr(pools, "_container", None)
+            lock = getattr(pools, "lock", None)
+            if container is None or lock is None:
+                continue
+            with lock:
+                live_pools = list(container.values())
+            for pool in live_pools:
+                connection_queue = getattr(pool, "pool", None)
+                if connection_queue is None:
+                    continue
+                idle = []
+                try:
+                    while True:
+                        idle.append(connection_queue.get_nowait())
+                except queue.Empty:
+                    pass
+                for conn in idle:
+                    if conn is None:
+                        self._restore_pool_slot(connection_queue)
+                        continue
+                    try:
+                        conn.close()
+                    except Exception:
+                        _LOGGER.debug(
+                            "Ignoring failure while closing an idle connection",
+                            exc_info=True,
+                        )
+                    self._restore_pool_slot(connection_queue)
+
+    @staticmethod
+    def _restore_pool_slot(connection_queue):
+        try:
+            connection_queue.put_nowait(None)
+        except queue.Full:
+            pass
+
+    def _request(self, method, url, headers=None, params=None, data=None,
+                 max_retries=3, retry_stale_connection=False):
+        # Only transport errors are worth another go. Anything else - bad
+        # credentials, a 401 that survived a fresh login - would fail the
+        # same way again, and each retry costs a full login.
+        attempt = 0
+        stale_retry_available = retry_stale_connection
+        while True:
             try:
                 return self.session.request(
                     method, url, headers=headers, params=params, data=data)
-            except requests.RequestException as e:
-                # Only transport errors are worth another go. Anything else -
-                # bad credentials, a 401 that survived a fresh login - would
-                # fail the same way again, and each retry costs a full login.
-                _LOGGER.debug(f"Request failed on attempt {attempt + 1} of {max_retries}: {e}")
-                if attempt == max_retries - 1:  # Exhausted retries
+            except requests.RequestException as error:
+                attempt += 1
+                _LOGGER.debug(
+                    "Request failed on attempt %s of %s: %s",
+                    attempt, max_retries, error,
+                )
+                # One extra attempt, and only when no bytes of a response
+                # came back. A timeout can mean the car already has the
+                # command, so that still stops here.
+                if stale_retry_available and _is_pre_response_disconnect(error):
+                    stale_retry_available = False
+                    _LOGGER.debug(
+                        "Connection closed before a response; retrying %s once",
+                        method,
+                    )
+                    self._discard_idle_connections()
+                    continue
+                if attempt >= max_retries:
                     raise
-                time.sleep(2 ** attempt)  # Exponential backoff on retry
-
-        raise RuntimeError("Max retries reached, but the request could not be completed.")
+                time.sleep(2 ** (attempt - 1))
 
     def _get(self, url, headers=None, params=None):
         return self._request('GET', url, headers=headers, params=params)
 
-    def _post(self, url, data=None, headers=None):
-        # POSTs act on the car (horn, climate, charging, wake-ups). A timeout
-        # does not mean the command was not delivered, so never resend it.
-        return self._request('POST', url, headers=headers, data=data, max_retries=1)
+    def _post(self, url, data=None, headers=None, retry_stale_connection=False):
+        # POSTs act on the car. A timeout does not mean the command was not
+        # delivered, so never resend it. ``retry_stale_connection`` is only
+        # for commands that are safe to repeat (charging, climate, refresh):
+        # a reset before any response is a dead keep-alive socket, not a
+        # command the car has acted on. Horn, lights and lock stay single-shot.
+        self._discard_idle_connections()
+        return self._request(
+            'POST', url, headers=headers, data=data, max_retries=1,
+            retry_stale_connection=retry_stale_connection,
+        )
 
     def refresh(self):
         self.refresh_location()
@@ -641,7 +825,8 @@ class Vehicle:
             data=json.dumps({
                 'data': {'type': 'RefreshLocation'}
             }),
-            headers={'Content-Type': 'application/vnd.api+json'}
+            headers={'Content-Type': 'application/vnd.api+json'},
+            retry_stale_connection=True,
         )
         body = resp.json()
         if 'errors' in body:
@@ -669,7 +854,8 @@ class Vehicle:
             data=json.dumps({
                 'data': {'type': 'RefreshLockStatus'}
             }),
-            headers={'Content-Type': 'application/vnd.api+json'}
+            headers={'Content-Type': 'application/vnd.api+json'},
+            retry_stale_connection=True,
         )
         body = resp.json()
         if 'errors' in body:
@@ -701,7 +887,8 @@ class Vehicle:
             data=json.dumps({
                 'data': {'type': 'RefreshHvacStatus'}
             }),
-            headers={'Content-Type': 'application/vnd.api+json'}
+            headers={'Content-Type': 'application/vnd.api+json'},
+            retry_stale_connection=True,
         )
         body = resp.json()
         if 'errors' in body:
@@ -785,7 +972,8 @@ class Vehicle:
                     'attributes': attributes
                 }
             }),
-            headers={'Content-Type': 'application/vnd.api+json'}
+            headers={'Content-Type': 'application/vnd.api+json'},
+            retry_stale_connection=True,
         )
         body = resp.json()
         if 'errors' in body:
@@ -844,7 +1032,8 @@ class Vehicle:
                     'attributes': attributes
                 }
             }),
-            headers={'Content-Type': 'application/vnd.api+json'}
+            headers={'Content-Type': 'application/vnd.api+json'},
+            retry_stale_connection=True,
         )
         body = resp.json()
         if 'errors' in body:
@@ -914,7 +1103,8 @@ class Vehicle:
             data=json.dumps({
                 'data': {'type': 'RefreshBatteryStatus'}
             }),
-            headers={'Content-Type': 'application/vnd.api+json'}
+            headers={'Content-Type': 'application/vnd.api+json'},
+            retry_stale_connection=True,
         )
         body = resp.json()
         if 'errors' in body:
@@ -942,6 +1132,8 @@ class Vehicle:
         model = (self.model_name or "").upper()
         if model == "MICRA" or model == "ARIYA":
             self.fetch_battery_status_ariya()
+        elif model == "TOWNSTAR":
+            self.fetch_battery_status_townstar()
         else:
             self.fetch_battery_status_leaf()
 
@@ -960,6 +1152,7 @@ class Vehicle:
             return
 
         if not 'data' in body or not 'attributes' in body['data']:
+            self.battery_supported = False
             return
 
         self._battery_status_errors = 0
@@ -993,6 +1186,81 @@ class Vehicle:
             self.plugged_in_time = datetime.datetime.fromisoformat(battery_data['vehiclePlugTimestamp'].replace('Z','+00:00'))
         if 'vehicleUnplugTimestamp' in battery_data:
             self.unplugged_time = datetime.datetime.fromisoformat(battery_data['vehicleUnplugTimestamp'].replace('Z','+00:00'))
+
+    def fetch_battery_status_townstar(self):
+        resp = self._get(
+            '{}v2/cars/{}/battery-status'.format(self.session.settings['car_adapter_base_url'], self.vin),
+            headers={'Content-Type': 'application/vnd.api+json'}
+        )
+        body = resp.json()
+        _LOGGER.debug("Townstar battery-status response received for vin=%s: keys=%s", self.vin, list(body.keys()))
+        if 'errors' in body:
+            if Feature.BATTERY_STATUS in self.features:
+                raise ValueError(body['errors'])
+            self._note_battery_status_error(body['errors'])
+            return
+
+        if not 'data' in body or not 'attributes' in body['data']:
+            _LOGGER.debug("Townstar battery-status missing data/attributes for vin=%s: %s", self.vin, body)
+            self.battery_supported = False
+            return
+
+        self._battery_status_errors = 0
+        battery_data = body['data']['attributes']
+        _LOGGER.debug("Townstar battery attributes for vin=%s: %s", self.vin, battery_data)
+        
+        self.range_hvac_off = None
+        if 'batteryAutonomy' in battery_data:
+            self.range_hvac_on = battery_data.get('batteryAutonomy')
+        if 'stateOfCharge' in battery_data or 'batteryLevel' in battery_data:
+            battery_level = battery_data.get('batteryLevel')
+            if battery_level is None:
+                battery_level = battery_data.get('stateOfCharge')
+            if battery_level is not None:
+                self.battery_level = battery_level
+        if 'totalMileage' in battery_data or 'mileage' in battery_data:
+            total_mileage = battery_data.get('totalMileage')
+            if total_mileage is None:
+                total_mileage = battery_data.get('mileage')
+            if total_mileage is not None:
+                self.total_mileage = total_mileage
+        self.mileage = self.total_mileage
+
+        self.charging_speed = ChargingSpeed(None)
+        if 'chargingRemainingTime' in battery_data:
+            self.charge_time_required_to_full = {
+                ChargingSpeed.FAST: None,
+                ChargingSpeed.NORMAL: None,
+                ChargingSpeed.SLOW: None,
+                ChargingSpeed.ADAPTIVE: battery_data.get('chargingRemainingTime')
+            }
+
+        if 'chargingStatus' in battery_data:
+            charging_status = battery_data.get('chargingStatus')
+            if isinstance(charging_status, (int, float)):
+                # Townstar can return fractional charging progress/status (e.g. 0.4)
+                self.charging = ChargingStatus.CHARGING if charging_status > 0 else ChargingStatus.NOT_CHARGING
+            else:
+                self.charging = ChargingStatus(charging_status)
+
+        if 'plugStatus' in battery_data:
+            self.plugged_in = PluggedStatus(battery_data.get('plugStatus', 0))
+            if self.plugged_in == PluggedStatus.NOT_PLUGGED:
+                self.charging = ChargingStatus.NOT_CHARGING
+                
+        if 'timestamp' in battery_data:
+            self.battery_status_last_updated = datetime.datetime.fromisoformat(battery_data['timestamp'].replace('Z','+00:00'))
+
+        _LOGGER.debug(
+            "Townstar battery parsed for vin=%s: level=%s autonomy=%s plugged_in=%s charging=%s remaining=%s timestamp=%s",
+            self.vin,
+            self.battery_level,
+            self.range_hvac_on,
+            self.plugged_in,
+            self.charging,
+            self.charge_time_required_to_full.get(ChargingSpeed.ADAPTIVE),
+            self.battery_status_last_updated
+        )
 
     def fetch_battery_status_ariya(self):
         """Fetch battery data from Nissan's newer v3 battery-status API.
@@ -1035,6 +1303,9 @@ class Vehicle:
             or battery_data.get('rangeHvacOn')
             or self.range_hvac_on
         )
+        self.battery_level = battery_data.get('batteryLevel') or battery_data.get('stateOfCharge') or self.battery_level
+        self.total_mileage = battery_data.get('totalMileage') or battery_data.get('mileage') or self.total_mileage
+        self.mileage = self.total_mileage
 
         self.charging_speed = ChargingSpeed(None)
         self.charge_time_required_to_full = {
