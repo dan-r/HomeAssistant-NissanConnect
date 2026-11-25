@@ -1,5 +1,8 @@
+import importlib
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
+import homeassistant.components.climate as climate_platform
+from custom_components.nissan_connect import climate
 from homeassistant.components.climate.const import HVACMode, HVACAction as HASSHVACAction
 from homeassistant.const import ATTR_TEMPERATURE
 from custom_components.nissan_connect.climate import KamereonClimate
@@ -36,14 +39,35 @@ def test_hvac_mode(climate_entity, mock_vehicle):
 
 def test_current_temperature(climate_entity, mock_vehicle):
     mock_vehicle.internal_temperature = 22
-    assert climate_entity.current_temperature == 22
+    assert climate_entity.native_current_temperature == 22
     mock_vehicle.internal_temperature = None
-    assert climate_entity.current_temperature is None
+    assert climate_entity.native_current_temperature is None
 
 def test_target_temperature(climate_entity):
-    assert climate_entity.target_temperature == 20
+    assert climate_entity.native_target_temperature == 20
     climate_entity.set_temperature(**{ATTR_TEMPERATURE: 25})
-    assert climate_entity.target_temperature == 25
+    assert climate_entity.native_target_temperature == 25
+
+def test_temperature_api_does_not_warn_on_import(caplog):
+    with caplog.at_level('WARNING'):
+        importlib.reload(climate)
+    assert not any('deprecated' in record.message for record in caplog.records)
+
+def test_legacy_temperature_api(mock_coordinator, mock_vehicle, mock_hass):
+    class LegacyClimate:
+        """Climate interface before the native temperature properties existed."""
+
+    try:
+        with patch.object(climate_platform, 'ClimateEntity', LegacyClimate):
+            module = importlib.reload(climate)
+            entity = module.KamereonClimate(mock_coordinator, mock_vehicle, mock_hass)
+            assert entity._attr_temperature_unit == '°C'
+            assert entity.current_temperature == 22
+            assert entity.target_temperature == 20
+            entity.set_temperature(**{ATTR_TEMPERATURE: 25})
+            assert entity.target_temperature == 25
+    finally:
+        importlib.reload(climate)
 
 def test_hvac_action(climate_entity, mock_vehicle):
     mock_vehicle.hvac_status = True
