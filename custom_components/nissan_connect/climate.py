@@ -8,6 +8,7 @@ from homeassistant.components.climate import ClimateEntity
 from homeassistant.components.climate.const import (HVACMode, ClimateEntityFeature)
 from homeassistant.components.climate.const import HVACAction as HASSHVACAction
 from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
+from homeassistant.exceptions import ServiceValidationError
 
 SUPPORT_HVAC = [HVACMode.HEAT_COOL, HVACMode.OFF]
 
@@ -34,7 +35,7 @@ class KamereonClimate(KamereonEntity, ClimateEntity):
     _attr_supported_features = ClimateEntityFeature.TARGET_TEMPERATURE | ClimateEntityFeature.TURN_OFF | ClimateEntityFeature.TURN_ON
     _enable_turn_on_off_backwards_compatibility = False
     _attr_hvac_modes = SUPPORT_HVAC
-    _attr_temperature_unit = UnitOfTemperature.CELSIUS
+    _attr_native_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_translation_key = "climate"
     _attr_min_temp = 16
     _attr_max_temp = 26
@@ -53,16 +54,21 @@ class KamereonClimate(KamereonEntity, ClimateEntity):
         return HVACMode.OFF
 
     @property
-    def current_temperature(self):
+    def native_current_temperature(self):
         """Return the current temperature."""
         if self.vehicle.internal_temperature is not None:
             return float(self.vehicle.internal_temperature)
         return None
 
     @property
-    def target_temperature(self):
+    def native_target_temperature(self):
         """Return the temperature we try to reach."""
         return float(self._target)
+
+    if not hasattr(ClimateEntity, "native_temperature_unit"):
+        _attr_temperature_unit = _attr_native_temperature_unit
+        current_temperature = native_current_temperature
+        target_temperature = native_target_temperature
     
     @property
     def extra_state_attributes(self):
@@ -84,14 +90,13 @@ class KamereonClimate(KamereonEntity, ClimateEntity):
 
     def set_temperature(self, **kwargs):
         """Set new target temperatures."""
-        if Feature.TEMPERATURE not in self.vehicle.features:
-            raise NotImplementedError()
-
         temperature = kwargs.get(ATTR_TEMPERATURE)
         if not temperature:
             return
         
         if self.vehicle.hvac_status:
+            if Feature.TEMPERATURE not in self.vehicle.features:
+                raise ServiceValidationError("This vehicle cannot change the temperature while the climate is on. Turn it off and on again.")
             self._target = temperature
             self.vehicle.set_hvac_status(HVACAction.START, temperature)
         else:
