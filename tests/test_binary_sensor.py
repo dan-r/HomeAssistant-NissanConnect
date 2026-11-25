@@ -11,6 +11,8 @@ from custom_components.nissan_connect.binary_sensor import (
 @pytest.fixture
 def vehicle():
     class Vehicle:
+        is_ze2_leaf = False
+
         def __init__(self):
             self.charging = None
             self.charging_speed = None

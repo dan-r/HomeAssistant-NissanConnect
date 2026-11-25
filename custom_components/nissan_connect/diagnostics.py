@@ -15,6 +15,7 @@ TO_REDACT = {
     "nickname",
     "registration_number",
     "location",
+    "climate_timers",
     "picture_url",
 }
 

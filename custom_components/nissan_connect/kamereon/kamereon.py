@@ -541,6 +541,12 @@ class Vehicle:
         self.external_temperature = None
         self.internal_temperature = None
         self.hvac_status = None
+        self.hvac_equipment = {}
+        self.repeat_climate_settings = {}
+        self.climate_timers = {}
+        self.security_status = {}
+        self.warning_lamps = {}
+        self.tyre_readings = {}
         self.next_hvac_start_date = None
         self.next_target_temperature = None
         self.hvac_status_last_updated = None
@@ -626,7 +632,8 @@ class Vehicle:
         # is optional: a car with its privacy mode on answers 403 for the
         # location, and that must not stop the other data from loading.
         for fetch in (self.fetch_cockpit, self.fetch_location,
-                      self.fetch_hvac_status, self.fetch_lock_status):
+                      self.fetch_hvac_status, self.fetch_lock_status, self.fetch_climate_timers,
+                      self.fetch_health_status, self.fetch_tyre_pressure):
             try:
                 fetch()
             except NissanAuthError:
@@ -679,7 +686,7 @@ class Vehicle:
         return body
 
     def fetch_location(self):
-        if Feature.MY_CAR_FINDER not in self.features:
+        if Feature.MY_CAR_FINDER not in self.features and not self.is_ze2_leaf:
             return
         
         resp = self._get(
@@ -707,8 +714,11 @@ class Vehicle:
         return body
 
     def fetch_lock_status(self):
-        if Feature.LOCK_STATUS_CHECK not in self.features:
+        if Feature.LOCK_STATUS_CHECK not in self.features and not self.is_ze2_leaf:
             return
+        if self.is_ze2_leaf:
+            self.security_status = {}
+            self.lock_status = None
         resp = self._get(
             '{}v1/cars/{}/lock-status'.format(self.session.settings['car_adapter_base_url'], self.vin),
             headers={'Content-Type': 'application/vnd.api+json'}
@@ -717,6 +727,12 @@ class Vehicle:
         if 'errors' in body:
             raise ValueError(body['errors'])
         lock_data = body['data']['attributes']
+        if self.is_ze2_leaf:
+            self.security_status = lock_data
+            state = lock_data.get('lockStatus')
+            self.lock_status = LockStatus(state) if state in ('locked', 'unlocked') else None
+            self.lock_status_last_updated = datetime.datetime.fromisoformat(lock_data['lastUpdateTime'].replace('Z','+00:00'))
+            return
         self.door_status[Door.FRONT_LEFT] = LockStatus(lock_data.get('doorStatusFrontLeft', LockStatus.CLOSED))
         self.door_status[Door.FRONT_RIGHT] = LockStatus(lock_data.get('doorStatusFrontRight', LockStatus.CLOSED))
         self.door_status[Door.REAR_LEFT] = LockStatus(lock_data.get('doorStatusRearLeft', LockStatus.CLOSED))
@@ -912,12 +928,50 @@ class Vehicle:
     def unlock(self, srp: str, group: LockableDoorGroup=None):
         return self.lock_unlock(srp, 'unlock', group)
 
+    def _read_car_attributes(self, resource):
+        response = self._get(
+            f"{self.session.settings['car_adapter_base_url']}v1/cars/{self.vin}/{resource}",
+            headers={'Content-Type': 'application/vnd.api+json'},
+        )
+        response.raise_for_status()
+        body = response.json()
+        if 'errors' in body:
+            raise ValueError(body['errors'])
+        return body['data']['attributes']
+
+    def fetch_health_status(self):
+        if self.is_ze2_leaf:
+            self.warning_lamps = {}
+            lamps = self._read_car_attributes("health-status").get("malfunctionIndicatorLamps")
+            if isinstance(lamps, dict):
+                self.warning_lamps = lamps
+
+    def fetch_tyre_pressure(self):
+        if self.is_ze2_leaf:
+            self.tyre_readings = {}
+            self.tyre_readings = self._read_car_attributes("pressure")
+
+    def fetch_climate_timers(self):
+        """Read the ZE2 repeat settings, independent of the current HVAC state."""
+        if not self.is_ze2_leaf:
+            return
+        self.climate_timers = {}
+        self.repeat_climate_settings = {}
+        settings = self._read_car_attributes("hvac-settings")
+        timers = {timer['id']: timer for timer in settings.get('schedules', [])
+                  if isinstance(timer, dict) and 'id' in timer}
+        self.repeat_climate_settings = {k: settings[k] for k in (
+            'globalTargetTemperature', 'frontLeftSeatControl', 'frontRightSeatControl',
+            'frontDefrostMode', 'rearDefrostMode', 'steeringHeaterControl',
+        ) if k in settings}
+        self.climate_timers = timers
+
     def fetch_hvac_status(self):
         # The new Micra only lists CLIMATE_ON_OFF, not the two temperature
         # services, yet its hvac-status endpoint answers.
         if (Feature.INTERIOR_TEMP_SETTINGS not in self.features
                 and Feature.TEMPERATURE not in self.features
-                and Feature.CLIMATE_ON_OFF not in self.features):
+                and Feature.CLIMATE_ON_OFF not in self.features and not self.is_ze2_leaf):
             return
         
         resp = self._get(
@@ -928,10 +982,18 @@ class Vehicle:
         if 'errors' in body:
             raise ValueError(body['errors'])
         hvac_data = body['data']['attributes']
+        if self.is_ze2_leaf:
+            self.hvac_equipment = {
+                key: value for key, value in hvac_data.items()
+                if key.endswith(('SeatControl', 'DefrostMode')) or key == 'steeringHeaterControl'
+                if value is not None and value != -1
+            }
         self.external_temperature = hvac_data.get('externalTemperature')
         self.internal_temperature = hvac_data.get('internalTemperature')
         self.next_target_temperature = hvac_data.get('nextTargetTemperature')
-        if 'hvacStatus' in hvac_data:
+        if self.is_ze2_leaf:
+            self.hvac_status = {'on': True, 'off': False}.get(hvac_data.get('hvacStatus'))
+        elif 'hvacStatus' in hvac_data:
             self.hvac_status = hvac_data['hvacStatus'] == "on"
         if 'nextHvacStartDate' in hvac_data:
             self.next_hvac_start_date = datetime.datetime.fromisoformat(hvac_data['nextHvacStartDate'].replace('Z','+00:00'))
