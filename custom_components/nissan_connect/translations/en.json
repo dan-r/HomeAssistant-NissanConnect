@@ -101,6 +101,36 @@
         "battery_level": {
           "name": "Battery Level"
         },
+        "api_battery_level": {
+          "name": "Battery level (reported)"
+        },
+        "api_gps_direction": {
+          "name": "GPS direction (raw)"
+        },
+        "service_due_mileage": {
+          "name": "Service target odometer"
+        },
+        "vehicle_information": {
+          "name": "Vehicle information"
+        },
+        "ivc_software_version": {
+          "name": "IVC connectivity software version"
+        },
+        "ivi_supplier_software_version": {
+          "name": "IVI infotainment supplier software version"
+        },
+        "daily_consumed_fuel": {
+          "name": "Daily fuel consumed"
+        },
+        "monthly_consumed_fuel": {
+          "name": "Monthly fuel consumed"
+        },
+        "daily_driving_duration": {
+          "name": "Daily driving duration"
+        },
+        "monthly_driving_duration": {
+          "name": "Monthly driving duration"
+        },
         "internal_temperature": {
           "name": "Internal Temperature"
         },
