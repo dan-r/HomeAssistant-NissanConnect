@@ -8,6 +8,7 @@ import hashlib
 from html.parser import HTMLParser
 import json
 import logging
+import re
 import secrets
 import threading
 from typing import List
@@ -25,6 +26,14 @@ _LOGGER = logging.getLogger(__name__)
 # with "Not supported Feature"; every other car is still served by v1.
 COCKPIT_VERSIONS = ('v1', 'v2')
 
+REQUEST_TIMEOUT = 30
+
+# How many consecutive errored battery-status responses to tolerate from a
+# vehicle that does not advertise BATTERY_STATUS before giving up on the
+# endpoint. Deliberately not 1, so a transient outage does not cost an ICE
+# vehicle its range until Home Assistant restarts.
+BATTERY_STATUS_ERROR_LIMIT = 3
+
 _registry = {
     USERS: {},
     VEHICLES: {},
@@ -36,6 +45,15 @@ _registry = {
 
 NotificationType = collections.namedtuple('NotificationType', ['key', 'title', 'message', 'category'])
 NotificationCategory = collections.namedtuple('Category', ['key', 'title'])
+
+
+def redact_vin(text, vin):
+    """Shorten every occurrence of vin in text to its last three characters.
+
+    Request errors carry the URL, and every car URL contains the full VIN.
+    Logs get pasted into public issues, so only the tail may appear in them.
+    """
+    return re.sub(re.escape(vin), '***' + vin[-3:], str(text), flags=re.IGNORECASE)
 
 
 class _LoginFormParser(HTMLParser):
@@ -196,7 +214,7 @@ class KamereonSession:
                     'client': self.settings['auth_client'],
                 },
                 allow_redirects=False,
-                timeout=30,
+                timeout=REQUEST_TIMEOUT,
             )
         except requests.RequestException:
             raise RuntimeError("Unable to contact Nissan login") from None
@@ -230,7 +248,7 @@ class KamereonSession:
                     'Referer': response.url,
                 },
                 allow_redirects=False,
-                timeout=30,
+                timeout=REQUEST_TIMEOUT,
             )
         except requests.RequestException:
             raise RuntimeError("Unable to submit Nissan login") from None
@@ -261,7 +279,7 @@ class KamereonSession:
                     raise RuntimeError("Unexpected Nissan login redirect")
                 try:
                     response = self.session.get(
-                        target, allow_redirects=False, timeout=30)
+                        target, allow_redirects=False, timeout=REQUEST_TIMEOUT)
                 except requests.RequestException:
                     raise RuntimeError("Unable to load Nissan login") from None
                 continue
@@ -286,7 +304,7 @@ class KamereonSession:
                     raise RuntimeError("Unexpected Nissan authorization redirect")
                 try:
                     response = self.session.get(
-                        target, allow_redirects=False, timeout=30)
+                        target, allow_redirects=False, timeout=REQUEST_TIMEOUT)
                 except requests.RequestException:
                     raise RuntimeError(
                         "Unable to complete Nissan login") from None
@@ -313,7 +331,7 @@ class KamereonSession:
                 'scope': self.settings['scope'],
             },
             allow_redirects=False,
-            timeout=30,
+            timeout=REQUEST_TIMEOUT,
         )
         return self._parse_token_response(
             response, 'Nissan OneID token', require_id_token=True)
@@ -327,7 +345,7 @@ class KamereonSession:
                 'Content-Type': 'application/vnd.api+json',
             },
             allow_redirects=False,
-            timeout=30,
+            timeout=REQUEST_TIMEOUT,
         )
         return self._parse_token_response(response, 'Kamereon token')
 
@@ -360,7 +378,7 @@ class KamereonSession:
             },
             data=json.dumps({'scope': self.settings['kamereon_scope']}),
             allow_redirects=False,
-            timeout=30,
+            timeout=REQUEST_TIMEOUT,
         )
         self._install_kamereon_token(
             self._parse_token_response(response, 'Kamereon refresh token'))
@@ -390,6 +408,7 @@ class KamereonSession:
             self._exchange_kamereon_token(wso2_token['id_token']))
 
     def request(self, method, url, **kwargs):
+        kwargs.setdefault('timeout', REQUEST_TIMEOUT)
         for attempt in range(2):
             try:
                 response = self.oauth.request(method, url, **kwargs)
@@ -455,6 +474,8 @@ class Vehicle:
     def __init__(self, data, user_id):
         self._refresh_fetch_lock = threading.Lock()
         self._cockpit_version = None
+        self._battery_status_supported = True
+        self._battery_status_errors = 0
         
         self.user_id = user_id
         self.vin = data['vin'].upper()
@@ -540,10 +561,12 @@ class Vehicle:
             try:
                 return self.session.request(
                     method, url, headers=headers, params=params, data=data)
-            except NissanAuthError:
-                raise
-            except Exception as e:
-                _LOGGER.debug(f"Request failed on attempt {attempt + 1} of {max_retries}: {e}")
+            except requests.RequestException as e:
+                # Only transport errors are worth another go. Anything else -
+                # bad credentials, a 401 that survived a fresh login - would
+                # fail the same way again, and each retry costs a full login.
+                _LOGGER.debug("Request failed on attempt %d of %d: %s",
+                              attempt + 1, max_retries, redact_vin(e, self.vin))
                 if attempt == max_retries - 1:  # Exhausted retries
                     raise
                 time.sleep(2 ** attempt)  # Exponential backoff on retry
@@ -554,7 +577,9 @@ class Vehicle:
         return self._request('GET', url, headers=headers, params=params)
 
     def _post(self, url, data=None, headers=None):
-        return self._request('POST', url, headers=headers, data=data)
+        # POSTs act on the car (horn, climate, charging, wake-ups). A timeout
+        # does not mean the command was not delivered, so never resend it.
+        return self._request('POST', url, headers=headers, data=data, max_retries=1)
 
     def refresh(self):
         self.refresh_location()
@@ -590,7 +615,8 @@ class Vehicle:
                 raise
             except Exception as error:
                 _LOGGER.warning("%s failed for #%s, keeping the other data: %s",
-                              fetch.__name__, self.vin[-3:], error)
+                              fetch.__name__, self.vin[-3:],
+                              redact_vin(error, self.vin))
 
     def refresh_fetch(self, check_interval=10, max_attempts=5):
         """Wake the vehicle and update data repeatedly until new data is fetched or timeout is reached."""
@@ -601,7 +627,7 @@ class Vehicle:
 
         if not self._refresh_fetch_lock.acquire(blocking=False):
             raise RefreshInProgressError(
-                f"An update is already in progress for this vehicle"
+                "An update is already in progress for this vehicle"
             )
 
         try:
@@ -907,7 +933,24 @@ class Vehicle:
             raise ValueError(body['errors'])
         return body
 
+    def _note_battery_status_error(self, errors):
+        """Record an errored battery-status response.
+
+        The endpoint is not EV-only - some ICE vehicles publish their range
+        under it - so we probe rather than trusting the feature list. Stop once
+        it has failed consistently, instead of re-requesting on every update.
+        """
+        self._battery_status_errors += 1
+        if self._battery_status_errors >= BATTERY_STATUS_ERROR_LIMIT:
+            _LOGGER.debug(
+                "Vehicle #%s does not serve battery-status (%s); no longer requesting it",
+                self.vin[-3:], errors)
+            self._battery_status_supported = False
+
     def fetch_battery_status(self):
+        if not self._battery_status_supported:
+            return
+
         model = (self.model_name or "").upper()
         if model == "MICRA" or model == "ARIYA":
             self.fetch_battery_status_ariya()
@@ -922,12 +965,16 @@ class Vehicle:
             headers={'Content-Type': 'application/vnd.api+json'}
         )
         body = resp.json()
-        if 'errors' in body and Feature.BATTERY_STATUS in self.features:
-            raise ValueError(body['errors'])
+        if 'errors' in body:
+            if Feature.BATTERY_STATUS in self.features:
+                raise ValueError(body['errors'])
+            self._note_battery_status_error(body['errors'])
+            return
 
         if not 'data' in body or not 'attributes' in body['data']:
             return
 
+        self._battery_status_errors = 0
         battery_data = body['data']['attributes']
         self.battery_capacity = battery_data.get('batteryCapacity')  # kWh
         self.battery_level = battery_data.get('batteryLevel')  # %
@@ -975,12 +1022,16 @@ class Vehicle:
         )
 
         body = resp.json()
-        if 'errors' in body and Feature.BATTERY_STATUS in self.features:
-            raise ValueError(body['errors'])
+        if 'errors' in body:
+            if Feature.BATTERY_STATUS in self.features:
+                raise ValueError(body['errors'])
+            self._note_battery_status_error(body['errors'])
+            return
 
         if not 'data' in body or not 'attributes' in body['data']:
             return
 
+        self._battery_status_errors = 0
         battery_data = body['data']['attributes']
 
         # Newer Nissan/Renault-derived vehicles may expose state of charge

@@ -1,9 +1,9 @@
 import pytest
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 from homeassistant.components.sensor import SensorDeviceClass
 from homeassistant.const import (
-    PERCENTAGE, UnitOfTemperature, UnitOfLength, UnitOfTime, UnitOfVolume)
-from custom_components.nissan_connect.base import KamereonEntity
+    PERCENTAGE, UnitOfLength, UnitOfVolume)
 from custom_components.nissan_connect.kamereon import ChargingSpeed, Feature
 
 from custom_components.nissan_connect.sensor import (
@@ -12,7 +12,6 @@ from custom_components.nissan_connect.sensor import (
     ExternalTemperatureSensor,
     RangeSensor,
     OdometerSensor,
-    StatisticSensor,
     ChargeTimeRequiredSensor,
     TimestampSensor,
     FuelRangeSensor,
@@ -103,6 +102,10 @@ def test_timestamp_sensor(mock_hass):
     vehicle = mock_hass.data['nissan_connect']['test_account']['vehicles']['test_vehicle']
     coordinator = mock_hass.data['nissan_connect']['test_account']['coordinator_fetch']
     sensor = TimestampSensor(coordinator, vehicle, 'battery_status_last_updated', 'last_updated', 'mdi:clock-time-eleven-outline')
+    vehicle.battery_status_last_updated = datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc)
+    assert sensor.state == "2026-01-01T10:00:00+00:00"
+    vehicle.battery_status_last_updated = None
+    assert sensor.state is None
 
 
 @pytest.fixture
