@@ -461,6 +461,11 @@ class NCISession(KamereonSession):
 
 class Vehicle:
 
+    @property
+    def is_ze2_leaf(self) -> bool:
+        """Both Leaf generations report the same model name; ZE2-1 uses v3 battery data."""
+        return self.model_code == "ZE2-1"
+
     def __repr__(self):
         return '<{} {}>'.format(self.__class__.__name__, self.vin)
 
@@ -524,6 +529,8 @@ class Vehicle:
         self.range_hvac_on = None
         self.charging = ChargingStatus.NOT_CHARGING
         self.plugged_in = PluggedStatus.NOT_PLUGGED
+        if self.is_ze2_leaf:
+            self.charging = self.plugged_in = None
         self.plugged_in_time = None
         self.unplugged_time = None
         self.battery_status_last_updated = None
@@ -963,7 +970,7 @@ class Vehicle:
             return
 
         model = (self.model_name or "").upper()
-        if model == "MICRA" or model == "ARIYA":
+        if model in ("MICRA", "ARIYA") or self.is_ze2_leaf:
             self.fetch_battery_status_ariya()
         else:
             self.fetch_battery_status_leaf()
@@ -1021,7 +1028,7 @@ class Vehicle:
         """Fetch battery data from Nissan's newer v3 battery-status API.
 
         Originally added for the Ariya, this endpoint is also used by the
-        new Micra EV.
+        new Micra EV and the ZE2-1 Leaf.
         """
         resp = self._get(
             '{}v3/cars/{}/battery-status?canGen={}'.format(
@@ -1034,7 +1041,7 @@ class Vehicle:
 
         body = resp.json()
         if 'errors' in body:
-            if Feature.BATTERY_STATUS in self.features:
+            if Feature.BATTERY_STATUS in self.features or self.is_ze2_leaf:
                 raise ValueError(body['errors'])
             self._note_battery_status_error(body['errors'])
             return
@@ -1053,25 +1060,29 @@ class Vehicle:
         self.instantaneous_power = battery_data.get('instantaneousPower')
 
         self.range_hvac_off = None
-        self.range_hvac_on = (
-            battery_data.get('batteryAutonomy')
-            or battery_data.get('rangeHvacOn')
-            or self.range_hvac_on
-        )
+        autonomy = battery_data.get('batteryAutonomy')
+        remaining_time = battery_data.get('chargingRemainingTime')
+        plug_status = battery_data.get('plugStatus', 0)
+        if self.is_ze2_leaf:
+            # Zero is valid for both range and remaining time on this Leaf.
+            self.range_hvac_on = autonomy
+            self.charging = self.plugged_in = None
+            plug_status = battery_data.get('plugStatus')
+        else:
+            self.range_hvac_on = autonomy or battery_data.get('rangeHvacOn') or self.range_hvac_on
+            remaining_time = remaining_time or self.charge_time_required_to_full[ChargingSpeed.NORMAL]
 
         self.charging_speed = ChargingSpeed(None)
         self.charge_time_required_to_full = {
             ChargingSpeed.FAST: None,
             ChargingSpeed.NORMAL: None,
             ChargingSpeed.SLOW: None,
-            ChargingSpeed.ADAPTIVE: (
-                battery_data.get('chargingRemainingTime')
-                or self.charge_time_required_to_full[ChargingSpeed.NORMAL]
-            )
+            ChargingSpeed.ADAPTIVE: remaining_time
         }
 
         try:
-            self.plugged_in = PluggedStatus(battery_data.get('plugStatus', 0))
+            if plug_status is not None:
+                self.plugged_in = PluggedStatus(plug_status)
         except (TypeError, ValueError):
             _LOGGER.debug(
                 "Unknown plugStatus from v3 battery API: %s",

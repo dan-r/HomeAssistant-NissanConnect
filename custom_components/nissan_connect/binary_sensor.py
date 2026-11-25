@@ -1,6 +1,5 @@
 """Support for Kamereon cars."""
 from homeassistant.components.binary_sensor import BinarySensorEntity, BinarySensorDeviceClass
-from homeassistant.const import STATE_UNKNOWN
 
 from .base import KamereonEntity
 from .kamereon import ChargingStatus, PluggedStatus, LockStatus, Feature
@@ -15,12 +14,14 @@ async def async_setup_entry(hass, config, async_add_entities):
 
     entities = []
 
-    for vehicle in data:
-        if Feature.BATTERY_STATUS in data[vehicle].features:
-            entities += [ChargingStatusEntity(coordinator, data[vehicle]),
-                         PluggedStatusEntity(coordinator, data[vehicle])]
-        if Feature.LOCK_STATUS_CHECK in data[vehicle].features:
-            entities += [LockStatusEntity(coordinator, data[vehicle])]
+    for vehicle in data.values():
+        has_battery_service = Feature.BATTERY_STATUS in vehicle.features
+        if has_battery_service or (vehicle.is_ze2_leaf and vehicle.charging is not None):
+            entities.append(ChargingStatusEntity(coordinator, vehicle))
+        if has_battery_service or (vehicle.is_ze2_leaf and vehicle.plugged_in is not None):
+            entities.append(PluggedStatusEntity(coordinator, vehicle))
+        if Feature.LOCK_STATUS_CHECK in vehicle.features:
+            entities.append(LockStatusEntity(coordinator, vehicle))
 
     async_add_entities(entities, update_before_add=True)
 
@@ -39,7 +40,7 @@ class ChargingStatusEntity(KamereonEntity, BinarySensorEntity):
     def is_on(self):
         """Return True if the binary sensor is on."""
         if self.vehicle.charging is None:
-            return STATE_UNKNOWN
+            return None
         return self.vehicle.charging is ChargingStatus.CHARGING
 
     @property
@@ -66,7 +67,7 @@ class PluggedStatusEntity(KamereonEntity, BinarySensorEntity):
     def is_on(self):
         """Return True if the binary sensor is on."""
         if self.vehicle.plugged_in is None:
-            return STATE_UNKNOWN
+            return None
         return self.vehicle.plugged_in is PluggedStatus.PLUGGED
 
     @property

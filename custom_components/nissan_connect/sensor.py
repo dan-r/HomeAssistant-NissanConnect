@@ -27,11 +27,12 @@ async def async_setup_entry(hass, config, async_add_entities):
     imperial_distance = config.data.get("imperial_distance", False)
 
     for vehicle in data:
+        is_ze2 = data[vehicle].is_ze2_leaf
         entities.append(TimestampSensor(coordinator, data[vehicle], 'last_updated', 'last_updated', 'mdi:clock-time-eleven-outline'))
 
         if Feature.BATTERY_STATUS in data[vehicle].features or data[vehicle].range_hvac_on is not None:
             entities.append(RangeSensor(coordinator, data[vehicle], True, imperial_distance))
-        if Feature.BATTERY_STATUS in data[vehicle].features:
+        if Feature.BATTERY_STATUS in data[vehicle].features or (is_ze2 and data[vehicle].battery_level is not None):
             entities.append(BatteryLevelSensor(coordinator, data[vehicle]))
         if data[vehicle].charge_time_required_to_full[ChargingSpeed.NORMAL] is not None:
             entities += [ChargeTimeRequiredSensor(coordinator, data[vehicle], ChargingSpeed.NORMAL),
@@ -40,11 +41,11 @@ async def async_setup_entry(hass, config, async_add_entities):
             entities.append(ChargeTimeRequiredSensor(coordinator, data[vehicle], ChargingSpeed.ADAPTIVE))
         if data[vehicle].range_hvac_off is not None:
             entities.append(RangeSensor(coordinator, data[vehicle], False, imperial_distance))
-        if data[vehicle].fuel_autonomy is not None:
+        if not is_ze2 and data[vehicle].fuel_autonomy is not None:
             entities.append(FuelRangeSensor(coordinator, data[vehicle], imperial_distance))
-        if data[vehicle].fuel_quantity is not None and Feature.BATTERY_STATUS not in data[vehicle].features:
+        if not is_ze2 and data[vehicle].fuel_quantity is not None and Feature.BATTERY_STATUS not in data[vehicle].features:
             entities.append(FuelQuantitySensor(coordinator, data[vehicle]))
-        if data[vehicle].fuel_level is not None:
+        if not is_ze2 and data[vehicle].fuel_level is not None:
             entities.append(FuelLevelSensor(coordinator, data[vehicle]))
         if data[vehicle].internal_temperature is not None:
             entities.append(InternalTemperatureSensor(coordinator, data[vehicle]))

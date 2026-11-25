@@ -1,5 +1,4 @@
 import pytest
-from homeassistant.const import STATE_UNKNOWN
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from custom_components.nissan_connect.kamereon import ChargingStatus, PluggedStatus, LockStatus
 
@@ -32,7 +31,7 @@ def coordinator(hass):
 
 async def test_charging_status_entity(vehicle, coordinator):
     entity = ChargingStatusEntity(coordinator, vehicle)
-    assert entity.is_on == STATE_UNKNOWN
+    assert entity.is_on is None
 
     vehicle.charging = ChargingStatus.CHARGING
     assert entity.is_on is True
@@ -42,7 +41,7 @@ async def test_charging_status_entity(vehicle, coordinator):
 
 async def test_plugged_status_entity(vehicle, coordinator):
     entity = PluggedStatusEntity(coordinator, vehicle)
-    assert entity.is_on == STATE_UNKNOWN
+    assert entity.is_on is None
 
     vehicle.plugged_in = PluggedStatus.PLUGGED
     assert entity.is_on is True

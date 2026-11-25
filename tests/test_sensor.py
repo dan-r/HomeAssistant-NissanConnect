@@ -28,6 +28,7 @@ def mock_hass():
             'test_account': {
                 'vehicles': {
                     'test_vehicle': MagicMock(
+                        is_ze2_leaf=False,
                         battery_level=80,
                         internal_temperature=22.5,
                         external_temperature=15.0,
@@ -117,6 +118,7 @@ def ice_vehicle():
     totalMileage but no fuelLevel.
     """
     return MagicMock(
+        is_ze2_leaf=False,
         fuel_autonomy=671.0,
         fuel_quantity=52.0,
         fuel_level=None,
