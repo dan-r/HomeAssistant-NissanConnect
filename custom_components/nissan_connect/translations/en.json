@@ -76,11 +76,18 @@
         "power_steering_warning": {"name": "Power steering warning"},
         "tyre_pressure_warning": {"name": "Tire pressure warning"},
         "power_limitation_warning": {"name": "Power limitation warning"},
-        "climate_timer_1": {"name": "Climate departure timer 1"},
-        "climate_timer_2": {"name": "Climate departure timer 2"},
-        "climate_timer_3": {"name": "Climate departure timer 3"},
-        "climate_timer_4": {"name": "Climate departure timer 4"},
-        "climate_timer_5": {"name": "Climate departure timer 5"},
+        "climate_timer": {
+          "name": "Climate departure timer {slot}",
+          "state_attributes": {
+            "monday": {"name": "Monday"},
+            "tuesday": {"name": "Tuesday"},
+            "wednesday": {"name": "Wednesday"},
+            "thursday": {"name": "Thursday"},
+            "friday": {"name": "Friday"},
+            "saturday": {"name": "Saturday"},
+            "sunday": {"name": "Sunday"}
+          }
+        },
         "scheduled_front_left_seat_heat": {"name": "Scheduled front left seat heating"},
         "scheduled_front_right_seat_heat": {"name": "Scheduled front right seat heating"},
         "scheduled_steering_wheel_heat": {"name": "Scheduled steering wheel heating"},

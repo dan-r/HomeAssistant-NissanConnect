@@ -76,11 +76,18 @@
             "power_steering_warning": {"name": "Avviso servosterzo"},
             "tyre_pressure_warning": {"name": "Avviso pressione pneumatici"},
             "power_limitation_warning": {"name": "Avviso di limitazione della potenza"},
-            "climate_timer_1": {"name": "Timer di climatizzazione per la partenza 1"},
-            "climate_timer_2": {"name": "Timer di climatizzazione per la partenza 2"},
-            "climate_timer_3": {"name": "Timer di climatizzazione per la partenza 3"},
-            "climate_timer_4": {"name": "Timer di climatizzazione per la partenza 4"},
-            "climate_timer_5": {"name": "Timer di climatizzazione per la partenza 5"},
+            "climate_timer": {
+              "name": "Timer di climatizzazione per la partenza {slot}",
+              "state_attributes": {
+                "monday": {"name": "Lunedì"},
+                "tuesday": {"name": "Martedì"},
+                "wednesday": {"name": "Mercoledì"},
+                "thursday": {"name": "Giovedì"},
+                "friday": {"name": "Venerdì"},
+                "saturday": {"name": "Sabato"},
+                "sunday": {"name": "Domenica"}
+              }
+            },
             "scheduled_front_left_seat_heat": {"name": "Riscaldamento programmato del sedile anteriore sinistro"},
             "scheduled_front_right_seat_heat": {"name": "Riscaldamento programmato del sedile anteriore destro"},
             "scheduled_steering_wheel_heat": {"name": "Riscaldamento programmato del volante"},

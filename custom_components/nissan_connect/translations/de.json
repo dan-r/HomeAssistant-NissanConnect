@@ -76,11 +76,18 @@
         "power_steering_warning": {"name": "Servolenkungswarnung"},
         "tyre_pressure_warning": {"name": "Reifendruckwarnung"},
         "power_limitation_warning": {"name": "Warnung vor Leistungsbegrenzung"},
-        "climate_timer_1": {"name": "Abfahrtszeit 1 für die Klimatisierung"},
-        "climate_timer_2": {"name": "Abfahrtszeit 2 für die Klimatisierung"},
-        "climate_timer_3": {"name": "Abfahrtszeit 3 für die Klimatisierung"},
-        "climate_timer_4": {"name": "Abfahrtszeit 4 für die Klimatisierung"},
-        "climate_timer_5": {"name": "Abfahrtszeit 5 für die Klimatisierung"},
+        "climate_timer": {
+          "name": "Abfahrtszeit {slot} für die Klimatisierung",
+          "state_attributes": {
+            "monday": {"name": "Montag"},
+            "tuesday": {"name": "Dienstag"},
+            "wednesday": {"name": "Mittwoch"},
+            "thursday": {"name": "Donnerstag"},
+            "friday": {"name": "Freitag"},
+            "saturday": {"name": "Samstag"},
+            "sunday": {"name": "Sonntag"}
+          }
+        },
         "scheduled_front_left_seat_heat": {"name": "Geplante Sitzheizung vorne links"},
         "scheduled_front_right_seat_heat": {"name": "Geplante Sitzheizung vorne rechts"},
         "scheduled_steering_wheel_heat": {"name": "Geplante Lenkradheizung"},

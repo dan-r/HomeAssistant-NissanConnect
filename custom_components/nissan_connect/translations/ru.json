@@ -76,11 +76,18 @@
             "power_steering_warning": {"name": "Предупреждение усилителя руля"},
             "tyre_pressure_warning": {"name": "Предупреждение о давлении в шинах"},
             "power_limitation_warning": {"name": "Предупреждение об ограничении мощности"},
-            "climate_timer_1": {"name": "Таймер климат-контроля к отъезду № 1"},
-            "climate_timer_2": {"name": "Таймер климат-контроля к отъезду № 2"},
-            "climate_timer_3": {"name": "Таймер климат-контроля к отъезду № 3"},
-            "climate_timer_4": {"name": "Таймер климат-контроля к отъезду № 4"},
-            "climate_timer_5": {"name": "Таймер климат-контроля к отъезду № 5"},
+            "climate_timer": {
+              "name": "Таймер климат-контроля к отъезду № {slot}",
+              "state_attributes": {
+                "monday": {"name": "Понедельник"},
+                "tuesday": {"name": "Вторник"},
+                "wednesday": {"name": "Среда"},
+                "thursday": {"name": "Четверг"},
+                "friday": {"name": "Пятница"},
+                "saturday": {"name": "Суббота"},
+                "sunday": {"name": "Воскресенье"}
+              }
+            },
             "scheduled_front_left_seat_heat": {"name": "Подогрев переднего левого сиденья по расписанию"},
             "scheduled_front_right_seat_heat": {"name": "Подогрев переднего правого сиденья по расписанию"},
             "scheduled_steering_wheel_heat": {"name": "Подогрев руля по расписанию"},

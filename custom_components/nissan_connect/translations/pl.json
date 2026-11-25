@@ -76,11 +76,18 @@
         "power_steering_warning": {"name": "Ostrzeżenie układu wspomagania kierownicy"},
         "tyre_pressure_warning": {"name": "Ostrzeżenie o ciśnieniu w oponach"},
         "power_limitation_warning": {"name": "Ostrzeżenie o ograniczeniu mocy"},
-        "climate_timer_1": {"name": "Program klimatyzacji na czas odjazdu 1"},
-        "climate_timer_2": {"name": "Program klimatyzacji na czas odjazdu 2"},
-        "climate_timer_3": {"name": "Program klimatyzacji na czas odjazdu 3"},
-        "climate_timer_4": {"name": "Program klimatyzacji na czas odjazdu 4"},
-        "climate_timer_5": {"name": "Program klimatyzacji na czas odjazdu 5"},
+        "climate_timer": {
+          "name": "Program klimatyzacji na czas odjazdu {slot}",
+          "state_attributes": {
+            "monday": {"name": "Poniedziałek"},
+            "tuesday": {"name": "Wtorek"},
+            "wednesday": {"name": "Środa"},
+            "thursday": {"name": "Czwartek"},
+            "friday": {"name": "Piątek"},
+            "saturday": {"name": "Sobota"},
+            "sunday": {"name": "Niedziela"}
+          }
+        },
         "scheduled_front_left_seat_heat": {"name": "Zaplanowane ogrzewanie lewego przedniego fotela"},
         "scheduled_front_right_seat_heat": {"name": "Zaplanowane ogrzewanie prawego przedniego fotela"},
         "scheduled_steering_wheel_heat": {"name": "Zaplanowane ogrzewanie kierownicy"},

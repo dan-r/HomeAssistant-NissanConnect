@@ -76,11 +76,18 @@
         "power_steering_warning": {"name": "Servostyringsvarsel"},
         "tyre_pressure_warning": {"name": "Dekktrykkvarsel"},
         "power_limitation_warning": {"name": "Varsel om effektbegrensning"},
-        "climate_timer_1": {"name": "Avreisetimer 1 for klimaanlegget"},
-        "climate_timer_2": {"name": "Avreisetimer 2 for klimaanlegget"},
-        "climate_timer_3": {"name": "Avreisetimer 3 for klimaanlegget"},
-        "climate_timer_4": {"name": "Avreisetimer 4 for klimaanlegget"},
-        "climate_timer_5": {"name": "Avreisetimer 5 for klimaanlegget"},
+        "climate_timer": {
+          "name": "Avreisetimer {slot} for klimaanlegget",
+          "state_attributes": {
+            "monday": {"name": "Mandag"},
+            "tuesday": {"name": "Tirsdag"},
+            "wednesday": {"name": "Onsdag"},
+            "thursday": {"name": "Torsdag"},
+            "friday": {"name": "Fredag"},
+            "saturday": {"name": "Lørdag"},
+            "sunday": {"name": "Søndag"}
+          }
+        },
         "scheduled_front_left_seat_heat": {"name": "Planlagt setevarme foran til venstre"},
         "scheduled_front_right_seat_heat": {"name": "Planlagt setevarme foran til høyre"},
         "scheduled_steering_wheel_heat": {"name": "Planlagt rattvarme"},

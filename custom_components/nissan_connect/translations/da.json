@@ -76,11 +76,18 @@
         "power_steering_warning": {"name": "Advarsel om servostyring"},
         "tyre_pressure_warning": {"name": "Dæktryksadvarsel"},
         "power_limitation_warning": {"name": "Advarsel om effektbegrænsning"},
-        "climate_timer_1": {"name": "Afgangstimer 1 for klimaanlæg"},
-        "climate_timer_2": {"name": "Afgangstimer 2 for klimaanlæg"},
-        "climate_timer_3": {"name": "Afgangstimer 3 for klimaanlæg"},
-        "climate_timer_4": {"name": "Afgangstimer 4 for klimaanlæg"},
-        "climate_timer_5": {"name": "Afgangstimer 5 for klimaanlæg"},
+        "climate_timer": {
+          "name": "Afgangstimer {slot} for klimaanlæg",
+          "state_attributes": {
+            "monday": {"name": "Mandag"},
+            "tuesday": {"name": "Tirsdag"},
+            "wednesday": {"name": "Onsdag"},
+            "thursday": {"name": "Torsdag"},
+            "friday": {"name": "Fredag"},
+            "saturday": {"name": "Lørdag"},
+            "sunday": {"name": "Søndag"}
+          }
+        },
         "scheduled_front_left_seat_heat": {"name": "Planlagt sædevarme foran til venstre"},
         "scheduled_front_right_seat_heat": {"name": "Planlagt sædevarme foran til højre"},
         "scheduled_steering_wheel_heat": {"name": "Planlagt ratvarme"},

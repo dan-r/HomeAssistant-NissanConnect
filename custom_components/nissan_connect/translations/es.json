@@ -76,11 +76,18 @@
             "power_steering_warning": {"name": "Aviso de la dirección asistida"},
             "tyre_pressure_warning": {"name": "Aviso de presión de los neumáticos"},
             "power_limitation_warning": {"name": "Aviso de limitación de potencia"},
-            "climate_timer_1": {"name": "Temporizador de climatización para la salida 1"},
-            "climate_timer_2": {"name": "Temporizador de climatización para la salida 2"},
-            "climate_timer_3": {"name": "Temporizador de climatización para la salida 3"},
-            "climate_timer_4": {"name": "Temporizador de climatización para la salida 4"},
-            "climate_timer_5": {"name": "Temporizador de climatización para la salida 5"},
+            "climate_timer": {
+              "name": "Temporizador de climatización para la salida {slot}",
+              "state_attributes": {
+                "monday": {"name": "Lunes"},
+                "tuesday": {"name": "Martes"},
+                "wednesday": {"name": "Miércoles"},
+                "thursday": {"name": "Jueves"},
+                "friday": {"name": "Viernes"},
+                "saturday": {"name": "Sábado"},
+                "sunday": {"name": "Domingo"}
+              }
+            },
             "scheduled_front_left_seat_heat": {"name": "Calefacción programada del asiento delantero izquierdo"},
             "scheduled_front_right_seat_heat": {"name": "Calefacción programada del asiento delantero derecho"},
             "scheduled_steering_wheel_heat": {"name": "Calefacción programada del volante"},

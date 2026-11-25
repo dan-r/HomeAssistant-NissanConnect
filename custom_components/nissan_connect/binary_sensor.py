@@ -139,12 +139,19 @@ class PluggedStatusEntity(KamereonEntity, BinarySensorEntity):
 
 
 class ClimateTimerEntity(KamereonEntity, BinarySensorEntity):
-    """Whether a departure timer is enabled, with Nissan's per-day UTC times."""
+    """Whether a departure timer is enabled, with Nissan's per-day times."""
+
+    _attr_translation_key = "climate_timer"
 
     def __init__(self, coordinator, vehicle, slot):
         super().__init__(coordinator, vehicle)
         self._slot = slot
-        self._attr_translation_key = f"climate_timer_{slot}"
+        self._attr_translation_placeholders = {"slot": str(slot)}
+
+    @property
+    def unique_id(self):
+        # Preserve the original climate_timer_1 through climate_timer_5 IDs.
+        return f"{super().unique_id}_{self._slot}"
 
     @property
     def is_on(self):
@@ -159,7 +166,8 @@ class ClimateTimerEntity(KamereonEntity, BinarySensorEntity):
             entry = timer.get(day)
             if isinstance(entry, dict) and isinstance(entry.get("readyAtTime"), str):
                 departures[day] = entry["readyAtTime"].removeprefix("T")
-        return {"departure_times": departures}
+        # Home Assistant translates top-level attribute names for each viewer.
+        return departures
 
 
 class RepeatClimateOptionEntity(KamereonEntity, BinarySensorEntity):

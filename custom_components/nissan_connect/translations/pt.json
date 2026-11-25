@@ -76,11 +76,18 @@
       "power_steering_warning": {"name": "Aviso da direção assistida"},
       "tyre_pressure_warning": {"name": "Aviso de pressão dos pneus"},
       "power_limitation_warning": {"name": "Aviso de limitação de potência"},
-      "climate_timer_1": {"name": "Temporizador de climatização para a partida 1"},
-      "climate_timer_2": {"name": "Temporizador de climatização para a partida 2"},
-      "climate_timer_3": {"name": "Temporizador de climatização para a partida 3"},
-      "climate_timer_4": {"name": "Temporizador de climatização para a partida 4"},
-      "climate_timer_5": {"name": "Temporizador de climatização para a partida 5"},
+      "climate_timer": {
+        "name": "Temporizador de climatização para a partida {slot}",
+        "state_attributes": {
+          "monday": {"name": "Segunda-feira"},
+          "tuesday": {"name": "Terça-feira"},
+          "wednesday": {"name": "Quarta-feira"},
+          "thursday": {"name": "Quinta-feira"},
+          "friday": {"name": "Sexta-feira"},
+          "saturday": {"name": "Sábado"},
+          "sunday": {"name": "Domingo"}
+        }
+      },
       "scheduled_front_left_seat_heat": {"name": "Aquecimento programado do banco dianteiro esquerdo"},
       "scheduled_front_right_seat_heat": {"name": "Aquecimento programado do banco dianteiro direito"},
       "scheduled_steering_wheel_heat": {"name": "Aquecimento programado do volante"},

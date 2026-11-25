@@ -30,16 +30,21 @@ async def test_repeat_timers_and_shared_settings(requests_mock, leaf_session):
         "vehicles": {"NEW": new, "OLD": old}, "coordinator_fetch": Mock(), "coordinator_statistics": Mock(),
     }}})
     entities = {}
+    timers = {}
     for platform in (sensor, binary_sensor):
         add = Mock()
         await platform.async_setup_entry(hass, Mock(data={"email": "owner"}), add)
         for entity in add.call_args.args[0]:
             if entity.vehicle is old:
-                assert not entity.translation_key.startswith(("climate_timer_", "scheduled_", "repeat_climate_"))
+                assert not entity.translation_key.startswith(("climate_timer", "scheduled_", "repeat_climate_"))
+            elif entity.translation_key == "climate_timer":
+                slot = int(entity.translation_placeholders["slot"])
+                timers[slot] = entity
+                assert entity.unique_id == f"Leaf_climate_timer_{slot}"
             else:
                 entities[entity.translation_key] = entity
-    assert [entities[f"climate_timer_{i}"].is_on for i in range(1, 6)] == [True, True, False, False, False]
-    assert entities["climate_timer_2"].extra_state_attributes["departure_times"] == dict.fromkeys(days, "15:30Z")
+    assert [timers[i].is_on for i in range(1, 6)] == [True, True, False, False, False]
+    assert timers[2].extra_state_attributes == dict.fromkeys(days, "15:30Z")
     assert entities["repeat_climate_target"].native_value == 22
     assert entities["scheduled_front_left_seat_heat"].is_on is True
     assert entities["scheduled_front_right_seat_heat"].is_on is True
@@ -49,9 +54,9 @@ async def test_repeat_timers_and_shared_settings(requests_mock, leaf_session):
         "frontLeftSeatControl": -1, "schedules": [{"id": 1, "activated": False}],
     }}})
     new.fetch_climate_timers()
-    assert entities["climate_timer_1"].is_on is False
-    assert entities["climate_timer_2"].is_on is None
-    assert entities["climate_timer_2"].extra_state_attributes["departure_times"] == {}
+    assert timers[1].is_on is False
+    assert timers[2].is_on is None
+    assert timers[2].extra_state_attributes == {}
     assert entities["scheduled_front_left_seat_heat"].is_on is None
     assert entities["repeat_climate_target"].native_value is None
 

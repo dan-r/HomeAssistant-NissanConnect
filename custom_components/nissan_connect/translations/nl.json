@@ -76,11 +76,18 @@
             "power_steering_warning": {"name": "Waarschuwing stuurbekrachtiging"},
             "tyre_pressure_warning": {"name": "Bandenspanningswaarschuwing"},
             "power_limitation_warning": {"name": "Waarschuwing vermogensbegrenzing"},
-            "climate_timer_1": {"name": "Vertrektimer 1 voor klimaatregeling"},
-            "climate_timer_2": {"name": "Vertrektimer 2 voor klimaatregeling"},
-            "climate_timer_3": {"name": "Vertrektimer 3 voor klimaatregeling"},
-            "climate_timer_4": {"name": "Vertrektimer 4 voor klimaatregeling"},
-            "climate_timer_5": {"name": "Vertrektimer 5 voor klimaatregeling"},
+            "climate_timer": {
+              "name": "Vertrektimer {slot} voor klimaatregeling",
+              "state_attributes": {
+                "monday": {"name": "Maandag"},
+                "tuesday": {"name": "Dinsdag"},
+                "wednesday": {"name": "Woensdag"},
+                "thursday": {"name": "Donderdag"},
+                "friday": {"name": "Vrijdag"},
+                "saturday": {"name": "Zaterdag"},
+                "sunday": {"name": "Zondag"}
+              }
+            },
             "scheduled_front_left_seat_heat": {"name": "Geplande stoelverwarming linksvoor"},
             "scheduled_front_right_seat_heat": {"name": "Geplande stoelverwarming rechtsvoor"},
             "scheduled_steering_wheel_heat": {"name": "Geplande stuurverwarming"},
