@@ -3,6 +3,7 @@ Support for Kamereon Platform
 """
 import logging
 import asyncio
+import datetime
 from homeassistant.components.climate import ClimateEntity
 from homeassistant.components.climate.const import (HVACMode, ClimateEntityFeature)
 from homeassistant.components.climate.const import HVACAction as HASSHVACAction
@@ -12,7 +13,7 @@ from homeassistant.exceptions import ServiceValidationError
 SUPPORT_HVAC = [HVACMode.HEAT_COOL, HVACMode.OFF]
 
 from .base import KamereonEntity
-from .kamereon import Feature, HVACAction
+from .kamereon import Feature, HVACAction, redact_vin
 from .const import DOMAIN, DATA_VEHICLES, DATA_COORDINATOR_FETCH
 
 _LOGGER = logging.getLogger(__name__)
@@ -70,6 +71,12 @@ class KamereonClimate(KamereonEntity, ClimateEntity):
         target_temperature = native_target_temperature
     
     @property
+    def extra_state_attributes(self):
+        """When Nissan last received climate status from the car."""
+        updated = self.vehicle.hvac_status_last_updated
+        return {"hvac_status_last_updated": updated.isoformat() if updated else None}
+
+    @property
     def hvac_action(self):
         """Shows heating or cooling depending on temperature."""
         if self.vehicle.hvac_status:
@@ -122,13 +129,26 @@ class KamereonClimate(KamereonEntity, ClimateEntity):
         self._loop_mutex = True
 
         loop = asyncio.get_running_loop()
-        
-        for _ in range(10):
-            await loop.run_in_executor(None, self.vehicle.refresh)
+
+        # Guard to accept a status whose reported time is up to 30s earlier than when the
+        # command was sent, in case the vehicle clock or Nissan's server time is behind HA
+        sent_at = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=30)
+
+        for i in range(10):
+            if i % 3 == 1:
+                # Re-nudge the vehicle for climate status every 30s
+                try:
+                    await loop.run_in_executor(None, self.vehicle.refresh_hvac_status)
+                except Exception as error:
+                    _LOGGER.debug("refresh_hvac_status failed for #%s: %s", self.vehicle.vin[-3:],
+                                  redact_vin(error, self.vehicle.vin))
             await self.coordinator.async_refresh()
 
-            # We have our update, break out
-            if target_state == self.vehicle.hvac_status:
+            # We have a fresh update, break out
+            updated = self.vehicle.hvac_status_last_updated
+            if updated is not None and updated.tzinfo is None:
+                updated = updated.replace(tzinfo=datetime.timezone.utc)
+            if target_state == self.vehicle.hvac_status and updated is not None and updated >= sent_at:
                 _LOGGER.debug("Breaking out of HVAC fetch loop")
                 break
 

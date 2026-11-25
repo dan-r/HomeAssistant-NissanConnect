@@ -629,3 +629,58 @@ def test_optional_fetch_warning_does_not_log_the_full_vin(requests_mock, caplog)
     assert "fetch_cockpit failed for #VIN" in ours
     assert "/cars/***VIN/cockpit" in ours
     assert "TEST-VIN" not in ours
+
+
+def _refresh_requests(requests_mock):
+    return [r.path.rsplit("/", 1)[-1] for r in requests_mock.request_history
+            if "/actions/refresh-" in r.path]
+
+
+def _mock_refresh_actions(requests_mock, hvac=None):
+    for action in ("refresh-location", "refresh-battery-status"):
+        requests_mock.post(f"{CAR_BASE_URL}v1/cars/TEST-VIN/actions/{action}", json={"data": {}})
+    requests_mock.post(f"{CAR_BASE_URL}v1/cars/TEST-VIN/actions/refresh-hvac-status",
+                       **(hvac or {"json": {"data": {}}}))
+
+
+def test_refresh_also_asks_for_hvac_status(requests_mock):
+    """Without it, a climate session that ends on its own is never seen."""
+    vehicle = _vehicle(requests_mock, model="LEAF")
+    vehicle.features.append(Feature.CLIMATE_ON_OFF)
+    _mock_refresh_actions(requests_mock)
+
+    vehicle.refresh()
+
+    assert "refresh-hvac-status" in _refresh_requests(requests_mock)
+
+
+def test_refresh_does_not_ask_for_hvac_status_without_climate(requests_mock):
+    vehicle = _vehicle(requests_mock, model="LEAF")
+    _mock_refresh_actions(requests_mock)
+
+    vehicle.refresh()
+
+    assert "refresh-hvac-status" not in _refresh_requests(requests_mock)
+
+
+def test_refresh_survives_a_gateway_that_rejects_hvac_refresh(requests_mock):
+    """The location and battery refreshes must still count."""
+    vehicle = _vehicle(requests_mock, model="LEAF")
+    vehicle.features.append(Feature.CLIMATE_ON_OFF)
+    _mock_refresh_actions(requests_mock, hvac={
+        "json": GATEWAY_NOT_IMPLEMENTED, "status_code": 501})
+
+    vehicle.refresh()
+
+    assert "refresh-hvac-status" in _refresh_requests(requests_mock)
+
+
+def test_refresh_still_raises_auth_errors_from_hvac_refresh(requests_mock):
+    vehicle = _vehicle(requests_mock, model="LEAF")
+    vehicle.features.append(Feature.CLIMATE_ON_OFF)
+    _mock_refresh_actions(requests_mock)
+
+    with patch.object(vehicle, "refresh_hvac_status",
+                      side_effect=NissanAuthError("Invalid credentials")):
+        with pytest.raises(NissanAuthError):
+            vehicle.refresh()

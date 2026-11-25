@@ -584,6 +584,17 @@ class Vehicle:
     def refresh(self):
         self.refresh_location()
         self.refresh_battery_status()
+        # Also ask the car to report its climate state. Without
+        # this, a climate session that ends on its own is never picked up and
+        # hvac_status stays "on" (which also keeps polling at once a minute).
+        if Feature.CLIMATE_ON_OFF in self.features:
+            try:
+                self.refresh_hvac_status()
+            except NissanAuthError:
+                raise
+            except Exception as error:
+                _LOGGER.debug("refresh_hvac_status failed for #%s: %s", self.vin[-3:],
+                              redact_vin(error, self.vin))
 
     @property
     def last_updated(self):

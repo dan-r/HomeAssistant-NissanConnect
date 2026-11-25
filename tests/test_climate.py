@@ -1,3 +1,4 @@
+import datetime
 import importlib
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -114,3 +115,83 @@ async def test_async_set_hvac_mode(climate_entity, mock_hass, mock_vehicle):
 async def test_async_turn_off(climate_entity):
     await climate_entity.async_turn_off()
     assert climate_entity.hvac_mode == HVACMode.OFF
+
+
+def test_hvac_status_last_updated_attribute(climate_entity, mock_vehicle):
+    mock_vehicle.hvac_status_last_updated = datetime.datetime(2026, 11, 14, 20, 37, 18, tzinfo=datetime.timezone.utc)
+    assert climate_entity.extra_state_attributes == {"hvac_status_last_updated": "2026-11-14T20:37:18+00:00"}
+    mock_vehicle.hvac_status_last_updated = None
+    assert climate_entity.extra_state_attributes == {"hvac_status_last_updated": None}
+
+
+def _utc_now(**offset):
+    return datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(**offset)
+
+
+@pytest.fixture
+def fetch_loop(climate_entity, mock_coordinator):
+    """Runs the post-command fetch loop without real sleeps."""
+    mock_coordinator.async_refresh = AsyncMock()
+
+    async def run(target_state):
+        with patch("custom_components.nissan_connect.climate.asyncio.sleep", new=AsyncMock()):
+            await climate_entity._async_fetch_loop(target_state)
+
+    return run
+
+
+@pytest.mark.asyncio
+async def test_fetch_loop_ignores_a_stale_matching_status(fetch_loop, mock_vehicle, mock_coordinator):
+    """An "on" left over from an earlier session is not a confirmation."""
+    mock_vehicle.hvac_status = True
+    mock_vehicle.hvac_status_last_updated = _utc_now(minutes=-10)
+
+    await fetch_loop(True)
+
+    assert mock_coordinator.async_refresh.call_count == 10
+    assert mock_vehicle.refresh_hvac_status.call_count == 3
+    mock_vehicle.refresh.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_fetch_loop_stops_on_a_fresh_status(fetch_loop, mock_vehicle, mock_coordinator):
+    mock_vehicle.hvac_status = False
+    mock_vehicle.hvac_status_last_updated = _utc_now(minutes=-10)
+
+    async def car_reports_on():
+        if mock_coordinator.async_refresh.call_count == 2:
+            mock_vehicle.hvac_status = True
+            mock_vehicle.hvac_status_last_updated = _utc_now()
+    mock_coordinator.async_refresh.side_effect = car_reports_on
+
+    await fetch_loop(True)
+
+    assert mock_coordinator.async_refresh.call_count == 2
+    assert mock_vehicle.refresh_hvac_status.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_fetch_loop_accepts_a_naive_timestamp_as_utc(fetch_loop, mock_vehicle, mock_coordinator):
+    mock_vehicle.hvac_status = True
+    mock_vehicle.hvac_status_last_updated = _utc_now().replace(tzinfo=None)
+
+    await fetch_loop(True)
+
+    assert mock_coordinator.async_refresh.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_fetch_loop_keeps_going_when_hvac_refresh_fails(fetch_loop, climate_entity, mock_vehicle, mock_coordinator, caplog):
+    mock_vehicle.vin = "TEST-VIN"
+    mock_vehicle.hvac_status = False
+    mock_vehicle.hvac_status_last_updated = None
+    mock_vehicle.refresh_hvac_status.side_effect = ValueError(
+        "Not supported Feature for /v1/cars/TEST-VIN/actions/refresh-hvac-status")
+
+    with caplog.at_level("DEBUG", logger="custom_components.nissan_connect.climate"):
+        await fetch_loop(True)
+
+    assert mock_coordinator.async_refresh.call_count == 10
+    assert climate_entity._loop_mutex is False
+    assert "refresh_hvac_status failed for #VIN" in caplog.text
+    assert "TEST-VIN" not in caplog.text
