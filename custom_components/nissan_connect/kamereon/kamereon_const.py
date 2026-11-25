@@ -13,11 +13,23 @@ SETTINGS_MAP = {
             'auth_platform': 'Android',
             'auth_locale': 'en_GB',
             'car_adapter_base_url': 'https://alliance-platform-caradapter-prod.apps.eu2.kamereon.io/car-adapter/',
+            # Separate domain used for Y63 action-status polling
+            'action_status_base_url': 'https://alliance-platform-action-status-polling-prod.apps.eu2.kamereon.io/',
             'notifications_base_url': 'https://alliance-platform-notifications-prod.apps.eu2.kamereon.io/notifications/',
             'user_adapter_base_url': 'https://alliance-platform-usersadapter-prod.apps.eu2.kamereon.io/user-adapter/',
             'user_base_url': 'https://nci-bff-web-prod.apps.eu2.kamereon.io/bff-web/'
         }
     }
+}
+
+
+# Headers required by the MyNISSAN Android app (captured via HTTP Toolkit, Jun 2026)
+Y63_APP_VERSION = '3.16.2(1804)'
+Y63_USER_AGENT = 'MyNISSAN/3.16.2 (eu.gom.services; build:1804; Android SDK 35) 4.12.0'
+Y63_HEADERS = {
+    'Content-Type': 'application/vnd.api+json',
+    'App-Version': Y63_APP_VERSION,
+    'User-Agent': Y63_USER_AGENT,
 }
 
 
@@ -179,6 +191,30 @@ class Feature(enum.Enum):
     SCHEDULED_ROUTE_CLIMATE_CONTROL = '747'
     SCHEDULED_ROUTE_CALENDAR_INTERGRATION = '819'
     OWNER_MANUAL = '827'
+
+    @classmethod
+    def _missing_(cls, value):
+        """Map Y63 Patrol/Armada 2024/2025 high-range feature IDs to known Feature values.
+
+        The Y63 uses service IDs in the 835-922 range which are functionally
+        equivalent to lower-range IDs used by other models.
+        """
+        _Y63_MAP = {
+            '866': cls.MY_CAR_FINDER,
+            '871': cls.LOCK_STATUS_CHECK,
+            '875': cls.HORN_AND_LIGHTS,
+            '876': cls.APP_DOOR_LOCKING,
+            '880': cls.CLIMATE_ON_OFF,
+            '882': cls.INTERIOR_TEMP_SETTINGS,
+            '884': cls.VEHICLE_STATUS_CHECK,
+            '885': cls.VEHICLE_DATA,
+        }
+        return _Y63_MAP.get(str(value))
+
+
+# Service IDs specific to the Y63 Patrol/Armada 2024/2025.
+# Used to detect whether a vehicle is a Y63 during feature parsing.
+Y63_SERVICE_IDS = frozenset({'866', '871', '875', '876', '880', '882', '884', '885'})
 
 
 class Language(enum.Enum):
