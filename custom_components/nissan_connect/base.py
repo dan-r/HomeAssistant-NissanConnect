@@ -26,6 +26,14 @@ class KamereonEntity(Entity):
         self.async_write_ha_state()
 
     @property
+    def available(self):
+        """Unavailable while the last update of this vehicle failed."""
+        return (
+            self.coordinator.last_update_success
+            and self.vehicle.vin not in self.coordinator.failed_vins
+        )
+
+    @property
     def icon(self):
         """Return the icon."""
         return 'mdi:car'
