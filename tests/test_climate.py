@@ -181,12 +181,17 @@ async def test_fetch_loop_accepts_a_naive_timestamp_as_utc(fetch_loop, mock_vehi
 
 
 @pytest.mark.asyncio
-async def test_fetch_loop_keeps_going_when_hvac_refresh_fails(fetch_loop, climate_entity, mock_vehicle, mock_coordinator):
+async def test_fetch_loop_keeps_going_when_hvac_refresh_fails(fetch_loop, climate_entity, mock_vehicle, mock_coordinator, caplog):
+    mock_vehicle.vin = "TEST-VIN"
     mock_vehicle.hvac_status = False
     mock_vehicle.hvac_status_last_updated = None
-    mock_vehicle.refresh_hvac_status.side_effect = ValueError("Not supported Feature")
+    mock_vehicle.refresh_hvac_status.side_effect = ValueError(
+        "Not supported Feature for /v1/cars/TEST-VIN/actions/refresh-hvac-status")
 
-    await fetch_loop(True)
+    with caplog.at_level("DEBUG", logger="custom_components.nissan_connect.climate"):
+        await fetch_loop(True)
 
     assert mock_coordinator.async_refresh.call_count == 10
     assert climate_entity._loop_mutex is False
+    assert "refresh_hvac_status failed for #VIN" in caplog.text
+    assert "TEST-VIN" not in caplog.text

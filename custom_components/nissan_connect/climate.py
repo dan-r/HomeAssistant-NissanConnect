@@ -13,7 +13,7 @@ from homeassistant.exceptions import ServiceValidationError
 SUPPORT_HVAC = [HVACMode.HEAT_COOL, HVACMode.OFF]
 
 from .base import KamereonEntity
-from .kamereon import Feature, HVACAction
+from .kamereon import Feature, HVACAction, redact_vin
 from .const import DOMAIN, DATA_VEHICLES, DATA_COORDINATOR_FETCH
 
 _LOGGER = logging.getLogger(__name__)
@@ -140,7 +140,8 @@ class KamereonClimate(KamereonEntity, ClimateEntity):
                 try:
                     await loop.run_in_executor(None, self.vehicle.refresh_hvac_status)
                 except Exception as error:
-                    _LOGGER.debug("refresh_hvac_status failed: %s", error)
+                    _LOGGER.debug("refresh_hvac_status failed for #%s: %s", self.vehicle.vin[-3:],
+                                  redact_vin(error, self.vehicle.vin))
             await self.coordinator.async_refresh()
 
             # We have a fresh update, break out

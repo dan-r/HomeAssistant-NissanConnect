@@ -593,7 +593,8 @@ class Vehicle:
             except NissanAuthError:
                 raise
             except Exception as error:
-                _LOGGER.debug("refresh_hvac_status failed for #%s: %s", self.vin[-3:], error)
+                _LOGGER.debug("refresh_hvac_status failed for #%s: %s", self.vin[-3:],
+                              redact_vin(error, self.vin))
 
     @property
     def last_updated(self):
