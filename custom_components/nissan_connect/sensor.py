@@ -78,7 +78,7 @@ async def async_setup_entry(hass, config, async_add_entities):
             entities.append(FuelQuantitySensor(coordinator, data[vehicle]))
         if not is_ze2 and data[vehicle].fuel_level is not None:
             entities.append(FuelLevelSensor(coordinator, data[vehicle]))
-        if data[vehicle].internal_temperature is not None:
+        if is_ze2 or data[vehicle].internal_temperature is not None:
             entities.append(InternalTemperatureSensor(coordinator, data[vehicle]))
         if data[vehicle].external_temperature is not None:
             entities.append(ExternalTemperatureSensor(coordinator, data[vehicle]))

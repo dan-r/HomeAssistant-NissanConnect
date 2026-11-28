@@ -463,8 +463,8 @@ class Vehicle:
 
     @property
     def is_ze2_leaf(self) -> bool:
-        """Both Leaf generations report the same model name; ZE2-1 uses v3 battery data."""
-        return self.model_code == "ZE2-1"
+        """Identify the third-generation Leaf by its reported model code."""
+        return self.model_code in ("ZE2", "ZE2-1")
 
     def __repr__(self):
         return '<{} {}>'.format(self.__class__.__name__, self.vin)
@@ -993,6 +993,9 @@ class Vehicle:
         self.next_target_temperature = hvac_data.get('nextTargetTemperature')
         if self.is_ze2_leaf:
             self.hvac_status = {'on': True, 'off': False}.get(hvac_data.get('hvacStatus'))
+            # The Leaf reports a fallback cabin temperature of 25 °C while HVAC is off.
+            if self.hvac_status is False and self.internal_temperature == 25:
+                self.internal_temperature = None
         elif 'hvacStatus' in hvac_data:
             self.hvac_status = hvac_data['hvacStatus'] == "on"
         if 'nextHvacStartDate' in hvac_data:
@@ -1090,7 +1093,7 @@ class Vehicle:
         """Fetch battery data from Nissan's newer v3 battery-status API.
 
         Originally added for the Ariya, this endpoint is also used by the
-        new Micra EV and the ZE2-1 Leaf.
+        new Micra EV and the third-generation Leaf.
         """
         resp = self._get(
             '{}v3/cars/{}/battery-status?canGen={}'.format(

@@ -1,4 +1,4 @@
-"""Battery and entity discovery for the EU ZE2-1 and its older ZE1 sibling."""
+"""Battery and entity discovery for the EU third-generation Leaf and its ZE1 sibling."""
 from unittest.mock import Mock
 
 import pytest
@@ -61,8 +61,8 @@ async def test_repeat_timers_and_shared_settings(requests_mock, leaf_session):
     assert entities["repeat_climate_target"].native_value is None
 
 
-@pytest.fixture
-def leaf_session(requests_mock):
+@pytest.fixture(params=("ZE2", "ZE2-1"))
+def leaf_session(requests_mock, request):
     session = NCISession(region="EU")
     session._install_kamereon_token({
         "access_token": "test", "token_type": "Bearer", "expires_in": 1800,
@@ -70,7 +70,7 @@ def leaf_session(requests_mock):
     requests_mock.get(session.settings["user_adapter_base_url"] + "v1/users/current",
                       json={"userId": "owner"})
     requests_mock.get(session.settings["user_base_url"] + "v5/users/owner/cars", json={"data": [
-        {"vin": "NEW", "modelName": "Leaf", "modelCode": "ZE2-1", "iceEvFlag": "EV",
+        {"vin": "NEW", "modelName": "Leaf", "modelCode": request.param, "iceEvFlag": "EV",
          "canGeneration": "C1A_HS EVO", "services": [{"id": 420, "activationState": "ACTIVATED"}]},
         {"vin": "OLD", "modelName": "Leaf", "modelCode": "ZE1", "iceEvFlag": "EV",
          "canGeneration": "GEN3", "services": [{"id": 319, "activationState": "ACTIVATED"}]},
@@ -160,9 +160,17 @@ async def test_ze2_reads_optional_status_without_legacy_services(requests_mock, 
         entities.update({e.translation_key: e for e in add.call_args.args[0]})
     assert entities["location"].latitude == 12.3
     assert entities["location"].longitude == 45.6
-    assert entities["internal_temperature"].native_value == 25
+    assert entities["internal_temperature"].native_value is None
     assert entities["climate_active"].is_on is False
     assert entities["climate_active"].extra_state_attributes == {"steeringHeaterControl": 0}
+    for hvac_status, temperature, expected in (
+        ("on", 1, 1), ("on", 25, 25), ("off", 25, None), ("off", 0, 0)
+    ):
+        requests_mock.get(base + "hvac-status", json={"data": {"attributes": {
+            "hvacStatus": hvac_status, "internalTemperature": temperature,
+        }}})
+        new.fetch_hvac_status()
+        assert entities["internal_temperature"].native_value == expected
     assert entities["doors_locked"].is_on is False  # HA's lock binary sensor is on when unlocked
     assert entities["front_left_door"].is_on is True
     assert entities["any_door"].is_on is True
