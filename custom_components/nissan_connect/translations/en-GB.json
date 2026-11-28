@@ -1,0 +1,20 @@
+{
+    "entity": {
+      "binary_sensor": {
+        "boot_lock": {"name": "Boot lock"},
+        "tyre_pressure_warning": {"name": "Tyre pressure warning"},
+        "bonnet": {"name": "Bonnet"},
+        "hatch": {"name": "Boot"}
+      },
+      "sensor": {
+        "front_left_tyre_pressure_raw": {"name": "Tyre pressure (front left)"},
+        "front_left_tyre_status_raw": {"name": "Front left tyre status (raw)"},
+        "front_right_tyre_pressure_raw": {"name": "Tyre pressure (front right)"},
+        "front_right_tyre_status_raw": {"name": "Front right tyre status (raw)"},
+        "rear_left_tyre_pressure_raw": {"name": "Tyre pressure (rear left)"},
+        "rear_left_tyre_status_raw": {"name": "Rear left tyre status (raw)"},
+        "rear_right_tyre_pressure_raw": {"name": "Tyre pressure (rear right)"},
+        "rear_right_tyre_status_raw": {"name": "Rear right tyre status (raw)"}
+      }
+    }
+}

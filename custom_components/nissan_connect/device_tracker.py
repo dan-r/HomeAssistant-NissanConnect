@@ -18,7 +18,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
     entities = []
 
     for vehicle in data:
-        if Feature.MY_CAR_FINDER in data[vehicle].features:
+        if Feature.MY_CAR_FINDER in data[vehicle].features or (data[vehicle].is_ze2_leaf and data[vehicle].location is not None):
             entities.append(KamereonDeviceTracker(coordinator, data[vehicle]))
 
     async_add_entities(entities, update_before_add=True)

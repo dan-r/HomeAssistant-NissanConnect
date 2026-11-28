@@ -6,12 +6,32 @@ from homeassistant.components.sensor import (
     SensorEntity,
 )
 from homeassistant.core import callback
-from homeassistant.const import PERCENTAGE, UnitOfLength, UnitOfTemperature, UnitOfTime, UnitOfVolume
+from homeassistant.const import PERCENTAGE, EntityCategory, UnitOfLength, UnitOfPressure, UnitOfTemperature, UnitOfTime, UnitOfVolume
 from homeassistant.components.sensor import SensorStateClass
 from .base import KamereonEntity
 from .kamereon import ChargingSpeed, Feature
 from .const import DOMAIN, DATA_VEHICLES, DATA_COORDINATOR_FETCH, DATA_COORDINATOR_STATISTICS
 _LOGGER = logging.getLogger(__name__)
+
+# Nissan does not identify the app's composite Brake System, 12 V Battery or
+# Electric Shift Control rows. Keep the underlying codes, including switches
+# and EV-specific codes, without guessing a subsystem, severity or voltage.
+RAW_LAMPS = {
+    "brakeFluidWarning": "brake_fluid_warning_raw",
+    "emergencyBrakingWarning": "emergency_braking_warning_raw",
+    "batteryLowWarning": "battery_low_warning_raw",
+    "batteryHighWarning": "battery_high_warning_raw",
+    "evBatteryLevelWarning": "ev_battery_level_warning_raw",
+    "oilPressureWarning": "oil_pressure_warning_raw",
+    "oilPressureSwitch": "oil_pressure_switch_raw",
+    "globalServWarning": "global_service_warning_raw",
+    "globalStopWarning": "global_stop_warning_raw",
+    "parkingLightWarning": "parking_light_warning_raw",
+    "lampRequest": "lamp_request_raw",
+    "afuFailure": "afu_failure_raw",
+    "evAlertCrbsFailureDisplay": "ev_alert_crbs_failure_display_raw",
+}
+WHEELS = {"fl": "front_left", "fr": "front_right", "rl": "rear_left", "rr": "rear_right"}
 
 
 async def async_setup_entry(hass, config, async_add_entities):
@@ -27,11 +47,23 @@ async def async_setup_entry(hass, config, async_add_entities):
     imperial_distance = config.data.get("imperial_distance", False)
 
     for vehicle in data:
+        is_ze2 = data[vehicle].is_ze2_leaf
+        if is_ze2:
+            entities.append(RepeatClimateTargetSensor(coordinator, data[vehicle]))
+            # Grey Car returns "invalid"; do not present that as a closed sunroof.
+            entities.append(RawDiagnosticSensor(coordinator, data[vehicle], "security_status", "sunroofStatus", "sunroof_status_raw"))
+            for field, name in RAW_LAMPS.items():
+                entities.append(RawDiagnosticSensor(coordinator, data[vehicle], "warning_lamps", field, name))
+            for prefix, position in WHEELS.items():
+                entities.append(TyrePressureSensor(coordinator, data[vehicle], prefix, position))
+                # The meaning of the per-wheel status codes is still undocumented.
+                entities.append(RawDiagnosticSensor(coordinator, data[vehicle], "tyre_readings",
+                                                    prefix + "Status", f"{position}_tyre_status_raw"))
         entities.append(TimestampSensor(coordinator, data[vehicle], 'last_updated', 'last_updated', 'mdi:clock-time-eleven-outline'))
 
         if Feature.BATTERY_STATUS in data[vehicle].features or data[vehicle].range_hvac_on is not None:
             entities.append(RangeSensor(coordinator, data[vehicle], True, imperial_distance))
-        if Feature.BATTERY_STATUS in data[vehicle].features:
+        if Feature.BATTERY_STATUS in data[vehicle].features or (is_ze2 and data[vehicle].battery_level is not None):
             entities.append(BatteryLevelSensor(coordinator, data[vehicle]))
         if data[vehicle].charge_time_required_to_full[ChargingSpeed.NORMAL] is not None:
             entities += [ChargeTimeRequiredSensor(coordinator, data[vehicle], ChargingSpeed.NORMAL),
@@ -40,13 +72,13 @@ async def async_setup_entry(hass, config, async_add_entities):
             entities.append(ChargeTimeRequiredSensor(coordinator, data[vehicle], ChargingSpeed.ADAPTIVE))
         if data[vehicle].range_hvac_off is not None:
             entities.append(RangeSensor(coordinator, data[vehicle], False, imperial_distance))
-        if data[vehicle].fuel_autonomy is not None:
+        if not is_ze2 and data[vehicle].fuel_autonomy is not None:
             entities.append(FuelRangeSensor(coordinator, data[vehicle], imperial_distance))
-        if data[vehicle].fuel_quantity is not None and Feature.BATTERY_STATUS not in data[vehicle].features:
+        if not is_ze2 and data[vehicle].fuel_quantity is not None and Feature.BATTERY_STATUS not in data[vehicle].features:
             entities.append(FuelQuantitySensor(coordinator, data[vehicle]))
-        if data[vehicle].fuel_level is not None:
+        if not is_ze2 and data[vehicle].fuel_level is not None:
             entities.append(FuelLevelSensor(coordinator, data[vehicle]))
-        if data[vehicle].internal_temperature is not None:
+        if is_ze2 or data[vehicle].internal_temperature is not None:
             entities.append(InternalTemperatureSensor(coordinator, data[vehicle]))
         if data[vehicle].external_temperature is not None:
             entities.append(ExternalTemperatureSensor(coordinator, data[vehicle]))
@@ -66,6 +98,51 @@ async def async_setup_entry(hass, config, async_add_entities):
         entities.append(OdometerSensor(coordinator, data[vehicle], imperial_distance))
 
     async_add_entities(entities, update_before_add=True)
+
+
+class RawDiagnosticSensor(KamereonEntity, SensorEntity):
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator, vehicle, source, field, name):
+        super().__init__(coordinator, vehicle)
+        self._source = source
+        self._field = field
+        self._attr_translation_key = name
+
+    @property
+    def native_value(self):
+        return getattr(self.vehicle, self._source).get(self._field)
+
+
+class TyrePressureSensor(KamereonEntity, SensorEntity):
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_device_class = SensorDeviceClass.PRESSURE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = UnitOfPressure.BAR
+    _attr_suggested_unit_of_measurement = UnitOfPressure.BAR
+
+    def __init__(self, coordinator, vehicle, prefix, position):
+        super().__init__(coordinator, vehicle)
+        self._field = prefix + "Pressure"
+        # The translation key also forms the existing entity registry unique ID.
+        self._attr_translation_key = f"{position}_tyre_pressure_raw"
+
+    @property
+    def native_value(self):
+        millibars = self.vehicle.tyre_readings.get(self._field)
+        if type(millibars) not in (int, float) or not math.isfinite(millibars) or millibars < 0:
+            return None
+        return millibars / 1000
+
+
+class RepeatClimateTargetSensor(KamereonEntity, SensorEntity):
+    _attr_translation_key = "repeat_climate_target"
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+
+    @property
+    def native_value(self):
+        return self.vehicle.repeat_climate_settings.get("globalTargetTemperature")
 
 
 class BatteryLevelSensor(KamereonEntity, SensorEntity):
